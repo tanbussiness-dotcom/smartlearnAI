@@ -5,8 +5,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { SearchIcon, ArrowRight, LoaderCircle } from 'lucide-react';
-import { collection, doc, writeBatch, updateDoc } from 'firebase/firestore';
+import { Search as SearchIcon, ArrowRight, LoaderCircle } from 'lucide-react';
+import { collection, doc, writeBatch } from 'firebase/firestore';
 import { motion } from 'framer-motion';
 
 import { Input } from '@/components/ui/input';
@@ -180,6 +180,8 @@ export default function SearchPage() {
             const taskRef = doc(dailyTasksCollection);
             batch.set(taskRef, { ...task, status: 'To Learn'});
         }
+        
+        // This is the critical change: ensure batch.commit() is properly handled.
         await batch.commit().catch(serverError => {
             const permissionError = new FirestorePermissionError({
               path: dailyTasksCollection.path,
@@ -200,7 +202,7 @@ export default function SearchPage() {
 
     } catch (error) {
       console.error('Failed to generate and store roadmap:', error);
-      // Check if the error is a FirestorePermissionError re-thrown from our catch block
+      // This catch block will now receive permission errors from the batch commit.
       if (!(error instanceof FirestorePermissionError)) {
         toast({
           variant: 'destructive',
@@ -308,3 +310,5 @@ export default function SearchPage() {
     </motion.div>
   );
 }
+
+    
