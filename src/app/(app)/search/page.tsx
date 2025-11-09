@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SearchIcon, ArrowRight, LoaderCircle } from 'lucide-react';
-import { collection, doc, writeBatch } from 'firebase/firestore';
+import { collection, doc, writeBatch, updateDoc } from 'firebase/firestore';
 import { motion } from 'framer-motion';
 
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { generatePersonalizedLearningRoadmap } from '@/ai/flows/generate-personalized-learning-roadmap';
 import { generateLesson } from '@/ai/flows/lesson/generate-lesson';
 import { createDailyLearningTasks } from '@/ai/flows/create-daily-learning-tasks';
@@ -293,3 +293,5 @@ export default function SearchPage() {
     </motion.div>
   );
 }
+
+    
