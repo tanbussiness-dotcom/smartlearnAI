@@ -104,6 +104,10 @@ export default function SearchPage() {
         title: currentTopic,
         createdBy: user.uid,
       });
+      
+      if (!topicRef) {
+        throw new Error("Failed to create topic reference.");
+      }
       const topicId = topicRef.id;
       
       const allLessonsForTopic: { lessonId: string, title: string, description: string }[] = [];
@@ -118,6 +122,10 @@ export default function SearchPage() {
             ...step,
             status: step.stepNumber === 1 ? 'Learning' : 'Locked',
         });
+        
+        if (!roadmapStepDoc) {
+          throw new Error("Failed to create roadmap step.");
+        }
         const roadmapStepId = roadmapStepDoc.id;
 
         const lessonsResult = await generateLessonsForEachStep({
@@ -131,6 +139,10 @@ export default function SearchPage() {
                 ...lesson,
                 status: 'To Learn',
             });
+            
+            if (!lessonDocRef) {
+              throw new Error("Failed to create lesson document.");
+            }
             allLessonsForTopic.push({
                 lessonId: lessonDocRef.id,
                 title: lesson.title,
@@ -259,9 +271,9 @@ export default function SearchPage() {
             hidden: {},
           }}
         >
-          {popularTopics.map((topic) => (
+          {popularTopics.map((t) => (
             <motion.div
-              key={topic.id}
+              key={t.id}
               variants={{
                 hidden: { y: 20, opacity: 0 },
                 visible: { y: 0, opacity: 1 },
@@ -269,24 +281,24 @@ export default function SearchPage() {
             >
               <Card className="text-left hover:shadow-xl transition-shadow h-full flex flex-col">
                 <CardHeader>
-                  {topic.image && (
+                  {t.image && (
                     <div className="overflow-hidden rounded-lg mb-4">
                       <Image
-                        src={topic.image.imageUrl}
-                        alt={topic.title}
+                        src={t.image.imageUrl}
+                        alt={t.title}
                         width={400}
                         height={300}
-                        data-ai-hint={topic.image.imageHint}
+                        data-ai-hint={t.image.imageHint}
                         className="object-cover aspect-[4/3]"
                       />
                     </div>
                   )}
-                  <CardTitle className="font-headline">{topic.title}</CardTitle>
-                  <CardDescription>{topic.description}</CardDescription>
+                  <CardTitle className="font-headline">{t.title}</CardTitle>
+                  <CardDescription>{t.description}</CardDescription>
                 </CardHeader>
                 <CardFooter className="mt-auto">
                   <Button variant="ghost" asChild className="-ml-4">
-                    <Link href={`/roadmap/${topic.id}`}>
+                    <Link href={`/roadmap/${t.id}`}>
                       Start Learning <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
@@ -299,3 +311,5 @@ export default function SearchPage() {
     </motion.div>
   );
 }
+
+    
