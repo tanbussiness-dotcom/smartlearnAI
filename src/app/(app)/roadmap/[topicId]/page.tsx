@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from "react";
@@ -32,7 +31,7 @@ type Lesson = {
 };
 
 type Step = {
-  id: string;
+  id:string;
   stepNumber: number;
   stepTitle: string;
   description: string;
@@ -92,9 +91,9 @@ const LessonList = ({ lessons, topicId, roadmapId }: { lessons: Lesson[], topicI
 );
 
 
-export default function RoadmapPage({ params }: { params: { topic: string } }) { // topic is now topicId
+export default function RoadmapPage({ params }: { params: { topicId: string } }) {
   const firestore = useFirestore();
-  const topicId = params.topic;
+  const { topicId } = params;
 
   const [topicTitle, setTopicTitle] = useState('');
   const [roadmap, setRoadmap] = useState<Step[]>([]);

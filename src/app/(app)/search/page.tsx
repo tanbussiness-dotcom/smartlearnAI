@@ -286,7 +286,7 @@ export default function SearchPage() {
                 </CardHeader>
                 <CardFooter className="mt-auto">
                   <Button variant="ghost" asChild className="-ml-4">
-                    <Link href={topic.href}>
+                    <Link href={`/roadmap/${topic.id}`}>
                       Start Learning <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
