@@ -127,7 +127,7 @@ export default function LessonPage() {
                       
                       if (!nextStepSnapshot.empty) {
                           const nextStepDoc = nextStepSnapshot.docs[0];
-                          const nextStepLessonsQuery = query(collection(firestore, nextStepDoc.ref, 'lessons'), limit(1));
+                          const nextStepLessonsQuery = query(collection(nextStepDoc.ref, 'lessons'), limit(1));
                           const nextStepLessonsSnapshot = await getDocs(nextStepLessonsQuery);
                           if (!nextStepLessonsSnapshot.empty) {
                               const firstLessonOfNextStep = nextStepLessonsSnapshot.docs[0];
@@ -291,3 +291,5 @@ export default function LessonPage() {
     </motion.div>
   );
 }
+
+    
