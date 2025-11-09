@@ -1,3 +1,7 @@
+
+'use client';
+
+import { useState } from "react";
 import Link from "next/link";
 import {
   Accordion,
@@ -13,7 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CheckCircle, Circle, PlayCircle, Lock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
@@ -102,6 +106,25 @@ const getLessonIcon = (status: Lesson["status"]) => {
   }
 };
 
+const LessonList = ({ lessons }: { lessons: Lesson[] }) => (
+    <ul className="space-y-3 pt-2">
+        {lessons.length > 0 ? lessons.map(lesson => (
+            <li key={lesson.id} className="flex items-center">
+                <Link href={`/lesson/${lesson.id}`} className="flex-1">
+                    <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted transition-colors">
+                        {getLessonIcon(lesson.status)}
+                        <span className={`flex-1 ${lesson.status === 'Learned' ? 'line-through text-muted-foreground' : ''}`}>
+                            {lesson.title}
+                        </span>
+                    </div>
+                </Link>
+            </li>
+        )) : (
+            <p className="text-sm text-muted-foreground text-center py-4">No lessons in this category.</p>
+        )}
+    </ul>
+);
+
 
 export default function RoadmapPage({ params }: { params: { topic: string } }) {
   const topicTitle = decodeURIComponent(params.topic)
@@ -111,6 +134,10 @@ export default function RoadmapPage({ params }: { params: { topic: string } }) {
 
   const completedSteps = mockRoadmap.filter(s => s.status === 'Learned').length;
   const progress = (completedSteps / mockRoadmap.length) * 100;
+  
+  const [activeStep, setActiveStep] = useState<string | undefined>(
+    mockRoadmap.find(s => s.status === 'Learning')?.id
+  );
 
   return (
     <div className="container mx-auto py-8">
@@ -130,49 +157,54 @@ export default function RoadmapPage({ params }: { params: { topic: string } }) {
       <div className="relative">
         <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-border -z-10"></div>
         <div className="space-y-8">
-        {mockRoadmap.map((step) => (
-          <div key={step.id} className="flex items-start gap-6">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-card border shadow-sm shrink-0">
-                {getStepIcon(step.status)}
+        <Accordion type="single" collapsible defaultValue={activeStep} onValueChange={setActiveStep} className="w-full space-y-8">
+          {mockRoadmap.map((step) => (
+            <div key={step.id} className="flex items-start gap-6">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-card border shadow-sm shrink-0">
+                  {getStepIcon(step.status)}
+              </div>
+              <Card className="flex-1">
+                  <AccordionItem value={step.id} className="border-b-0">
+                      <AccordionTrigger className="p-6 hover:no-underline" disabled={step.status === 'Locked'}>
+                          <div className="flex justify-between items-center w-full">
+                              <div>
+                                  <CardTitle className="font-headline text-left">{`Step ${step.stepNumber}: ${step.title}`}</CardTitle>
+                                  <CardDescription className="mt-1 text-left">{step.description}</CardDescription>
+                              </div>
+                                <div className="flex items-center gap-2 mr-4">
+                                  {step.status === 'Learning' && <Badge variant="default">Current</Badge>}
+                                  {step.status === 'Locked' && <Badge variant="outline">Locked</Badge>}
+                                  {step.status === 'Learned' && <Badge variant="secondary">Completed</Badge>}
+                                </div>
+                          </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-6 pb-6">
+                          <Tabs defaultValue="all">
+                              <TabsList className="grid w-full grid-cols-4">
+                                <TabsTrigger value="all">All</TabsTrigger>
+                                <TabsTrigger value="To Learn">To Learn</TabsTrigger>
+                                <TabsTrigger value="Learning">Learning</TabsTrigger>
+                                <TabsTrigger value="Learned">Learned</TabsTrigger>
+                              </TabsList>
+                              <TabsContent value="all">
+                                <LessonList lessons={step.lessons} />
+                              </TabsContent>
+                              <TabsContent value="To Learn">
+                                <LessonList lessons={step.lessons.filter(l => l.status === 'To Learn')} />
+                              </TabsContent>
+                              <TabsContent value="Learning">
+                                <LessonList lessons={step.lessons.filter(l => l.status === 'Learning')} />
+                              </TabsContent>
+                              <TabsContent value="Learned">
+                                <LessonList lessons={step.lessons.filter(l => l.status === 'Learned')} />
+                              </TabsContent>
+                            </Tabs>
+                      </AccordionContent>
+                  </AccordionItem>
+              </Card>
             </div>
-            <Card className="flex-1">
-                <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <CardTitle className="font-headline">{`Step ${step.stepNumber}: ${step.title}`}</CardTitle>
-                            <CardDescription className="mt-1">{step.description}</CardDescription>
-                        </div>
-                        {step.status === 'Learning' && <Badge variant="default">Current</Badge>}
-                        {step.status === 'Locked' && <Badge variant="outline">Locked</Badge>}
-                         {step.status === 'Learned' && <Badge variant="secondary">Completed</Badge>}
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <Accordion type="single" collapsible disabled={step.status === 'Locked'}>
-                        <AccordionItem value="lessons" className="border-none">
-                            <AccordionTrigger>Show Lessons</AccordionTrigger>
-                            <AccordionContent>
-                                <ul className="space-y-3 pt-2">
-                                    {step.lessons.map(lesson => (
-                                        <li key={lesson.id} className="flex items-center">
-                                            <Link href={`/lesson/${lesson.id}`} className="flex-1">
-                                                <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted transition-colors">
-                                                    {getLessonIcon(lesson.status)}
-                                                    <span className={`flex-1 ${lesson.status === 'Learned' ? 'line-through text-muted-foreground' : ''}`}>
-                                                        {lesson.title}
-                                                    </span>
-                                                </div>
-                                            </Link>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
-                </CardContent>
-            </Card>
-          </div>
-        ))}
+          ))}
+        </Accordion>
         </div>
       </div>
     </div>
