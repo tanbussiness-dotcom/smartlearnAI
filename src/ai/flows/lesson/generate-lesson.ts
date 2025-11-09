@@ -17,7 +17,7 @@ import {z} from 'genkit';
 import { getFirestore, collectionGroup, query, where, limit, getDocs } from 'firebase/firestore';
 import { initializeApp, getApps } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
-import { FirestorePermissionError, errorEmitter } from '@/firebase';
+import { ServerFirestorePermissionError } from '@/firebase/server-errors';
 
 import {searchSources} from './search-sources';
 import {synthesizeLesson} from './synthesize-lesson';
@@ -130,15 +130,20 @@ const generateLessonFlow = ai.defineFlow(
             created_at: new Date().toISOString(), // Set a new creation date
           };
         }
-    } catch (serverError) {
-        // This is a critical addition. If getDocs fails, we create and emit a contextual error.
-        const permissionError = new FirestorePermissionError({
-            path: 'lessons', // It's a collectionGroup query, so the path is generic
+    } catch (serverError: any) {
+        // This is a critical addition. If getDocs fails on the server, we log a detailed server error
+        // and throw a generic error to the client.
+        const permissionError = new ServerFirestorePermissionError({
+            path: 'lessons (collectionGroup)', // It's a collectionGroup query, so the path is generic
             operation: 'list',
+            serverDetails: serverError.message,
         });
-        errorEmitter.emit('permission-error', permissionError);
-        // Re-throw the error to stop the flow execution.
-        throw serverError;
+        
+        // Log the detailed error on the server for debugging
+        console.error(permissionError.message);
+        
+        // Re-throw a generic error that is safe to send to the client.
+        throw new Error('A server-side Firestore permission error occurred while checking for cached lessons.');
     }
 
 

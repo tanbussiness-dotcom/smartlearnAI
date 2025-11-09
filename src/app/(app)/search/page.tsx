@@ -202,15 +202,23 @@ export default function SearchPage() {
 
     } catch (error) {
       console.error('Failed to generate and store roadmap:', error);
-      // This catch block will now receive permission errors from the batch commit.
-      if (!(error instanceof FirestorePermissionError)) {
+      
+      // Check if the error message indicates a server-side permission error
+      if (error instanceof Error && error.message.includes('server-side Firestore permission error')) {
+        toast({
+          variant: 'destructive',
+          title: 'Server Error',
+          description: "A permission error occurred on the server while generating the lesson. Please check server logs for details.",
+        });
+      } else if (!(error instanceof FirestorePermissionError)) {
+        // Generic catch-all for other errors
         toast({
           variant: 'destructive',
           title: 'Generation Failed',
-          description:
-            'There was an error generating your learning roadmap. Please try again.',
+          description: 'There was an error generating your learning roadmap. Please try again.',
         });
       }
+      // If it IS a FirestorePermissionError, the global listener will handle it.
       setLoading(false);
     } 
   };
@@ -310,5 +318,3 @@ export default function SearchPage() {
     </motion.div>
   );
 }
-
-    
