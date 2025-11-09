@@ -4,8 +4,6 @@
  * @fileOverview Generates quizzes for knowledge assessment based on detailed lesson content.
  *
  * - generateQuizForLesson - A function that handles the quiz generation process.
- * - GenerateQuizForLessonInput - The input type for the generateQuizForLesson function.
- * - GenerateQuizForLessonOutput - The return type for the generateQuizForLesson function.
  */
 
 import {ai} from '@/ai/genkit';

@@ -5,18 +5,16 @@
  * The flow takes a topic and a learning phase as input and returns a list of 10-15 relevant web sources.
  *
  * @exports searchSources - The main function to find learning sources for a given topic and phase.
- * @exports SearchSourcesInput - The input type for the searchSources function.
- * @exports SearchSourcesOutput - The output type for the searchSources function.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const SearchSourcesInputSchema = z.object({
+const SearchSourcesInputSchema = z.object({
   topic: z.string().describe('The topic of study (e.g., "React Hooks", "Quantum Physics").'),
   phase: z.string().describe('The learning phase (e.g., "Beginner", "Intermediate", "Advanced").'),
 });
-export type SearchSourcesInput = z.infer<typeof SearchSourcesInputSchema>;
+type SearchSourcesInput = z.infer<typeof SearchSourcesInputSchema>;
 
 const SourceSchema = z.object({
   title: z.string().describe('The descriptive title of the source.'),
@@ -26,10 +24,10 @@ const SourceSchema = z.object({
   relevance: z.number().min(0.0).max(1.0).describe('A score from 0.0 to 1.0 indicating relevance to the topic and phase.'),
 });
 
-export const SearchSourcesOutputSchema = z.object({
+const SearchSourcesOutputSchema = z.object({
   sources: z.array(SourceSchema).describe('An array of 10-15 reputable information sources.'),
 });
-export type SearchSourcesOutput = z.infer<typeof SearchSourcesOutputSchema>;
+type SearchSourcesOutput = z.infer<typeof SearchSourcesOutputSchema>;
 
 
 export async function searchSources(input: SearchSourcesInput): Promise<SearchSourcesOutput> {

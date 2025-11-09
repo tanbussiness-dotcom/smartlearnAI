@@ -7,8 +7,6 @@
  * It returns a validation score and identifies any questions that are deemed irrelevant.
  *
  * @exports validateQuizContent - The main function to validate a quiz.
- * @exports ValidateQuizContentInputSchema - The Zod schema for the flow's input.
- * @exports ValidateQuizContentOutputSchema - The Zod schema for the flow's output.
  */
 
 import { ai } from '@/ai/genkit';
@@ -23,7 +21,7 @@ const QuestionSchema = z.object({
 });
 
 // Input schema for the validation flow.
-export const ValidateQuizContentInputSchema = z.object({
+const ValidateQuizContentInputSchema = z.object({
   lesson_content: z
     .string()
     .describe('The full text content of the lesson.'),
@@ -31,7 +29,7 @@ export const ValidateQuizContentInputSchema = z.object({
     .array(QuestionSchema)
     .describe('The array of quiz questions to be validated.'),
 });
-export type ValidateQuizContentInput = z.infer<
+type ValidateQuizContentInput = z.infer<
   typeof ValidateQuizContentInputSchema
 >;
 
@@ -48,7 +46,7 @@ const InvalidQuestionSchema = z.object({
 });
 
 // Output schema for the validation flow.
-export const ValidateQuizContentOutputSchema = z.object({
+const ValidateQuizContentOutputSchema = z.object({
   relevance_score: z
     .number()
     .min(0)
@@ -68,7 +66,7 @@ export const ValidateQuizContentOutputSchema = z.object({
     .boolean()
     .describe('A flag indicating if the quiz requires manual review (true if relevance_score < 0.8).')
 });
-export type ValidateQuizContentOutput = z.infer<
+type ValidateQuizContentOutput = z.infer<
   typeof ValidateQuizContentOutputSchema
 >;
 

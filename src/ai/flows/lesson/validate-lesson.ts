@@ -6,20 +6,39 @@
  * plagiarism, and logical errors. It returns a validation result object.
  *
  * @exports validateLesson - The main function to validate a lesson draft.
- * @exports ValidateLessonInput - The input type for the validateLesson function.
- * @exports ValidateLessonOutput - The output type for the validateLesson function.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {SynthesizeLessonOutputSchema} from './synthesize-lesson';
 
-export const ValidateLessonInputSchema = z.object({
+const OutputSourceSchema = z.object({
+    title: z.string().describe("The title of the source."),
+    url: z.string().url().describe("The URL of the source."),
+    domain: z.string().describe("The domain of the source."),
+    type: z.enum(['article', 'doc', 'tutorial', 'video']).describe("The type of content."),
+    short_note: z.string().describe("A brief note on why this source is relevant or useful (1-2 sentences)."),
+});
+
+const VideoSchema = z.object({
+    title: z.string().describe("The title of the video."),
+    url: z.string().url().describe("The original YouTube watch URL (not an embed link)."),
+    channel: z.string().describe("The name of the YouTube channel, if available."),
+});
+
+const SynthesizeLessonOutputSchema = z.object({
+  title: z.string().describe('A clear and concise title for the lesson.'),
+  overview: z.string().describe('A short introductory paragraph that summarizes the main content of the lesson.'),
+  content: z.string().describe('The full lesson content in Markdown or HTML format, between 800 and 1200 words, with clear sections and practical examples.'),
+  sources: z.array(OutputSourceSchema).describe('A curated list of the most reliable sources used for synthesis.'),
+  videos: z.array(VideoSchema).describe('A list of relevant videos found in the sources.'),
+});
+
+const ValidateLessonInputSchema = z.object({
   lessonDraft: SynthesizeLessonOutputSchema.describe('The lesson object to be validated.'),
 });
-export type ValidateLessonInput = z.infer<typeof ValidateLessonInputSchema>;
+type ValidateLessonInput = z.infer<typeof ValidateLessonInputSchema>;
 
-export const ValidateLessonOutputSchema = z.object({
+const ValidateLessonOutputSchema = z.object({
   valid: z.boolean().describe('A boolean indicating if the lesson is considered valid and ready for use.'),
   confidence_score: z.number().min(0).max(1).describe('A score from 0.0 to 1.0 representing the confidence in the lesson\'s quality.'),
   issues: z.array(
@@ -29,7 +48,7 @@ export const ValidateLessonOutputSchema = z.object({
     })
   ).describe('A list of issues found in the lesson draft. Empty if the lesson is valid.'),
 });
-export type ValidateLessonOutput = z.infer<typeof ValidateLessonOutputSchema>;
+type ValidateLessonOutput = z.infer<typeof ValidateLessonOutputSchema>;
 
 export async function validateLesson(input: ValidateLessonInput): Promise<ValidateLessonOutput> {
   return validateLessonFlow(input);

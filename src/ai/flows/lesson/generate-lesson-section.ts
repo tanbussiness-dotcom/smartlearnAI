@@ -6,15 +6,13 @@
  * part of a larger lesson, ensuring clarity and the inclusion of practical examples.
  *
  * @exports generateLessonSection - The main function to generate a lesson section.
- * @exports GenerateLessonSectionInputSchema - The Zod schema for the flow's input.
- * @exports GenerateLessonSectionOutputSchema - The Zod schema for the flow's output.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 
 // Defines the schema for the flow's input.
-export const GenerateLessonSectionInputSchema = z.object({
+const GenerateLessonSectionInputSchema = z.object({
   topic: z.string().describe('The overall topic of the lesson (e.g., "Python Data Structures").'),
   section: z
     .string()
@@ -22,10 +20,10 @@ export const GenerateLessonSectionInputSchema = z.object({
       'The specific section title to generate content for (e.g., "Working with Dictionaries").'
     ),
 });
-export type GenerateLessonSectionInput = z.infer<typeof GenerateLessonSectionInputSchema>;
+type GenerateLessonSectionInput = z.infer<typeof GenerateLessonSectionInputSchema>;
 
 // Defines the schema for the flow's output.
-export const GenerateLessonSectionOutputSchema = z.object({
+const GenerateLessonSectionOutputSchema = z.object({
   section_title: z
     .string()
     .describe('The title of the generated section, matching the input.'),
@@ -35,7 +33,7 @@ export const GenerateLessonSectionOutputSchema = z.object({
       'The detailed content for the section, in Markdown format, between 300 and 400 words.'
     ),
 });
-export type GenerateLessonSectionOutput = z.infer<typeof GenerateLessonSectionOutputSchema>;
+type GenerateLessonSectionOutput = z.infer<typeof GenerateLessonSectionOutputSchema>;
 
 export async function generateLessonSection(
   input: GenerateLessonSectionInput

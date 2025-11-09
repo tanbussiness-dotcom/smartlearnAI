@@ -10,8 +10,6 @@
  * such as saving to a database.
  *
  * @exports generateLesson - The main orchestrator function.
- * @exports GenerateLessonInput - The input type for the generateLesson function.
- * @exports GenerateLessonOutput - The output type for the generateLesson function.
  */
 
 import {ai} from '@/ai/genkit';
@@ -19,25 +17,62 @@ import {z} from 'genkit';
 import { getFirestore, collectionGroup, query, where, limit, getDocs } from 'firebase/firestore';
 
 
-import {searchSources, SearchSourcesInputSchema} from './search-sources';
+import {searchSources} from './search-sources';
 import {synthesizeLesson} from './synthesize-lesson';
-import {validateLesson, ValidateLessonOutputSchema} from './validate-lesson';
-import {SynthesizeLessonOutputSchema} from './synthesize-lesson';
+import {validateLesson} from './validate-lesson';
+
+const SearchSourcesInputSchema = z.object({
+  topic: z.string().describe('The topic of study (e.g., "React Hooks", "Quantum Physics").'),
+  phase: z.string().describe('The learning phase (e.g., "Beginner", "Intermediate", "Advanced").'),
+});
+
+const OutputSourceSchema = z.object({
+    title: z.string().describe("The title of the source."),
+    url: z.string().url().describe("The URL of the source."),
+    domain: z.string().describe("The domain of the source."),
+    type: z.enum(['article', 'doc', 'tutorial', 'video']).describe("The type of content."),
+    short_note: z.string().describe("A brief note on why this source is relevant or useful (1-2 sentences)."),
+});
+
+const VideoSchema = z.object({
+    title: z.string().describe("The title of the video."),
+    url: z.string().url().describe("The original YouTube watch URL (not an embed link)."),
+    channel: z.string().describe("The name of the YouTube channel, if available."),
+});
+
+const SynthesizeLessonOutputSchema = z.object({
+  title: z.string().describe('A clear and concise title for the lesson.'),
+  overview: z.string().describe('A short introductory paragraph that summarizes the main content of the lesson.'),
+  content: z.string().describe('The full lesson content in Markdown or HTML format, between 800 and 1200 words, with clear sections and practical examples.'),
+  sources: z.array(OutputSourceSchema).describe('A curated list of the most reliable sources used for synthesis.'),
+  videos: z.array(VideoSchema).describe('A list of relevant videos found in the sources.'),
+});
+
+const ValidateLessonOutputSchema = z.object({
+  valid: z.boolean().describe('A boolean indicating if the lesson is considered valid and ready for use.'),
+  confidence_score: z.number().min(0).max(1).describe('A score from 0.0 to 1.0 representing the confidence in the lesson\'s quality.'),
+  issues: z.array(
+    z.object({
+      type: z.string().describe('The type of issue found (e.g., "Factual Error", "Plagiarism Concern", "Clarity").'),
+      detail: z.string().describe('A detailed description of the specific issue.'),
+    })
+  ).describe('A list of issues found in the lesson draft. Empty if the lesson is valid.'),
+});
 
 // Input schema for the orchestrator flow.
-export const GenerateLessonInputSchema = SearchSourcesInputSchema.extend({
+const GenerateLessonInputSchema = SearchSourcesInputSchema.extend({
   userId: z.string().describe('The ID of the user requesting the lesson.'),
 });
-export type GenerateLessonInput = z.infer<typeof GenerateLessonInputSchema>;
+type GenerateLessonInput = z.infer<typeof GenerateLessonInputSchema>;
 
 // The final output schema, combining synthesis and validation results.
-export const GenerateLessonOutputSchema = z.object({
+const GenerateLessonOutputSchema = z.object({
   lesson: SynthesizeLessonOutputSchema,
   validation: ValidateLessonOutputSchema,
   created_by: z.string(),
   created_at: z.string().datetime(),
 });
-export type GenerateLessonOutput = z.infer<typeof GenerateLessonOutputSchema>;
+type GenerateLessonOutput = z.infer<typeof GenerateLessonOutputSchema>;
 
 export async function generateLesson(input: GenerateLessonInput): Promise<GenerateLessonOutput> {
   return generateLessonFlow(input);

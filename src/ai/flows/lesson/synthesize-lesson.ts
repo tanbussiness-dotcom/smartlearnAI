@@ -7,8 +7,6 @@
  * a curated list of sources, and a list of relevant videos.
  *
  * @exports synthesizeLesson - The main function to synthesize a lesson.
- * @exports SynthesizeLessonInput - The input type for the synthesizeLesson function.
- * @exports SynthesizeLessonOutput - The output type for the synthesizeLesson function.
  */
 
 import {ai} from '@/ai/genkit';
@@ -24,12 +22,12 @@ const InputSourceSchema = z.object({
 });
 
 // Defines the schema for the flow's input.
-export const SynthesizeLessonInputSchema = z.object({
+const SynthesizeLessonInputSchema = z.object({
   topic: z.string().describe('The main topic of the lesson to be synthesized.'),
   phase: z.string().describe('The learning phase, e.g., "Beginner", "Intermediate", "Advanced".'),
   sources: z.array(InputSourceSchema).describe('An array of source materials to use for synthesis.'),
 });
-export type SynthesizeLessonInput = z.infer<typeof SynthesizeLessonInputSchema>;
+type SynthesizeLessonInput = z.infer<typeof SynthesizeLessonInputSchema>;
 
 
 // Defines the schema for a single source to be included in the output.
@@ -49,14 +47,14 @@ const VideoSchema = z.object({
 });
 
 // Defines the schema for the flow's final output.
-export const SynthesizeLessonOutputSchema = z.object({
+const SynthesizeLessonOutputSchema = z.object({
   title: z.string().describe('A clear and concise title for the lesson.'),
   overview: z.string().describe('A short introductory paragraph that summarizes the main content of the lesson.'),
   content: z.string().describe('The full lesson content in Markdown or HTML format, between 800 and 1200 words, with clear sections and practical examples.'),
   sources: z.array(OutputSourceSchema).describe('A curated list of the most reliable sources used for synthesis.'),
   videos: z.array(VideoSchema).describe('A list of relevant videos found in the sources.'),
 });
-export type SynthesizeLessonOutput = z.infer<typeof SynthesizeLessonOutputSchema>;
+type SynthesizeLessonOutput = z.infer<typeof SynthesizeLessonOutputSchema>;
 
 export async function synthesizeLesson(input: SynthesizeLessonInput): Promise<SynthesizeLessonOutput> {
   return synthesizeLessonFlow(input);

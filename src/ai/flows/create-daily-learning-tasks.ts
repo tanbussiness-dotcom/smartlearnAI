@@ -4,7 +4,7 @@
  * @fileOverview This file defines the Genkit flow for creating daily learning tasks based on the lessons.
  *
  * The flow takes a list of lessons and divides them into daily tasks for the user.
- * It exports the `createDailyLearningTasks` function, the `CreateDailyLearningTasksInput` type, and the `CreateDailyLearningTasksOutput` type.
+ * It exports the `createDailyLearningTasks` function.
  */
 
 import {ai} from '@/ai/genkit';
@@ -22,7 +22,7 @@ const CreateDailyLearningTasksInputSchema = z.object({
   topicId: z.string().describe('The ID of the topic.'),
   tasksPerDay: z.number().default(3).describe('The number of tasks to assign per day.'),
 });
-export type CreateDailyLearningTasksInput = z.infer<typeof CreateDailyLearningTasksInputSchema>;
+type CreateDailyLearningTasksInput = z.infer<typeof CreateDailyLearningTasksInputSchema>;
 
 const CreateDailyLearningTasksOutputSchema = z.array(
   z.object({
@@ -32,7 +32,7 @@ const CreateDailyLearningTasksOutputSchema = z.array(
     date: z.string().describe('The date for the task in ISO format (YYYY-MM-DD).'),
   })
 );
-export type CreateDailyLearningTasksOutput = z.infer<typeof CreateDailyLearningTasksOutputSchema>;
+type CreateDailyLearningTasksOutput = z.infer<typeof CreateDailyLearningTasksOutputSchema>;
 
 export async function createDailyLearningTasks(input: CreateDailyLearningTasksInput): Promise<CreateDailyLearningTasksOutput> {
   return createDailyLearningTasksFlow(input);

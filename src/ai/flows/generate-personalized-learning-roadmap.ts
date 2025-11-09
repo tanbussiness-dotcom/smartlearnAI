@@ -4,8 +4,6 @@
  * @fileOverview Generates a personalized learning roadmap for a given topic.
  *
  * - generatePersonalizedLearningRoadmap - A function that generates a learning roadmap.
- * - GeneratePersonalizedLearningRoadmapInput - The input type for the generatePersonalizedLearningRoadmap function.
- * - GeneratePersonalizedLearningRoadmapOutput - The return type for the generatePersonalizedLearningRoadmap function.
  */
 
 import {ai} from '@/ai/genkit';
