@@ -214,6 +214,44 @@
         "date",
         "status"
       ]
+    },
+    "Progress": {
+      "title": "Progress",
+      "type": "object",
+      "description": "Tracks a user's progress on a specific topic, including completed lessons and test scores.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the progress entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user."
+        },
+        "topicId": {
+          "type": "string",
+          "description": "The ID of the topic."
+        },
+        "completedLessons": {
+          "type": "array",
+          "description": "A list of IDs of completed lessons.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "testScores": {
+          "type": "object",
+          "description": "A map of test IDs to scores.",
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "topicId"
+      ]
     }
   },
   "auth": {
@@ -233,13 +271,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profiles, including name, email, and progress. It facilitates path-based ownership for user-specific data.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            }
-          ]
+          "description": "Stores user profiles, including name, email, and progress. It facilitates path-based ownership for user-specific data."
         }
       },
       {
@@ -249,13 +281,7 @@
           "schema": {
             "$ref": "#/backend/entities/Topic"
           },
-          "description": "Stores learning topics, including title, creator, and associated roadmaps. Includes denormalized `createdBy` field for authorization independence.",
-          "params": [
-            {
-              "name": "topicId",
-              "description": "The unique identifier for the topic."
-            }
-          ]
+          "description": "Stores learning topics, including title, creator, and associated roadmaps. Includes denormalized `createdBy` field for authorization independence."
         }
       },
       {
@@ -265,17 +291,7 @@
           "schema": {
             "$ref": "#/backend/entities/Roadmap"
           },
-          "description": "Stores learning roadmaps associated with a specific topic, detailing the steps for each roadmap.",
-          "params": [
-            {
-              "name": "topicId",
-              "description": "The unique identifier for the topic."
-            },
-            {
-              "name": "roadmapId",
-              "description": "The unique identifier for the roadmap."
-            }
-          ]
+          "description": "Stores learning roadmaps associated with a specific topic, detailing the steps for each roadmap."
         }
       },
       {
@@ -285,21 +301,7 @@
           "schema": {
             "$ref": "#/backend/entities/Lesson"
           },
-          "description": "Stores lessons associated with a specific roadmap step, providing details like title, description, YouTube link, and status.",
-          "params": [
-            {
-              "name": "topicId",
-              "description": "The unique identifier for the topic."
-            },
-            {
-              "name": "roadmapId",
-              "description": "The unique identifier for the roadmap."
-            },
-            {
-              "name": "lessonId",
-              "description": "The unique identifier for the lesson."
-            }
-          ]
+          "description": "Stores lessons associated with a specific roadmap step, providing details like title, description, YouTube link, and status."
         }
       },
       {
@@ -309,40 +311,31 @@
           "schema": {
             "$ref": "#/backend/entities/Test"
           },
-          "description": "Stores tests associated with a specific lesson, including questions.",
-          "params": [
-            {
-              "name": "lessonId",
-              "description": "The unique identifier for the lesson."
-            },
-            {
-              "name": "testId",
-              "description": "The unique identifier for the test."
-            }
-          ]
+          "description": "Stores tests associated with a specific lesson, including questions."
         }
       },
       {
-        "path": "/users/{userId}/dailyTasks/{dailyTaskId}",
+        "path": "/users/{userId}/tasks/{taskId}",
         "definition": {
           "entityName": "DailyTask",
           "schema": {
             "$ref": "#/backend/entities/DailyTask"
           },
-          "description": "Stores daily tasks assigned to users, referencing the associated topic, lesson, and date.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            },
-            {
-              "name": "dailyTaskId",
-              "description": "The unique identifier for the daily task."
-            }
-          ]
+          "description": "Stores daily tasks assigned to users, referencing the associated topic, lesson, and date."
+        }
+      },
+      {
+        "path": "/users/{userId}/progress/{topicId}",
+        "definition": {
+          "entityName": "Progress",
+          "schema": {
+            "$ref": "#/backend/entities/Progress"
+          },
+          "description": "Stores user progress for a specific topic."
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support the SmartLearn AI platform, focusing on user-specific learning paths and AI-generated content. User data is stored under `/users/{userId}`, ensuring private user data. Topics are organized under `/topics/{topicId}`, each created by a specific user, establishing a clear ownership model. The roadmap, lessons, tests and daily tasks follow a similar pattern with hierarchical paths `/topics/{topicId}/roadmaps/{roadmapId}`, `/topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}`, `/lessons/{lessonId}/tests/{testId}`, and `/users/{userId}/dailyTasks/{dailyTaskId}`. This structure facilitates easy querying and management of learning resources associated with particular topics and users. The design allows for atomic operations on user-specific data and easy scaling as the platform grows. Crucially, Authorization Independence is achieved by storing the `createdBy` field in the `Topic` documents. This denormalization avoids the need for `get()` calls in security rules when determining authorization for reading or writing topics, roadmaps, lessons and tests."
+    "reasoning": "The Firestore structure is designed to support the SmartLearn AI platform, focusing on user-specific learning paths and AI-generated content. User data is stored under `/users/{userId}`, ensuring private user data. Topics are organized under `/topics/{topicId}`, each created by a specific user, establishing a clear ownership model. The roadmap, lessons, tests and daily tasks follow a similar pattern with hierarchical paths `/topics/{topicId}/roadmaps/{roadmapId}`, `/topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}`, `/lessons/{lessonId}/tests/{testId}`, and `/users/{userId}/tasks/{taskId}`. A separate `progress` collection tracks user progress per topic. This structure facilitates easy querying and management of learning resources associated with particular topics and users. The design allows for atomic operations on user-specific data and easy scaling as the platform grows. Crucially, Authorization Independence is achieved by storing the `createdBy` field in the `Topic` documents. This denormalization avoids the need for `get()` calls in security rules when determining authorization for reading or writing topics, roadmaps, lessons and tests."
   }
 }
+    
