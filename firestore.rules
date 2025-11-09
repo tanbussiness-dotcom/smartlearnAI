@@ -20,10 +20,9 @@ service cloud.firestore {
 
     /**
      * @description Allows AI workers to query across all 'lessons' collections
-     * for caching and validation purposes.
-     * @path /users/{userId}/topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}
+     * for caching and validation purposes. This is a collection group query.
      */
-    match /users/{userId}/topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId} {
+    match /{path=**}/lessons/{lessonId} {
         allow list: if isServiceAccount() || isAIWorker();
     }
 
