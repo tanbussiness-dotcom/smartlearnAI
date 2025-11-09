@@ -20,7 +20,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { useUser, useFirestore, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, addDocumentNonBlocking, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { generatePersonalizedLearningRoadmap } from '@/ai/flows/generate-personalized-learning-roadmap';
 import { generateLesson } from '@/ai/flows/lesson/generate-lesson';
 import { createDailyLearningTasks } from '@/ai/flows/create-daily-learning-tasks';
@@ -95,6 +95,8 @@ export default function SearchPage() {
     }
 
     setLoading(true);
+    let topicId: string | undefined = undefined;
+
     try {
       // 1. Generate Roadmap
       setLoadingStep('sources');
@@ -111,7 +113,7 @@ export default function SearchPage() {
       if (!topicRef) {
         throw new Error("Failed to create topic reference.");
       }
-      const topicId = topicRef.id;
+      topicId = topicRef.id;
       
       const allLessonsForTopic: { lessonId: string, title: string, description: string }[] = [];
       
@@ -172,11 +174,21 @@ export default function SearchPage() {
 
         const dailyTasksCollection = collection(firestore, 'users', user.uid, 'dailyTasks');
         const batch = writeBatch(firestore);
+        const firstTaskData = dailyTasksResult[0];
+
         for(const task of dailyTasksResult) {
             const taskRef = doc(dailyTasksCollection);
             batch.set(taskRef, { ...task, status: 'To Learn'});
         }
-        await batch.commit();
+        await batch.commit().catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+              path: dailyTasksCollection.path,
+              operation: 'create',
+              requestResourceData: firstTaskData, // Send first task as representative data
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            throw serverError; // Re-throw to be caught by outer catch block
+        });
       }
 
       toast({
@@ -188,12 +200,15 @@ export default function SearchPage() {
 
     } catch (error) {
       console.error('Failed to generate and store roadmap:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Generation Failed',
-        description:
-          'There was an error generating your learning roadmap. Please try again.',
-      });
+      // Check if the error is a FirestorePermissionError re-thrown from our catch block
+      if (!(error instanceof FirestorePermissionError)) {
+        toast({
+          variant: 'destructive',
+          title: 'Generation Failed',
+          description:
+            'There was an error generating your learning roadmap. Please try again.',
+        });
+      }
       setLoading(false);
     } 
   };
@@ -293,5 +308,3 @@ export default function SearchPage() {
     </motion.div>
   );
 }
-
-    
