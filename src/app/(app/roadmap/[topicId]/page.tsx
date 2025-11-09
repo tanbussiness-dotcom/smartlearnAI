@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo } from "react";
@@ -23,7 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CheckCircle, Circle, PlayCircle, Lock, LoaderCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useCollection, useUser } from "@/firebase";
-import { useFirestore } from "@/firebase/provider";
+import { useFirestore, useMemoFirebase } from "@/firebase/provider";
 import { collection, query, orderBy, doc, getDoc, getDocs } from "firebase/firestore";
 import { useParams } from "next/navigation";
 
@@ -104,7 +103,7 @@ export default function RoadmapPage() {
   const [roadmap, setRoadmap] = useState<Step[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const roadmapsQuery = useMemo(() => {
+  const roadmapsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.uid || !topicId) return null;
     return query(collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps'), orderBy('stepNumber'));
   }, [firestore, user, topicId]);
@@ -276,3 +275,5 @@ export default function RoadmapPage() {
     </div>
   );
 }
+
+    
