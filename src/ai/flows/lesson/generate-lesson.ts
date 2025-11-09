@@ -51,14 +51,14 @@ const generateLessonFlow = ai.defineFlow(
   },
   async (input) => {
     const { topic, phase, userId } = input;
-    const firestore = getFirestore();
-
+    
     // Caching logic: Check if a similar lesson already exists and is ready.
-    // Note: This uses a collectionGroup query, which may require a Firestore index.
+    // This uses a collectionGroup query, which requires a Firestore index.
+    // The index to create is: collection: 'lessons', fields: 'topic' (asc), 'phase' (asc), 'status' (asc).
+    const firestore = getFirestore();
     const lessonsRef = collectionGroup(firestore, 'lessons');
     const cacheQuery = query(
       lessonsRef,
-      where('userId', '==', userId),
       where('topic', '==', topic),
       where('phase', '==', phase),
       where('status', '==', 'ready'),
@@ -69,7 +69,7 @@ const generateLessonFlow = ai.defineFlow(
     if (!cachedSnapshot.empty) {
       console.log(`[generateLesson] Step 0: Found cached lesson for topic "${topic}"`);
       const cachedData = cachedSnapshot.docs[0].data();
-      // Reconstruct the output to match the flow's schema
+      // Reconstruct the output to match the flow's schema, updating user and timestamp
       return {
         lesson: {
             title: cachedData.title,
@@ -83,8 +83,8 @@ const generateLessonFlow = ai.defineFlow(
             confidence_score: 1.0,
             issues: [],
         },
-        created_by: cachedData.userId,
-        created_at: cachedData.createdAt,
+        created_by: userId, // Attribute to the current user
+        created_at: new Date().toISOString(), // Set a new creation date
       };
     }
 
@@ -111,7 +111,6 @@ const generateLessonFlow = ai.defineFlow(
     console.log('[generateLesson] Step 2.5: Performing basic validation...');
     const wordCount = lessonDraft.content.split(/\s+/).length;
     const hasHeadings = /^(##|###) /m.test(lessonDraft.content);
-    const hasKeywords = /(ví dụ|ứng dụng|kết luận)/i.test(lessonDraft.content);
 
     if (wordCount < 800 || !hasHeadings) {
         let feedback = `Validation failed: `;
@@ -119,11 +118,9 @@ const generateLessonFlow = ai.defineFlow(
         if (!hasHeadings) feedback += `Content is missing proper section headings (## or ###). `;
         
         console.error(`[generateLesson] Step 2.5 FAILED: ${feedback}`);
-        // In a more robust implementation, we might retry synthesis with expanded prompts.
-        // For now, we will throw an error to indicate failure.
         throw new Error(feedback);
     }
-    console.log(`[generateLesson] Step 2.5 COMPLETED: Basic checks passed (Words: ${wordCount}, Headings: ${hasHeadings}, Keywords: ${hasKeywords}).`);
+    console.log(`[generateLesson] Step 2.5 COMPLETED: Basic checks passed (Words: ${wordCount}, Headings: ${hasHeadings}).`);
 
 
     // Step 3: Validate the synthesized lesson using AI
@@ -131,10 +128,9 @@ const generateLessonFlow = ai.defineFlow(
     const validationResult = await validateLesson({ lessonDraft });
     console.log(`[generateLesson] Step 3 COMPLETED: Validation result: ${validationResult.valid} (Confidence: ${validationResult.confidence_score})`);
 
-    // Step 4: Prepare the final lesson object for the client to save
-    // The actual saving logic will be handled on the client-side to keep
-    // AI flows focused on generation and validation.
-
+    // The actual saving logic is handled on the client-side after this flow returns.
+    // The returned object will be saved to the user's specific lesson document.
+    // If it's a new lesson, it effectively populates our cache for future users.
     return {
       lesson: lessonDraft,
       validation: validationResult,
