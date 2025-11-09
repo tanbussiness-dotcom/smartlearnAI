@@ -26,7 +26,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { CheckCircle, XCircle, ArrowRight, LoaderCircle } from "lucide-react";
-import { useFirestore, useUser } from "@/firebase";
+import { useFirestore, useUser, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
 import { collection, doc, addDoc, getDocs, query, limit, getDoc, writeBatch, where, updateDoc } from "firebase/firestore";
 import { generateQuizForLesson } from "@/ai/flows/generate-quizzes-for-knowledge-assessment";
 import { useToast } from "@/hooks/use-toast";
@@ -131,7 +131,7 @@ export default function QuizPage() {
                 lesson_content: lessonContent,
             });
           
-            const newTestDocRef = await addDoc(testsRef, {
+            const newTestDocRef = await addDocumentNonBlocking(testsRef, {
                 ...quizResultFromAI,
                 createdBy: user.uid,
                 createdAt: new Date().toISOString(),
@@ -141,7 +141,7 @@ export default function QuizPage() {
             testResult = quizResultFromAI;
 
             // Update the lesson with the new quiz_id and set it to ready
-            await updateDoc(lessonDocRef, {
+            updateDocumentNonBlocking(lessonDocRef, {
                 quiz_id: testId,
                 quiz_ready: true,
             });
