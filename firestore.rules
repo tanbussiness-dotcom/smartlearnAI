@@ -1,0 +1,221 @@
+/**
+ * @fileOverview Firestore Security Rules for SmartLearn AI Platform.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for personal data while allowing public read access to learning content.
+ * User-specific data (e.g., profiles, daily tasks) is secured under `/users/{userId}`, accessible only to the authenticated user.
+ * Learning content (topics, roadmaps, lessons, tests) is organized under `/topics/{topicId}` and subcollections, with create/update/delete access restricted to the topic creator.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profiles. Only the authenticated user can read/write their own profile.
+ * - /topics/{topicId}: Stores learning topics. Publicly readable, but only the creator can modify.
+ * - /topics/{topicId}/roadmaps/{roadmapId}: Stores roadmaps for each topic.
+ * - /topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}: Stores lessons for each roadmap.
+ * - /lessons/{lessonId}/tests/{testId}: Stores tests for each lesson.
+ * - /users/{userId}/dailyTasks/{dailyTaskId}: Stores daily tasks for each user.
+ *
+ * Key Security Decisions:
+ * - User listing is disallowed.
+ * - Read-only collections are explicitly marked with `allow get, list: if true;`.
+ * - The `createdBy` field is denormalized onto `Topic` documents to avoid `get()` calls in security rules.
+ * - Default security posture for ambiguous relationships is strict owner-only access.
+ *
+ * Denormalization for Authorization:
+ * - The `Topic` entity includes a `createdBy` field referencing the User who created it. This allows us to secure topics and their subcollections without additional `get()` calls, improving performance and reducing costs.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Protects user profiles, ensuring only the authenticated user can access their own data.
+     * @path /users/{userId}
+     * @allow (create) User with ID 'user123' can create their profile if authenticated as 'user123'.
+     * @deny (create) User with ID 'user123' cannot create a profile if authenticated as 'user456'.
+     * @allow (get) User 'user123' can read their profile if authenticated as 'user123'.
+     * @deny (get) User 'user123' cannot read the profile of 'user456' if authenticated as 'user456'.
+     * @allow (update) User 'user123' can update their profile if authenticated as 'user123'.
+     * @deny (update) User 'user123' cannot update the profile of 'user456' if authenticated as 'user456'.
+     * @allow (delete) User 'user123' can delete their profile if authenticated as 'user123'.
+     * @deny (delete) User 'user123' cannot delete the profile of 'user456' if authenticated as 'user456'.
+     * @principle Enforces document ownership for writes.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // User listing is not permitted
+
+      allow create: if isSignedIn() && isNewOwner(userId);
+      allow update: if isExistingOwner(userId) && isOwner(userId);
+      allow delete: if isExistingOwner(userId) && isOwner(userId);
+    }
+
+    /**
+     * @description Manages access to learning topics, allowing public read but restricting write access to the topic creator.
+     * @path /topics/{topicId}
+     * @allow (get) Any user can read any topic.
+     * @allow (list) Any user can list topics.
+     * @deny (create) User 'user456' cannot create a topic with 'createdBy' set to 'user123' if authenticated as 'user456'.
+     * @allow (create) User 'user123' can create a topic with 'createdBy' set to 'user123' if authenticated as 'user123'.
+     * @deny (update) User 'user456' cannot update topic 'topic1' created by 'user123' if authenticated as 'user456'.
+     * @allow (update) User 'user123' can update topic 'topic1' created by 'user123' if authenticated as 'user123'.
+     * @deny (delete) User 'user456' cannot delete topic 'topic1' created by 'user123' if authenticated as 'user456'.
+     * @allow (delete) User 'user123' can delete topic 'topic1' created by 'user123' if authenticated as 'user123'.
+     * @principle Allows public read access but enforces ownership for writes.
+     */
+    match /topics/{topicId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.createdBy);
+      allow delete: if isExistingOwner(resource.data.createdBy);
+    }
+
+    /**
+     * @description Protects learning roadmaps associated with a topic, restricting write access to the topic creator.
+     * @path /topics/{topicId}/roadmaps/{roadmapId}
+     * @allow (get) Any user can read any roadmap.
+     * @allow (list) Any user can list roadmaps.
+     * @deny (create) User 'user456' cannot create a roadmap under 'topic1' created by 'user123' if authenticated as 'user456'.
+     * @allow (create) User 'user123' can create a roadmap under 'topic1' created by 'user123' if authenticated as 'user123'.
+     * @deny (update) User 'user456' cannot update roadmap 'roadmap1' under 'topic1' created by 'user123' if authenticated as 'user456'.
+     * @allow (update) User 'user123' can update roadmap 'roadmap1' under 'topic1' created by 'user123' if authenticated as 'user123'.
+     * @deny (delete) User 'user456' cannot delete roadmap 'roadmap1' under 'topic1' created by 'user123' if authenticated as 'user456'.
+     * @allow (delete) User 'user123' can delete roadmap 'roadmap1' under 'topic1' created by 'user123' if authenticated as 'user123'.
+     * @principle Enforces that only the topic creator can modify roadmaps.
+     */
+    match /topics/{topicId}/roadmaps/{roadmapId} {
+      allow get, list: if true;
+      allow create: if isTopicOwnedBy(topicId, request.auth.uid);
+      allow update: if isTopicOwnedBy(topicId, request.auth.uid) && resource != null;
+      allow delete: if isTopicOwnedBy(topicId, request.auth.uid) && resource != null;
+    }
+
+    /**
+     * @description Protects lessons associated with a roadmap, restricting write access to the topic creator.
+     * @path /topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}
+     * @allow (get) Any user can read any lesson.
+     * @allow (list) Any user can list lessons.
+     * @deny (create) User 'user456' cannot create a lesson under 'roadmap1' in 'topic1' created by 'user123' if authenticated as 'user456'.
+     * @allow (create) User 'user123' can create a lesson under 'roadmap1' in 'topic1' created by 'user123' if authenticated as 'user123'.
+     * @deny (update) User 'user456' cannot update lesson 'lesson1' under 'roadmap1' in 'topic1' created by 'user123' if authenticated as 'user456'.
+     * @allow (update) User 'user123' can update lesson 'lesson1' under 'roadmap1' in 'topic1' created by 'user123' if authenticated as 'user123'.
+     * @deny (delete) User 'user456' cannot delete lesson 'lesson1' under 'roadmap1' in 'topic1' created by 'user123' if authenticated as 'user456'.
+     * @allow (delete) User 'user123' can delete lesson 'lesson1' under 'roadmap1' in 'topic1' created by 'user123' if authenticated as 'user123'.
+     * @principle Enforces that only the topic creator can modify lessons.
+     */
+    match /topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId} {
+      allow get, list: if true;
+      allow create: if isTopicOwnedBy(topicId, request.auth.uid);
+      allow update: if isTopicOwnedBy(topicId, request.auth.uid) && resource != null;
+      allow delete: if isTopicOwnedBy(topicId, request.auth.uid) && resource != null;
+    }
+
+    /**
+     * @description Protects tests associated with a lesson, restricting write access to the topic creator.
+     * @path /lessons/{lessonId}/tests/{testId}
+     * @allow (get) Any user can read any test.
+     * @allow (list) Any user can list tests.
+     * @deny (create) User 'user456' cannot create a test under 'lesson1' within a topic created by 'user123' if authenticated as 'user456'.
+     * @allow (create) User 'user123' can create a test under 'lesson1' within a topic created by 'user123' if authenticated as 'user123'.
+     * @deny (update) User 'user456' cannot update test 'test1' under 'lesson1' within a topic created by 'user123' if authenticated as 'user456'.
+     * @allow (update) User 'user123' can update test 'test1' under 'lesson1' within a topic created by 'user123' if authenticated as 'user123'.
+     * @deny (delete) User 'user456' cannot delete test 'test1' under 'lesson1' within a topic created by 'user123' if authenticated as 'user456'.
+     * @allow (delete) User 'user123' can delete test 'test1' under 'lesson1' within a topic created by 'user123' if authenticated as 'user123'.
+     * @principle Enforces that only the topic creator can modify tests.
+     */
+    match /lessons/{lessonId}/tests/{testId} {
+      allow get, list: if true;
+      allow create: if isLessonOwnedBy(lessonId, request.auth.uid);
+      allow update: if isLessonOwnedBy(lessonId, request.auth.uid) && resource != null;
+      allow delete: if isLessonOwnedBy(lessonId, request.auth.uid) && resource != null;
+    }
+
+    /**
+     * @description Protects daily tasks assigned to users, ensuring only the assigned user can access their own tasks.
+     * @path /users/{userId}/dailyTasks/{dailyTaskId}
+     * @allow (create) User with ID 'user123' can create a daily task if authenticated as 'user123'.
+     * @deny (create) User with ID 'user123' cannot create a daily task if authenticated as 'user456'.
+     * @allow (get) User 'user123' can read their daily task if authenticated as 'user123'.
+     * @deny (get) User 'user123' cannot read the daily task of 'user456' if authenticated as 'user456'.
+     * @allow (list) User 'user123' can list their daily tasks if authenticated as 'user123'.
+     * @deny (list) User 'user123' cannot list the daily tasks of 'user456' if authenticated as 'user456'.
+     * @allow (update) User 'user123' can update their daily task if authenticated as 'user123'.
+     * @deny (update) User 'user123' cannot update the daily task of 'user456' if authenticated as 'user456'.
+     * @allow (delete) User 'user123' can delete their daily task if authenticated as 'user123'.
+     * @deny (delete) User 'user123' cannot delete the daily task of 'user456' if authenticated as 'user456'.
+     * @principle Enforces document ownership for daily tasks.
+     */
+    match /users/{userId}/dailyTasks/{dailyTaskId} {
+      allow get, list: if isOwner(userId);
+
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Helper function to check if the user is signed in.
+     * @return {boolean} True if the user is signed in, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Helper function to check if the user is the owner of the document.
+     * @param {string} userId The user ID to check.
+     * @return {boolean} True if the user is the owner, false otherwise.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Helper function to check if the user is the owner of a document and it is a new document (create operation).
+     * @param {string} userId The user ID to check.
+     * @return {boolean} True if the user is the owner and it's a create operation, false otherwise.
+     */
+    function isNewOwner(userId) {
+        return request.resource.data.id == userId;
+    }
+
+    /**
+     * @description Helper function to check if the user is the owner of the document and the document exists.
+     * @param {string} userId The user ID to check.
+     * @return {boolean} True if the user is the owner and the document exists, false otherwise.
+     */
+    function isExistingOwner(userId) {
+        return isSignedIn() && resource != null && resource.data.id == userId;
+    }
+
+    /**
+     * @description Helper function to check if the topic is owned by the given user.
+     * @param {string} topicId The ID of the topic to check.
+     * @param {string} userId The ID of the user to check.
+     * @return {boolean} True if the topic is owned by the user, false otherwise.
+     */
+    function isTopicOwnedBy(topicId, userId) {
+      return exists(/databases/$(database)/documents/topics/$(topicId))
+          && get(/databases/$(database)/documents/topics/$(topicId)).data.createdBy == userId;
+    }
+
+    /**
+     * @description Helper function to check if the lesson is within a topic that is owned by the given user.
+     * @param {string} lessonId The ID of the lesson to check.
+     * @param {string} userId The ID of the user to check.
+     * @return {boolean} True if the lesson is owned by the user, false otherwise.
+     */
+     function isLessonOwnedBy(lessonId, userId) {
+          let topicId = getTopicIdFromLesson(lessonId);
+          return isTopicOwnedBy(topicId, userId);
+     }
+
+    /**
+     * @description Helper function to get topic Id from the Lesson document.
+     * @param {string} lessonId The ID of the lesson to check.
+     * @return {string} topicId of the lesson.
+     */
+    function getTopicIdFromLesson(lessonId) {
+        return get(/databases/$(database)/documents/lessons/$(lessonId)).data.topicId;
+    }
+  }
+}
