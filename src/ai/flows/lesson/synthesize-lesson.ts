@@ -62,14 +62,14 @@ export async function synthesizeLesson(input: SynthesizeLessonInput): Promise<Sy
 
 const synthesizePrompt = ai.definePrompt({
   name: 'synthesizeLessonPrompt',
-  input: {schema: SynthesizeLessonInputSchema},
+  input: {schema: SynthesizeLessonInputSchema.extend({ sourcesString: z.string() })},
   output: {schema: SynthesizeLessonOutputSchema},
   prompt: `You are an expert instructional designer and technical writer. Your task is to synthesize a high-quality, comprehensive, and structured learning lesson from the provided sources about the given topic and phase.
 
 Topic: {{{topic}}}
 Phase: {{{phase}}}
 Sources:
-{{{jsonStringify sources}}}
+{{{sourcesString}}}
 
 **Your response MUST follow these instructions:**
 
@@ -100,7 +100,10 @@ const synthesizeLessonFlow = ai.defineFlow(
     outputSchema: SynthesizeLessonOutputSchema,
   },
   async input => {
-    const {output} = await synthesizePrompt(input);
+    const {output} = await synthesizePrompt({
+        ...input,
+        sourcesString: JSON.stringify(input.sources),
+    });
     if (!output) {
       throw new Error("Failed to get a valid response from the AI model.");
     }
