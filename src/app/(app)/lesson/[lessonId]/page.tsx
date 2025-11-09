@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Check, ArrowRight, FileText, ChevronRight, LoaderCircle } from "lucide-react";
-import { useFirestore, useUser } from "@/firebase";
+import { useFirestore, useUser, updateDocumentNonBlocking } from "@/firebase";
 import { collection, doc, getDocs, updateDoc, writeBatch, getDoc, query, where, limit } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
@@ -142,7 +142,7 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
     setIsCompleting(true);
     try {
       const lessonRef = doc(firestore, 'topics', lesson.topicId, 'roadmaps', lesson.roadmapId, 'lessons', lessonId);
-      await updateDoc(lessonRef, {
+      updateDocumentNonBlocking(lessonRef, {
         status: "Learned"
       });
       toast({ title: 'Lesson Completed!', description: 'Great job! Your progress has been updated.' });

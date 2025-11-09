@@ -26,7 +26,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { CheckCircle, XCircle, ArrowRight, LoaderCircle } from "lucide-react";
-import { useFirestore, useUser } from "@/firebase";
+import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
 import { collection, doc, addDoc, getDocs, query, limit, getDoc, writeBatch, where } from "firebase/firestore";
 import { generateQuizzesForKnowledgeAssessment } from "@/ai/flows/generate-quizzes-for-knowledge-assessment";
 import { useToast } from "@/hooks/use-toast";
@@ -127,7 +127,7 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
           
           quizQuestions = quizResult.quiz.questions;
 
-          const newTestDocRef = await addDoc(testsRef, {
+          const newTestDocRef = await addDocumentNonBlocking(testsRef, {
             lessonId: lessonId,
             questions: quizQuestions,
             createdBy: user.uid,

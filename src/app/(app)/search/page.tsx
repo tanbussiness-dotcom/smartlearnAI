@@ -20,7 +20,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
 import { generatePersonalizedLearningRoadmap } from '@/ai/flows/generate-personalized-learning-roadmap';
 import { generateLessonsForEachStep } from '@/ai/flows/generate-lessons-for-each-step';
 import { createDailyLearningTasks } from '@/ai/flows/create-daily-learning-tasks';
@@ -100,7 +100,7 @@ export default function SearchPage() {
 
       // 2. Create Topic in Firestore
       setLoadingMessage('Step 2 of 4: Saving your new topic...');
-      const topicRef = await addDoc(collection(firestore, 'topics'), {
+      const topicRef = await addDocumentNonBlocking(collection(firestore, 'topics'), {
         title: currentTopic,
         createdBy: user.uid,
       });
@@ -114,7 +114,7 @@ export default function SearchPage() {
         setLoadingMessage(`Step 3 of 4: Generating lessons for step ${index + 1}/${totalSteps}...`);
         
         const roadmapStepsCollection = collection(firestore, 'topics', topicId, 'roadmaps');
-        const roadmapStepDoc = await addDoc(roadmapStepsCollection, {
+        const roadmapStepDoc = await addDocumentNonBlocking(roadmapStepsCollection, {
             ...step,
             status: step.stepNumber === 1 ? 'Learning' : 'Locked',
         });
@@ -127,7 +127,7 @@ export default function SearchPage() {
 
         const lessonsCollection = collection(firestore, 'topics', topicId, 'roadmaps', roadmapStepId, 'lessons');
         for (const lesson of lessonsResult) {
-            const lessonDocRef = await addDoc(lessonsCollection, {
+            const lessonDocRef = await addDocumentNonBlocking(lessonsCollection, {
                 ...lesson,
                 status: 'To Learn',
             });
@@ -151,7 +151,7 @@ export default function SearchPage() {
 
         const tasksCollection = collection(firestore, 'users', user.uid, 'tasks');
         for(const task of dailyTasksResult) {
-            await addDoc(tasksCollection, { ...task, status: 'To Learn'});
+            addDocumentNonBlocking(tasksCollection, { ...task, status: 'To Learn'});
         }
       }
 
