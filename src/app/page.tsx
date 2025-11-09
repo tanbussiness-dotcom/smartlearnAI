@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import Logo from '@/components/logo';
 import { Button } from '@/components/ui/button';
-import { Search } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { HomePageSearch } from './home-page-search';
 
 export default function HomePage() {
   return (
@@ -27,37 +26,7 @@ export default function HomePage() {
             <p className="mt-4 max-w-[700px] mx-auto text-lg text-muted-foreground md:text-xl">
               SmartLearn AI generates personalized learning paths on any topic, helping you master new skills faster than ever before.
             </p>
-            <div className="mt-8 relative max-w-xl mx-auto">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="e.g., 'Learn Python from scratch' or 'Basics of cooking'"
-                  className="w-full pl-12 pr-28 h-14 text-lg rounded-full shadow-lg"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                        const target = e.target as HTMLInputElement;
-                        const query = encodeURIComponent(target.value);
-                        window.location.href = `/search?topic=${query}`;
-                    }
-                  }}
-                />
-                <Button 
-                  type="submit" 
-                  size="lg" 
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full h-10" 
-                  asChild
-                >
-                  <Link href="/search" onClick={(e) => {
-                      const input = (e.target as HTMLElement).parentElement?.parentElement?.querySelector('input');
-                      if (input?.value) {
-                          e.currentTarget.href = `/search?topic=${encodeURIComponent(input.value)}`;
-                      } else {
-                        e.preventDefault();
-                        input?.focus();
-                      }
-                  }}>Generate</Link>
-                </Button>
-            </div>
+            <HomePageSearch />
           </div>
         </section>
       </main>
