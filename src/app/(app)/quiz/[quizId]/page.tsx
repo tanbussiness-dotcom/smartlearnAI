@@ -27,7 +27,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { CheckCircle, XCircle, ArrowRight, LoaderCircle } from "lucide-react";
-import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
+import { useFirestore, useUser } from "@/firebase";
 import { collection, doc, addDoc, getDocs, query, limit, getDoc, writeBatch, where } from "firebase/firestore";
 import { generateQuizzesForKnowledgeAssessment } from "@/ai/flows/generate-quizzes-for-knowledge-assessment";
 import { useToast } from "@/hooks/use-toast";
@@ -74,7 +74,6 @@ export default function QuizPage() {
       try {
         
         let lessonData: any = null;
-        let lessonDocRef: any = null;
         let topicId: string | null = null;
         let roadmapId: string | null = null;
         let stepTitle: string | null = null;
@@ -88,7 +87,6 @@ export default function QuizPage() {
             const lessonSnap = await getDoc(lessonRef);
             if (lessonSnap.exists()) {
               lessonData = lessonSnap.data();
-              lessonDocRef = lessonSnap.ref;
               topicId = topicDoc.id;
               roadmapId = roadmapDoc.id;
               const roadmapSnap = await getDoc(roadmapDoc.ref);
@@ -100,7 +98,7 @@ export default function QuizPage() {
           if (lessonData) break;
         }
 
-        if (!lessonData || !topicId || !roadmapId || !lessonDocRef) {
+        if (!lessonData || !topicId || !roadmapId) {
             toast({ variant: 'destructive', title: 'Lesson not found' });
             return;
         }
@@ -130,7 +128,7 @@ export default function QuizPage() {
           
           quizQuestions = quizResult.quiz.questions;
 
-          const newTestDocRef = await addDoc(collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapId, 'lessons', lessonId, 'tests'), {
+          const newTestDocRef = await addDoc(testsRef, {
             lessonId: lessonId,
             questions: quizQuestions,
             createdBy: user.uid,
@@ -303,12 +301,6 @@ export default function QuizPage() {
 
       <AnimatePresence>
         {showResult && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 z-50"
-          >
             <AlertDialog open={showResult} onOpenChange={setShowResult}>
                 <AlertDialogContent asChild>
                   <motion.div
@@ -344,7 +336,6 @@ export default function QuizPage() {
                   </motion.div>
                 </AlertDialogContent>
             </AlertDialog>
-          </motion.div>
         )}
       </AnimatePresence>
     </div>
