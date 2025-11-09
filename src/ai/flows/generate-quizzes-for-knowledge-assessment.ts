@@ -43,7 +43,7 @@ const prompt = ai.definePrompt({
   output: {schema: GenerateQuizzesForKnowledgeAssessmentOutputSchema},
   prompt: `You are an expert quiz generator for educational content.
 
-You will generate a quiz with 5 questions related to a lesson.
+You will generate a quiz with 10 questions related to a lesson.
 Each question should have 4 options, with one correct answer.
 
 Topic: {{{topic}}}
@@ -79,6 +79,31 @@ Output the quiz in the following JSON format:
         "question": "Question 5",
         "options": ["Option A", "Option B", "Option C", "Option D"],
         "correctAnswer": "Option A"
+      },
+      {
+        "question": "Question 6",
+        "options": ["Option A", "Option B", "Option C", "Option D"],
+        "correctAnswer": "Option B"
+      },
+      {
+        "question": "Question 7",
+        "options": ["Option A", "Option B", "Option C", "Option D"],
+        "correctAnswer": "Option C"
+      },
+      {
+        "question": "Question 8",
+        "options": ["Option A", "Option B", "Option C", "Option D"],
+        "correctAnswer": "Option D"
+      },
+      {
+        "question": "Question 9",
+        "options": ["Option A", "Option B", "Option C", "Option D"],
+        "correctAnswer": "Option A"
+      },
+      {
+        "question": "Question 10",
+        "options": ["Option A", "Option B", "Option C", "Option D"],
+        "correctAnswer": "Option B"
       }
     ]
   }
