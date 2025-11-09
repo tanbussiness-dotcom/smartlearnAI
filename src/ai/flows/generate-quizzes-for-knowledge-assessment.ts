@@ -1,124 +1,84 @@
 'use server';
 
 /**
- * @fileOverview Generates quizzes for knowledge assessment after each learning step.
+ * @fileOverview Generates quizzes for knowledge assessment based on detailed lesson content.
  *
- * - generateQuizzesForKnowledgeAssessment - A function that handles the quiz generation process.
- * - GenerateQuizzesForKnowledgeAssessmentInput - The input type for the generateQuizzesForKnowledgeAssessment function.
- * - GenerateQuizzesForKnowledgeAssessmentOutput - The return type for the generateQuizzesForKnowledgeAssessment function.
+ * - generateQuizForLesson - A function that handles the quiz generation process.
+ * - GenerateQuizForLessonInput - The input type for the generateQuizForLesson function.
+ * - GenerateQuizForLessonOutput - The return type for the generateQuizForLesson function.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-const GenerateQuizzesForKnowledgeAssessmentInputSchema = z.object({
-  lessonId: z.string().describe('The ID of the lesson to generate a quiz for.'),
-  topic: z.string().describe('The topic of the lesson.'),
-  stepTitle: z.string().describe('The title of the learning step.'),
-  lessonTitle: z.string().describe('The title of the lesson.'),
-  lessonDescription: z.string().describe('The description of the lesson.'),
+const GenerateQuizForLessonInputSchema = z.object({
+  lesson_id: z.string().describe('The ID of the lesson to generate a quiz for.'),
+  lesson_content: z.string().describe('The detailed content of the lesson to generate questions from.'),
 });
-export type GenerateQuizzesForKnowledgeAssessmentInput = z.infer<typeof GenerateQuizzesForKnowledgeAssessmentInputSchema>;
+export type GenerateQuizForLessonInput = z.infer<typeof GenerateQuizForLessonInputSchema>;
 
-const GenerateQuizzesForKnowledgeAssessmentOutputSchema = z.object({
-  quiz: z.object({
-    questions: z.array(
-      z.object({
-        question: z.string().describe('The quiz question.'),
-        options: z.array(z.string()).describe('The possible answers for the question.'),
-        correctAnswer: z.string().describe('The correct answer to the question.'),
-      })
-    ).describe('A list of quiz questions.'),
-  }).describe('The generated quiz.'),
+const QuestionSchema = z.object({
+    question: z.string().describe('The quiz question.'),
+    options: z.array(z.string()).length(4).describe('An array of 4 possible answers for the question.'),
+    correct_answer: z.string().describe('The correct answer to the question.'),
+    explanation: z.string().describe('A detailed explanation of why the answer is correct, quoting or referencing the lesson content.'),
 });
-export type GenerateQuizzesForKnowledgeAssessmentOutput = z.infer<typeof GenerateQuizzesForKnowledgeAssessmentOutputSchema>;
 
-export async function generateQuizzesForKnowledgeAssessment(input: GenerateQuizzesForKnowledgeAssessmentInput): Promise<GenerateQuizzesForKnowledgeAssessmentOutput> {
-  return generateQuizzesForKnowledgeAssessmentFlow(input);
+const GenerateQuizForLessonOutputSchema = z.object({
+  lesson_id: z.string().describe('The ID of the lesson this quiz belongs to.'),
+  questions: z.array(QuestionSchema).length(10).describe('A list of 10 quiz questions.'),
+  pass_score: z.number().default(70).describe('The passing score percentage for the quiz.'),
+});
+export type GenerateQuizForLessonOutput = z.infer<typeof GenerateQuizForLessonOutputSchema>;
+
+export async function generateQuizForLesson(input: GenerateQuizForLessonInput): Promise<GenerateQuizForLessonOutput> {
+  return generateQuizForLessonFlow(input);
 }
 
 const prompt = ai.definePrompt({
-  name: 'generateQuizzesForKnowledgeAssessmentPrompt',
-  input: {schema: GenerateQuizzesForKnowledgeAssessmentInputSchema},
-  output: {schema: GenerateQuizzesForKnowledgeAssessmentOutputSchema},
-  prompt: `You are an expert quiz generator for educational content.
+  name: 'generateQuizForLessonPrompt',
+  input: {schema: GenerateQuizForLessonInputSchema},
+  output: {schema: GenerateQuizForLessonOutputSchema},
+  prompt: `You are an expert quiz creator for educational material. Your task is to generate a 10-question multiple-choice quiz based *only* on the provided lesson content.
 
-You will generate a quiz with 10 questions related to a lesson.
-Each question should have 4 options, with one correct answer.
+**Instructions:**
+1.  Read the entire 'lesson_content' provided below.
+2.  Create exactly 10 questions that directly test the knowledge within the lesson.
+3.  The questions must be distributed as follows:
+    - 5 questions to test understanding of core concepts and definitions.
+    - 3 questions to test the application of knowledge (e.g., using concepts in a hypothetical scenario based on the lesson's examples).
+    - 2 questions to test common mistakes or misconceptions related to the content.
+4.  For each question, provide:
+    - A clear and unambiguous 'question'.
+    - An array of 4 'options'.
+    - The 'correct_answer' which must be one of the provided options.
+    - A detailed 'explanation' that clarifies why the answer is correct and why the others are not, referencing concepts from the lesson content.
+5.  All terminology, definitions, and examples used in the questions and explanations must align with the provided 'lesson_content'. Do not introduce external information.
+6.  The final output must be a single, valid JSON object conforming to the specified schema, including the 'lesson_id' from the input and a default 'pass_score' of 70.
 
-Topic: {{{topic}}}
-Step Title: {{{stepTitle}}}
-Lesson Title: {{{lessonTitle}}}
-Lesson Description: {{{lessonDescription}}}
-
-Output the quiz in the following JSON format:
-{
-  "quiz": {
-    "questions": [
-      {
-        "question": "Question 1",
-        "options": ["Option A", "Option B", "Option C", "Option D"],
-        "correctAnswer": "Option A"
-      },
-      {
-        "question": "Question 2",
-        "options": ["Option A", "Option B", "Option C", "Option D"],
-        "correctAnswer": "Option B"
-      },
-      {
-        "question": "Question 3",
-        "options": ["Option A", "Option B", "Option C", "Option D"],
-        "correctAnswer": "Option C"
-      },
-      {
-        "question": "Question 4",
-        "options": ["Option A", "Option B", "Option C", "Option D"],
-        "correctAnswer": "Option D"
-      },
-      {
-        "question": "Question 5",
-        "options": ["Option A", "Option B", "Option C", "Option D"],
-        "correctAnswer": "Option A"
-      },
-      {
-        "question": "Question 6",
-        "options": ["Option A", "Option B", "Option C", "Option D"],
-        "correctAnswer": "Option B"
-      },
-      {
-        "question": "Question 7",
-        "options": ["Option A", "Option B", "Option C", "Option D"],
-        "correctAnswer": "Option C"
-      },
-      {
-        "question": "Question 8",
-        "options": ["Option A", "Option B", "Option C", "Option D"],
-        "correctAnswer": "Option D"
-      },
-      {
-        "question": "Question 9",
-        "options": ["Option A", "Option B", "Option C", "Option D"],
-        "correctAnswer": "Option A"
-      },
-      {
-        "question": "Question 10",
-        "options": ["Option A", "Option B", "Option C", "Option D"],
-        "correctAnswer": "Option B"
-      }
-    ]
-  }
-}
+**Lesson Content:**
+'''
+{{{lesson_content}}}
+'''
 `,
 });
 
-const generateQuizzesForKnowledgeAssessmentFlow = ai.defineFlow(
+const generateQuizForLessonFlow = ai.defineFlow(
   {
-    name: 'generateQuizzesForKnowledgeAssessmentFlow',
-    inputSchema: GenerateQuizzesForKnowledgeAssessmentInputSchema,
-    outputSchema: GenerateQuizzesForKnowledgeAssessmentOutputSchema,
+    name: 'generateQuizForLessonFlow',
+    inputSchema: GenerateQuizForLessonInputSchema,
+    outputSchema: GenerateQuizForLessonOutputSchema,
   },
   async input => {
     const {output} = await prompt(input);
-    return output!;
+    if (!output) {
+      throw new Error("Failed to generate quiz from the AI model.");
+    }
+    // Ensure the lesson_id is correctly passed through and pass_score is set
+    return {
+        ...output,
+        lesson_id: input.lesson_id,
+        pass_score: 70,
+    };
   }
 );
