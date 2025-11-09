@@ -41,6 +41,7 @@ import {
   where,
   limit,
   orderBy,
+  onSnapshot,
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import React from 'react';
@@ -179,7 +180,9 @@ export default function LessonPage() {
   useEffect(() => {
     if (!firestore || !user || !lessonId) return;
 
-    const fetchLessonDetails = async () => {
+    let unsubscribe: () => void = () => {};
+
+    const setupLessonListener = async () => {
       setLoading(true);
       try {
         const topicsSnapshot = await getDocs(
@@ -210,64 +213,70 @@ export default function LessonPage() {
               'lessons',
               lessonId
             );
-            const lessonSnap = await getDoc(lessonRef);
+            
+            // Check if lesson exists once before setting up listener
+            const initialSnap = await getDoc(lessonRef);
+            if (initialSnap.exists()) {
+              found = true;
+              
+              unsubscribe = onSnapshot(lessonRef, (lessonSnap) => {
+                if (lessonSnap.exists()) {
+                  const lessonData = lessonSnap.data();
+                  const fetchedLesson: LessonInfo = {
+                    title: lessonData.title,
+                    overview:
+                      lessonData.overview ||
+                      lessonData.summary ||
+                      lessonData.description,
+                    content:
+                      lessonData.content ||
+                      lessonData.synthesized_content ||
+                      lessonData.instructions ||
+                      'Nội dung bài học chưa được cập nhật.',
+                    sources: lessonData.sources || [],
+                    videos: lessonData.videos || [],
+                    estimated_time_min: lessonData.estimated_time_min || 15,
+                    userId: user.uid,
+                    topicId: topicDoc.id,
+                    roadmapId: roadmapDoc.id,
+                    createdAt: lessonData.createdAt
+                      ? lessonData.createdAt.toDate
+                        ? lessonData.createdAt.toDate().toISOString()
+                        : lessonData.createdAt
+                      : new Date().toISOString(),
+                    isAiGenerated: !!(
+                      lessonData.content || lessonData.synthesized_content
+                    ),
+                    has_quiz: lessonData.has_quiz || false,
+                    quiz_ready: lessonData.quiz_ready || false,
+                  };
 
-            if (lessonSnap.exists()) {
-              const lessonData = lessonSnap.data();
-              // Adapt to new structure, with fallbacks for old structure
-              const fetchedLesson: LessonInfo = {
-                title: lessonData.title,
-                overview:
-                  lessonData.overview ||
-                  lessonData.summary ||
-                  lessonData.description,
-                content:
-                  lessonData.content ||
-                  lessonData.synthesized_content ||
-                  lessonData.instructions ||
-                  'Nội dung bài học chưa được cập nhật.',
-                sources: lessonData.sources || [],
-                videos: lessonData.videos || [],
-                estimated_time_min: lessonData.estimated_time_min || 15,
-                userId: user.uid,
-                topicId: topicDoc.id,
-                roadmapId: roadmapDoc.id,
-                createdAt: lessonData.createdAt
-                  ? lessonData.createdAt.toDate
-                    ? lessonData.createdAt.toDate().toISOString()
-                    : lessonData.createdAt
-                  : new Date().toISOString(),
-                isAiGenerated: !!(
-                  lessonData.content || lessonData.synthesized_content
-                ),
-                has_quiz: lessonData.has_quiz || false,
-                quiz_ready: lessonData.quiz_ready || false,
-              };
-
-              // Compatibility: If old video_links exists, convert to new video structure
-              if (
-                lessonData.video_links &&
-                lessonData.video_links.length > 0 &&
-                fetchedLesson.videos.length === 0
-              ) {
-                fetchedLesson.videos = lessonData.video_links.map(
-                  (link: string) => ({
-                    title: 'Video tham khảo',
-                    url: link,
-                    channel: 'YouTube',
-                  })
-                );
-              }
-              // Compatibility: for even older youtubeLink
-              if (lessonData.youtubeLink && fetchedLesson.videos.length === 0) {
-                fetchedLesson.videos.push({
-                  title: 'Video tham khảo',
-                  url: lessonData.youtubeLink,
-                  channel: 'YouTube',
-                });
-              }
-
-              setLesson(fetchedLesson);
+                  if (
+                    lessonData.video_links &&
+                    lessonData.video_links.length > 0 &&
+                    fetchedLesson.videos.length === 0
+                  ) {
+                    fetchedLesson.videos = lessonData.video_links.map(
+                      (link: string) => ({
+                        title: 'Video tham khảo',
+                        url: link,
+                        channel: 'YouTube',
+                      })
+                    );
+                  }
+                  if (lessonData.youtubeLink && fetchedLesson.videos.length === 0) {
+                    fetchedLesson.videos.push({
+                      title: 'Video tham khảo',
+                      url: lessonData.youtubeLink,
+                      channel: 'YouTube',
+                    });
+                  }
+                  setLesson(fetchedLesson);
+                }
+              }, (error) => {
+                  console.error('Error in lesson snapshot listener:', error);
+                  toast({ variant: 'destructive', title: 'Failed to listen for lesson updates.' });
+              });
 
               // Find next lesson logic...
               const lessonsInStepQuery = query(
@@ -281,7 +290,7 @@ export default function LessonPage() {
                   roadmapDoc.id,
                   'lessons'
                 ),
-                orderBy('title') // Assuming lessons can be ordered by title or another field
+                orderBy('title')
               );
               const lessonsInStepSnapshot = await getDocs(lessonsInStepQuery);
               const allLessonsInStep = lessonsInStepSnapshot.docs.map((d) => ({
@@ -346,7 +355,7 @@ export default function LessonPage() {
                 }
               }
 
-              found = true;
+              setLoading(false);
               break;
             }
           }
@@ -355,16 +364,20 @@ export default function LessonPage() {
 
         if (!found) {
           toast({ variant: 'destructive', title: 'Lesson not found.' });
+          setLoading(false);
         }
       } catch (error) {
         console.error('Error fetching lesson:', error);
         toast({ variant: 'destructive', title: 'Failed to load lesson.' });
-      } finally {
         setLoading(false);
       }
     };
 
-    fetchLessonDetails();
+    setupLessonListener();
+
+    return () => {
+      unsubscribe();
+    };
   }, [firestore, user, lessonId, toast]);
 
   const handleMarkAsComplete = async () => {
@@ -401,7 +414,7 @@ export default function LessonPage() {
     }
   };
 
-  if (loading) {
+  if (loading && !lesson) {
     return (
       <div className="flex items-center justify-center min-h-full py-12">
         <LoaderCircle className="h-12 w-12 animate-spin text-primary" />
