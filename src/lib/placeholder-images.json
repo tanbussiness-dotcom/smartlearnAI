@@ -1,3 +1,40 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "loginHero",
+      "description": "An abstract image representing AI and learning.",
+      "imageUrl": "https://images.unsplash.com/photo-1762329367301-9009fd143ffa?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxsZWFybmluZyUyMHRlY2hub2xvZ3l8ZW58MHx8fHwxNzYyNTk4MzYzfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "learning technology"
+    },
+    {
+      "id": "userAvatar",
+      "description": "A placeholder for a user's avatar.",
+      "imageUrl": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxwZXJzb24lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjI1OTQ3NDd8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "topicPython",
+      "description": "An image representing the Python programming language.",
+      "imageUrl": "https://images.unsplash.com/photo-1653387141060-9a9834f47777?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxjb2RlJTIwcHJvZ3JhbW1pbmd8ZW58MHx8fHwxNzYyNTg1NTU0fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "code programming"
+    },
+    {
+      "id": "topicGuitar",
+      "description": "An image of a guitar.",
+      "imageUrl": "https://images.unsplash.com/photo-1571498231303-005be085e2af?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxtdXNpYyUyMGluc3RydW1lbnR8ZW58MHx8fHwxNzYyNjY0ODMwfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "music instrument"
+    },
+    {
+      "id": "topicMarketing",
+      "description": "An image representing digital marketing concepts.",
+      "imageUrl": "https://images.unsplash.com/photo-1579226905180-636b76d96082?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxidXNpbmVzcyUyMGNoYXJ0fGVufDB8fHx8MTc2MjY0MDczNHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "business chart"
+    },
+    {
+      "id": "lessonVideoThumb",
+      "description": "A placeholder thumbnail for a lesson video.",
+      "imageUrl": "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8YWJzdHJhY3QlMjBncmFkaWVudHxlbnwwfHx8fDE3NjI2NTQ1OTd8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "abstract gradient"
+    }
+  ]
 }
