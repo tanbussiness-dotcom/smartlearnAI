@@ -85,30 +85,35 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (error: FirestoreError) => {
-        // This logic extracts the path from either a ref or a query
-        const path: string =
-          memoizedTargetRefOrQuery.type === 'collection'
-            ? (memoizedTargetRefOrQuery as CollectionReference).path
-            : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString()
+        let path: string;
+        if (memoizedTargetRefOrQuery.type === 'collection') {
+          path = (memoizedTargetRefOrQuery as CollectionReference).path;
+        } else {
+          // This is a workaround to get the path from a query.
+          // It relies on internal properties and might break in future SDK updates.
+          path = (memoizedTargetRefOrQuery as any)._query.path.segments.join('/');
+        }
 
         const contextualError = new FirestorePermissionError({
           operation: 'list',
           path,
-        })
+        });
 
-        setError(contextualError)
-        setData(null)
-        setIsLoading(false)
-
-        // trigger global error propagation
+        setError(contextualError);
+        setData(null);
+        setIsLoading(false);
+        
+        // This is crucial. It throws the detailed error which can be caught by Next.js error boundaries.
         errorEmitter.emit('permission-error', contextualError);
       }
     );
 
     return () => unsubscribe();
   }, [memoizedTargetRefOrQuery]); // Re-run if the target query/reference changes.
+
   if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
-    throw new Error(memoizedTargetRefOrQuery + ' was not properly memoized using useMemoFirebase');
+    throw new Error('useCollection query was not properly memoized using useMemoFirebase');
   }
+  
   return { data, isLoading, error };
 }
