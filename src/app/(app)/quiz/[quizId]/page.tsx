@@ -69,96 +69,126 @@ export default function QuizPage() {
     if (!firestore || !user) return;
 
     const fetchOrCreateQuiz = async () => {
-      setLoading(true);
-      
-      let lessonData: any = null;
-      let topicId: string | null = null;
-      let roadmapId: string | null = null;
-      let lessonDocRef: any = null;
+        setLoading(true);
 
-      // Find the lesson across all topics and roadmaps
-      const topicsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics'));
-      for (const topicDoc of topicsSnapshot.docs) {
-        const roadmapsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps'));
-        for (const roadmapDoc of roadmapsSnapshot.docs) {
-          const lessonRef = doc(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons', lessonId);
-          const lessonSnap = await getDoc(lessonRef);
-          if (lessonSnap.exists()) {
-            lessonData = lessonSnap.data();
-            topicId = topicDoc.id;
-            roadmapId = roadmapDoc.id;
-            lessonDocRef = lessonRef;
-            break;
-          }
+        const topicsCollectionRef = collection(firestore, 'users', user.uid, 'topics');
+        const topicsSnapshot = await getDocs(topicsCollectionRef).catch(serverError => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: topicsCollectionRef.path,
+                operation: 'list'
+            }));
+            throw serverError;
+        });
+
+        let lessonData: any = null;
+        let topicId: string | null = null;
+        let roadmapId: string | null = null;
+        let lessonDocRef: any = null;
+
+        for (const topicDoc of topicsSnapshot.docs) {
+            const roadmapsCollectionRef = collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps');
+            const roadmapsSnapshot = await getDocs(roadmapsCollectionRef).catch(serverError => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: roadmapsCollectionRef.path,
+                    operation: 'list'
+                }));
+                throw serverError;
+            });
+
+            for (const roadmapDoc of roadmapsSnapshot.docs) {
+                const currentLessonRef = doc(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons', lessonId);
+                const lessonSnap = await getDoc(currentLessonRef).catch(serverError => {
+                    errorEmitter.emit('permission-error', new FirestorePermissionError({
+                        path: currentLessonRef.path,
+                        operation: 'get'
+                    }));
+                    throw serverError;
+                });
+
+                if (lessonSnap && lessonSnap.exists()) {
+                    lessonData = lessonSnap.data();
+                    topicId = topicDoc.id;
+                    roadmapId = roadmapDoc.id;
+                    lessonDocRef = currentLessonRef;
+                    break;
+                }
+            }
+            if (lessonData) break;
         }
-        if (lessonData) break;
-      }
 
-      if (!lessonData || !topicId || !roadmapId || !lessonDocRef) {
-          toast({ variant: 'destructive', title: 'Lesson not found' });
-          router.push('/dashboard');
-          setLoading(false);
-          return;
-      }
+        if (!lessonData || !topicId || !roadmapId || !lessonDocRef) {
+            toast({ variant: 'destructive', title: 'Lesson not found' });
+            router.push('/dashboard');
+            setLoading(false);
+            return;
+        }
 
-      const testsRef = collection(lessonDocRef, 'tests');
-      let testResult;
-      let testId;
+        const testsRef = collection(lessonDocRef, 'tests');
+        let testResult;
+        let testId;
 
-      // If quiz_id exists and quiz is ready, fetch it
-      if (lessonData.quiz_id && lessonData.quiz_ready) {
-          const testDocRef = doc(testsRef, lessonData.quiz_id);
-          const existingTestSnapshot = await getDoc(testDocRef);
-          if (existingTestSnapshot.exists()) {
-              testId = existingTestSnapshot.id;
-              testResult = existingTestSnapshot.data();
-          }
-      }
+        if (lessonData.quiz_id && lessonData.quiz_ready) {
+            const testDocRef = doc(testsRef, lessonData.quiz_id);
+            const existingTestSnapshot = await getDoc(testDocRef).catch(serverError => {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: testDocRef.path,
+                    operation: 'get'
+                }));
+                throw serverError;
+            });
 
-      // If no pre-existing quiz, generate a new one
-      if (!testResult) {
-          toast({ title: 'Generating a new quiz...', description: 'This may take a moment.' });
+            if (existingTestSnapshot && existingTestSnapshot.exists()) {
+                testId = existingTestSnapshot.id;
+                testResult = existingTestSnapshot.data();
+            }
+        }
+
+        if (!testResult) {
+            toast({ title: 'Generating a new quiz...', description: 'This may take a moment.' });
+            
+            const lessonContent = lessonData.content || lessonData.synthesized_content || lessonData.instructions || "";
+            if (!lessonContent) {
+                toast({ variant: 'destructive', title: 'Cannot generate quiz', description: 'Lesson content is empty.' });
+                router.push(`/lesson/${lessonId}`);
+                setLoading(false);
+                return;
+            }
+
+            const quizResultFromAI = await generateQuizForLesson({
+                lesson_id: lessonId,
+                lesson_content: lessonContent,
+            });
+            
+            const newTestDocRef = await addDocumentNonBlocking(testsRef, {
+                ...quizResultFromAI,
+                createdBy: user.uid,
+                createdAt: new Date().toISOString(),
+            });
+
+            testId = newTestDocRef.id;
+            testResult = quizResultFromAI;
+
+            updateDocumentNonBlocking(lessonDocRef, {
+                quiz_id: testId,
+                quiz_ready: true,
+            });
+        }
+
+        if (testId && testResult) {
+            const formattedQuizData: QuizData = {
+                id: testId,
+                title: lessonData.title,
+                questions: testResult.questions.map((q: any, index: number) => ({ ...q, id: `q${index}` })),
+                topicId,
+                roadmapId,
+            };
+            setQuizData(formattedQuizData);
+        } else {
+            toast({ variant: 'destructive', title: 'Failed to load or create quiz.'});
+            router.push(`/lesson/${lessonId}`);
+        }
         
-          const lessonContent = lessonData.content || lessonData.synthesized_content || lessonData.instructions || "";
-          if (!lessonContent) {
-              toast({ variant: 'destructive', title: 'Cannot generate quiz', description: 'Lesson content is empty.' });
-              router.push(`/lesson/${lessonId}`);
-              setLoading(false);
-              return;
-          }
-
-          const quizResultFromAI = await generateQuizForLesson({
-              lesson_id: lessonId,
-              lesson_content: lessonContent,
-          });
-        
-          const newTestDocRef = await addDocumentNonBlocking(testsRef, {
-              ...quizResultFromAI,
-              createdBy: user.uid,
-              createdAt: new Date().toISOString(),
-          });
-
-          testId = newTestDocRef.id;
-          testResult = quizResultFromAI;
-
-          // Update the lesson with the new quiz_id and set it to ready
-          updateDocumentNonBlocking(lessonDocRef, {
-              quiz_id: testId,
-              quiz_ready: true,
-          });
-      }
-
-
-      const formattedQuizData: QuizData = {
-          id: testId,
-          title: lessonData.title,
-          questions: testResult.questions.map((q: any, index: number) => ({ ...q, id: `q${index}` })),
-          topicId,
-          roadmapId,
-      };
-      setQuizData(formattedQuizData);
-      setLoading(false);
-
+        setLoading(false);
     };
 
     fetchOrCreateQuiz();
