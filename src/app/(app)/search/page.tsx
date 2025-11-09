@@ -162,10 +162,10 @@ export default function SearchPage() {
             tasksPerDay: 1, // Or make this configurable
         });
 
-        const tasksCollection = collection(firestore, 'users', user.uid, 'tasks');
+        const dailyTasksCollection = collection(firestore, 'users', user.uid, 'dailyTasks');
         const batch = writeBatch(firestore);
         for(const task of dailyTasksResult) {
-            const taskRef = doc(tasksCollection);
+            const taskRef = doc(dailyTasksCollection);
             batch.set(taskRef, { ...task, status: 'To Learn'});
         }
         await batch.commit();

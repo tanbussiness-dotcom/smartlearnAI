@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -43,13 +44,6 @@
         "createdBy": {
           "type": "string",
           "description": "Reference to User. (Relationship: User 1:N Topic) The ID of the user who created the topic."
-        },
-        "roadmapIds": {
-          "type": "array",
-          "description": "References to Roadmaps. (Relationship: Topic 1:N Roadmap) List of roadmap IDs associated with this topic.",
-          "items": {
-            "type": "string"
-          }
         }
       },
       "required": [
@@ -68,10 +62,6 @@
           "type": "string",
           "description": "Unique identifier for the roadmap entity."
         },
-        "topicId": {
-          "type": "string",
-          "description": "Reference to Topic. (Relationship: Topic 1:N Roadmap) The ID of the topic this roadmap belongs to."
-        },
         "stepNumber": {
           "type": "number",
           "description": "The order number of this step in the roadmap."
@@ -83,18 +73,10 @@
         "description": {
           "type": "string",
           "description": "A description of what the step covers."
-        },
-        "lessonIds": {
-          "type": "array",
-          "description": "References to Lessons. (Relationship: Roadmap 1:N Lesson) List of lesson IDs associated with this roadmap step.",
-          "items": {
-            "type": "string"
-          }
         }
       },
       "required": [
         "id",
-        "topicId",
         "stepNumber",
         "stepTitle",
         "description"
@@ -109,10 +91,6 @@
         "id": {
           "type": "string",
           "description": "Unique identifier for the lesson entity."
-        },
-        "roadmapId": {
-          "type": "string",
-          "description": "Reference to Roadmap. (Relationship: Roadmap 1:N Lesson) The ID of the roadmap step this lesson belongs to."
         },
         "title": {
           "type": "string",
@@ -133,15 +111,10 @@
           "items": {
             "type": "string"
           }
-        },
-        "testId": {
-          "type": "string",
-          "description": "Reference to Test. (Relationship: Lesson 1:1 Test) The ID of the test associated with this lesson."
         }
       },
       "required": [
         "id",
-        "roadmapId",
         "title",
         "description",
         "status"
@@ -157,10 +130,6 @@
           "type": "string",
           "description": "Unique identifier for the test entity."
         },
-        "lessonId": {
-          "type": "string",
-          "description": "Reference to Lesson. (Relationship: Lesson 1:1 Test) The ID of the lesson this test belongs to."
-        },
         "questions": {
           "type": "array",
           "description": "An array of question objects for the test.",
@@ -171,7 +140,6 @@
       },
       "required": [
         "id",
-        "lessonId",
         "questions"
       ]
     },
@@ -184,14 +152,6 @@
         "id": {
           "type": "string",
           "description": "Unique identifier for the daily task entity."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to User. (Relationship: User 1:N DailyTask) The ID of the user assigned the task."
-        },
-        "topicId": {
-          "type": "string",
-          "description": "Reference to Topic. (Relationship: Topic 1:N DailyTask) The ID of the topic the task belongs to."
         },
         "lessonId": {
           "type": "string",
@@ -209,8 +169,6 @@
       },
       "required": [
         "id",
-        "userId",
-        "topicId",
         "lessonId",
         "date",
         "status"
@@ -220,7 +178,8 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous"
+      "google.com",
+      "apple.com"
     ]
   },
   "firestore": {
@@ -232,7 +191,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profile information.  The 'userId' parameter corresponds to the Firebase Authentication UID.",
+          "description": "Stores user profile information. The 'userId' parameter corresponds to the Firebase Authentication UID.",
           "params": [
             {
               "name": "userId",
@@ -262,17 +221,21 @@
         }
       },
       {
-        "path": "/users/{userId}/roadmaps/{roadmapId}",
+        "path": "/users/{userId}/topics/{topicId}/roadmaps/{roadmapId}",
         "definition": {
           "entityName": "Roadmap",
           "schema": {
             "$ref": "#/backend/entities/Roadmap"
           },
-          "description": "Stores roadmaps created by a specific user for a topic. Includes denormalized 'createdBy' from Topic for authorization independence.",
+          "description": "Stores roadmaps created by a specific user for a topic.",
           "params": [
             {
               "name": "userId",
               "description": "The Firebase Authentication UID of the user who owns the roadmap."
+            },
+            {
+              "name": "topicId",
+              "description": "The unique identifier for the parent topic."
             },
             {
               "name": "roadmapId",
@@ -282,17 +245,21 @@
         }
       },
       {
-        "path": "/users/{userId}/roadmaps/{roadmapId}/lessons/{lessonId}",
+        "path": "/users/{userId}/topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}",
         "definition": {
           "entityName": "Lesson",
           "schema": {
             "$ref": "#/backend/entities/Lesson"
           },
-          "description": "Stores lessons associated with a specific roadmap. Includes denormalized 'createdBy' from Topic for authorization independence.",
+          "description": "Stores lessons associated with a specific roadmap.",
           "params": [
             {
               "name": "userId",
               "description": "The Firebase Authentication UID of the user who owns the lesson."
+            },
+            {
+              "name": "topicId",
+              "description": "The unique identifier for the parent topic."
             },
             {
               "name": "roadmapId",
@@ -306,7 +273,7 @@
         }
       },
       {
-        "path": "/users/{userId}/lessons/{lessonId}/tests/{testId}",
+        "path": "/users/{userId}/topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}/tests/{testId}",
         "definition": {
           "entityName": "Test",
           "schema": {
@@ -317,6 +284,14 @@
             {
               "name": "userId",
               "description": "The Firebase Authentication UID of the user who owns the test."
+            },
+            {
+              "name": "topicId",
+              "description": "The unique identifier for the parent topic."
+            },
+            {
+              "name": "roadmapId",
+              "description": "The unique identifier for the roadmap."
             },
             {
               "name": "lessonId",
@@ -350,6 +325,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support the SmartLearn AI platform, emphasizing authorization independence, clear data ownership, and efficient querying.  Authorization Independence is achieved via path-based ownership for user-specific data and the denormalization of the 'createdBy' field from `Topic` into `Roadmap` and `Lesson` entities. This eliminates the need for `get()` calls in security rules, ensuring atomic operations. Segregation via path-based ownership (`/users/{userId}/dailyTasks/{dailyTaskId}`) also enhances security and optimizes `list` operations. User-generated content (topics, roadmaps, lessons, daily tasks) is organized under user-specific paths (`/users/{userId}/topics/{topicId}`, `/users/{userId}/roadmaps/{roadmapId}`, etc.) to enforce clear ownership. This facilitates secure `list` operations (QAPs) and simplifies security rules. Additionally, a dedicated `users` collection stores user profile information. The structure also enables the AI to store generated roadmaps, lessons, tasks and quizzes."
+    "reasoning": "The Firestore structure is designed to support the SmartLearn AI platform, emphasizing authorization independence, clear data ownership, and efficient querying. Authorization Independence is achieved via path-based ownership for user-specific data. This eliminates the need for `get()` calls in security rules, ensuring atomic operations. Segregation via path-based ownership also enhances security and optimizes `list` operations. User-generated content is organized hierarchically under user-specific paths (`/users/{userId}/topics/{topicId}/roadmaps/{roadmapId}` etc.) to enforce clear ownership and facilitate secure, efficient queries."
   }
 }

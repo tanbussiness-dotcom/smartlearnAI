@@ -70,39 +70,40 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
       setLoading(true);
       try {
         const lessonId = params.quizId;
-        // This is not a valid path according to backend.json
-        // We need to find the lesson to get topicId and roadmapId. This is inefficient.
-        // A better approach would be to have topicId and roadmapId in the URL, but we work with what we have.
         
-        // Let's find the lesson by querying all roadmaps. This is very inefficient and not scalable.
-        // In a real app, the lesson doc would either have parent IDs or the path would be more specific.
-        const topicsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics'));
         let lessonData: any = null;
-        let lessonDoc: any = null;
+        let lessonDocRef: any = null;
         let topicId: string | null = null;
         let roadmapId: string | null = null;
+        let stepTitle: string | null = null;
+        let topicTitle: string | null = null;
 
+        const topicsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics'));
         for (const topicDoc of topicsSnapshot.docs) {
           const roadmapsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps'));
           for (const roadmapDoc of roadmapsSnapshot.docs) {
-            const lessonsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons'));
-            lessonDoc = lessonsSnapshot.docs.find(d => d.id === lessonId);
-            if (lessonDoc) {
-              lessonData = lessonDoc.data();
+            const lessonRef = doc(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons', lessonId);
+            const lessonSnap = await getDoc(lessonRef);
+            if (lessonSnap.exists()) {
+              lessonData = lessonSnap.data();
+              lessonDocRef = lessonSnap.ref;
               topicId = topicDoc.id;
               roadmapId = roadmapDoc.id;
+              const roadmapSnap = await getDoc(roadmapDoc.ref);
+              stepTitle = roadmapSnap.data()?.stepTitle || "A Step";
+              topicTitle = topicDoc.data()?.title || "General Knowledge";
               break;
             }
           }
-          if (lessonDoc) break;
+          if (lessonData) break;
         }
 
-        if (!lessonData || !topicId || !roadmapId) {
+        if (!lessonData || !topicId || !roadmapId || !lessonDocRef) {
             toast({ variant: 'destructive', title: 'Lesson not found' });
             return;
         }
 
-        const testsRef = collection(firestore, 'users', user.uid, 'lessons', lessonId, 'tests');
+        const testsRef = collection(lessonDocRef.parent, 'tests');
         const q = query(testsRef, limit(1));
         const existingTestSnapshot = await getDocs(q);
 
@@ -119,19 +120,23 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
           
           const quizResult = await generateQuizzesForKnowledgeAssessment({
             lessonId: lessonId,
-            topic: "General Knowledge", // Placeholder, ideally from topic data
-            stepTitle: "A Step", // Placeholder, ideally from roadmap step data
+            topic: topicTitle!,
+            stepTitle: stepTitle!,
             lessonTitle: lessonData.title,
             lessonDescription: lessonData.description,
           });
           
           quizQuestions = quizResult.quiz.questions;
 
-          const newTestDocRef = await addDocumentNonBlocking(testsRef, {
+          const newTestDocRef = await addDocumentNonBlocking(collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapId, 'lessons', lessonId, 'tests'), {
             lessonId: lessonId,
             questions: quizQuestions,
             createdBy: user.uid,
           });
+
+          if (!newTestDocRef) {
+            throw new Error("Failed to create test document");
+          }
           testId = newTestDocRef.id;
         }
 
