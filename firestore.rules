@@ -1,112 +1,209 @@
 /**
- * @fileOverview Firestore Security Rules for SmartLearn AI Platform.
+ * @fileoverview Firestore Security Rules for SmartLearn AI Platform.
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for personal data while allowing public read access to learning content.
- * User-specific data (e.g., profiles, daily tasks, progress) is secured under `/users/{userId}`, accessible only to the authenticated user.
- * Learning content (topics, roadmaps, lessons, tests) is organized under `/topics/{topicId}` and subcollections, with create/update/delete access restricted to the topic creator.
+ * This ruleset enforces a strict user-ownership model for user profiles and
+ * progress tracking, while providing public read access to learning content
+ * (topics, roadmaps, lessons, tests) with owner-only write access.
+ * Administrative privileges are granted based on presence in the `roles_admin` collection.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profiles. Only the authenticated user can read/write their own profile.
- * - /topics/{topicId}: Stores learning topics. Publicly readable, but only the creator can modify.
- * - /topics/{topicId}/roadmaps/{roadmapId}: Stores roadmaps for each topic.
- * - /topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}: Stores lessons for each roadmap.
- * - /lessons/{lessonId}/tests/{testId}: Stores tests for each lesson.
- * - /users/{userId}/tasks/{taskId}: Stores daily tasks for each user.
- * - /users/{userId}/progress/{topicId}: Stores progress for each user on a topic.
+ * - /users/{userId}: Stores private user profile data.
+ * - /users/{userId}/progress: Tracks user learning progress.
+ * - /topics/{topicId}: Stores learning topics, with 'createdBy' denormalized.
+ * - /roadmaps/{roadmapId}: Stores roadmap steps.
+ * - /lessons/{lessonId}: Stores individual lessons.
+ * - /tests/{testId}: Stores tests associated with lessons.
+ * - /dailyTasks/{taskId}: Stores daily learning tasks with denormalized user, topic, and lesson IDs.
+ * - /roles_admin/{userId}: Used to assign admin roles.
  *
  * Key Security Decisions:
- * - User listing is disallowed.
- * - Read-only collections are explicitly marked with `allow get, list: if true;`.
- * - The `createdBy` field is denormalized onto `Topic` documents to avoid `get()` calls in security rules.
- * - Default security posture for ambiguous relationships is strict owner-only access.
+ * - User data is private and accessible only to the user themselves.
+ * - Public read access to learning content (topics, roadmaps, lessons, tests).
+ * - Owner-only write access for topics (createdBy field).
+ * - Daily tasks can be queried and managed efficiently.
+ * - Admin privileges are granted based on the `roles_admin` collection.
+ * - Listing of user progress is allowed only for the owning user.
+ * - The rules do not implement full schema validation to allow for rapid prototyping.
  *
  * Denormalization for Authorization:
- * - The `Topic` entity includes a `createdBy` field referencing the User who created it. This allows us to secure topics and their subcollections without additional `get()` calls, improving performance and reducing costs.
+ * - The `topics` collection denormalizes the `createdBy` field, allowing rules to check ownership without `get()` calls.
+ * - The `dailyTasks` collection denormalizes `userId`, `topicId`, and `lessonId` for efficient querying and security.
+ *
+ * Structural Segregation:
+ * - User-specific data (profiles, progress) is stored under `/users/{userId}`.
+ * - Public learning content (topics, roadmaps, lessons, tests) is stored in top-level collections.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Protects user profiles, ensuring only the authenticated user can access their own data.
+     * @description Checks if the request is made by a signed-in user.
+     * @return {boolean} True if the user is signed in, false otherwise.
      */
-    match /users/{userId} {
-      allow read, write: if isOwner(userId);
-    }
-
-    /**
-     * @description Manages access to learning topics, allowing public read but restricting write access to the topic creator.
-     */
-    match /topics/{topicId} {
-      allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if isTopicOwnedBy(topicId, request.auth.uid);
-    }
-
-    /**
-     * @description Protects learning roadmaps associated with a topic, restricting write access to the topic creator.
-     */
-    match /topics/{topicId}/roadmaps/{roadmapId} {
-      allow get, list: if true;
-      allow create, update, delete: if isTopicOwnedBy(topicId, request.auth.uid);
-    }
-
-    /**
-     * @description Protects lessons associated with a roadmap, restricting write access to the topic creator.
-     */
-    match /topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId} {
-      allow get, list: if true;
-      allow create, update, delete: if isTopicOwnedBy(topicId, request.auth.uid);
-    }
-
-    /**
-     * @description Protects tests associated with a lesson, restricting write access to the topic creator.
-     */
-    match /lessons/{lessonId}/tests/{testId} {
-      allow get, list: if true;
-      allow create, update, delete: if isLessonOwnedBy(lessonId, request.auth.uid);
-    }
-
-    /**
-     * @description Protects daily tasks assigned to users, ensuring only the assigned user can access their own tasks.
-     */
-    match /users/{userId}/tasks/{taskId} {
-      allow read, write: if isOwner(userId);
-    }
-    
-    /**
-     * @description Protects progress data for a user, ensuring only they can access it.
-     */
-    match /users/{userId}/progress/{topicId} {
-        allow read, write: if isOwner(userId);
-    }
-
-    /**
-     * Helper functions
-     */
-
     function isSignedIn() {
       return request.auth != null;
     }
 
+    /**
+     * @description Checks if the authenticated user ID matches the provided user ID.
+     * @param {string} userId The user ID to compare against.
+     * @return {boolean} True if the user is signed in and the UID matches, false otherwise.
+     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isTopicOwnedBy(topicId, userId) {
-      let topic = get(/databases/$(database)/documents/topics/$(topicId)).data;
-      return topic.createdBy == userId;
+    /**
+     * @description Checks if the authenticated user is an existing owner of the resource.
+     * @param {string} userId The user ID to compare against.
+     * @return {boolean} True if the user is signed in, the UID matches, and the resource exists, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
     }
 
-    function isLessonOwnedBy(lessonId, userId) {
-      // This is a placeholder for a more complex check that might involve traversing up the hierarchy.
-      // For now, we assume a denormalized `createdBy` field or similar on the lesson or its parent roadmap/topic.
-      // A more robust implementation is needed based on final data model.
-      // For this example, we will assume anyone can write to a lesson's test if they are signed in.
-      // In a real app, you would trace ownership up to the topic.
-      return isSignedIn();
+    /**
+     * @description Checks if the authenticated user is an admin.
+     * @return {boolean} True if the user is an admin, false otherwise.
+     */
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /**
+     * @description Rules for user profiles.
+     * @path /users/{userId}
+     * @allow (create) User A can create their own profile.
+     * @allow (get, update, delete) User A can get, update, and delete their own profile.
+     * @deny (create) User A cannot create a profile for User B.
+     * @deny (get, update, delete) User A cannot get, update, and delete User B's profile.
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for user progress tracking.
+     * @path /users/{userId}/progress
+     * @allow (create) User A can create progress entries for themselves.
+     * @allow (get, list, update, delete) User A can read, list, update, and delete their own progress entries.
+     * @deny (create) User A cannot create progress entries for User B.
+     * @deny (get, list, update, delete) User A cannot read, list, update, and delete User B's progress entries.
+     * @principle Restricts access to a user's own data tree.
+     */
+    match /users/{userId}/progress {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for learning topics.
+     * @path /topics/{topicId}
+     * @allow (get, list) Any user can read the list of topics.
+     * @allow (create) User A can create a topic and sets themselves as the author.
+     * @allow (update, delete) User A can update/delete a topic if they are the author.
+     * @deny (create) User A cannot create a topic and set User B as the author.
+     * @deny (update, delete) User A cannot update/delete a topic created by User B.
+     * @principle Public read access with owner-only writes, enforces ownership on create, update, and delete.
+     */
+    match /topics/{topicId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+    }
+
+    /**
+     * @description Rules for roadmap steps.
+     * @path /roadmaps/{roadmapId}
+     * @allow (get, list) Any user can read the list of roadmap steps.
+     * @allow (create, update, delete) Only admins can create, update, and delete roadmap steps.
+     * @deny (create, update, delete) Non-admin users cannot create, update, and delete roadmap steps.
+     * @principle Public read access with admin-only writes.
+     */
+    match /roadmaps/{roadmapId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Rules for individual lessons.
+     * @path /lessons/{lessonId}
+     * @allow (get, list) Any user can read the list of lessons.
+     * @allow (create, update, delete) Only admins can create, update, and delete lessons.
+     * @deny (create, update, delete) Non-admin users cannot create, update, and delete lessons.
+     * @principle Public read access with admin-only writes.
+     */
+    match /lessons/{lessonId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Rules for tests associated with lessons.
+     * @path /tests/{testId}
+     * @allow (get, list) Any user can read the list of tests.
+     * @allow (create, update, delete) Only admins can create, update, and delete tests.
+     * @deny (create, update, delete) Non-admin users cannot create, update, and delete tests.
+     * @principle Public read access with admin-only writes.
+     */
+    match /tests/{testId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Rules for daily learning tasks.
+     * @path /dailyTasks/{taskId}
+     * @allow (get, list) Any user can read the list of daily tasks.
+     * @allow (create) Only admins can create daily tasks.
+     * @allow (update, delete) Only admins can update and delete daily tasks.
+     * @deny (create, update, delete) Non-admin users cannot create, update, and delete daily tasks.
+     * @principle Admin-only writes.
+     */
+    match /dailyTasks/{taskId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Rules for assigning admin roles to users.
+     * @path /roles_admin/{userId}
+     * @allow get: if isAdmin();
+     * @allow list: if false;
+     * @allow create: if isAdmin();
+     * @allow update: if false;
+     * @allow delete: if isAdmin();
+     */
+    match /roles_admin/{userId} {
+        allow get: if isAdmin();
+        allow list: if false;
+        allow create: if isAdmin();
+        allow update: if false;
+        allow delete: if isAdmin();
     }
   }
 }
-    
