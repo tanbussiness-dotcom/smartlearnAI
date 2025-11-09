@@ -22,7 +22,7 @@ import {
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
 import { generatePersonalizedLearningRoadmap } from '@/ai/flows/generate-personalized-learning-roadmap';
-import { generateLessonsForEachStep } from '@/ai/flows/generate-lessons-for-each-step';
+import { generateLesson } from '@/ai/flows/lesson/generate-lesson';
 import { createDailyLearningTasks } from '@/ai/flows/create-daily-learning-tasks';
 import { useToast } from '@/hooks/use-toast';
 import { LessonGeneratingModal } from '@/components/lesson-generating-modal';
@@ -130,27 +130,33 @@ export default function SearchPage() {
         }
         const roadmapStepId = roadmapStepDoc.id;
 
-        const lessonsResult = await generateLessonsForEachStep({
-          stepTitle: step.stepTitle,
-          stepDescription: step.description,
+        // Generate a lesson for the step
+        const lessonResult = await generateLesson({
+          topic: step.stepTitle,
+          phase: 'Cơ bản', // Or determine phase based on step
+          userId: user.uid,
         });
 
-        const lessonsCollection = collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapStepId, 'lessons');
-        for (const lesson of lessonsResult) {
-            const lessonDocRef = await addDocumentNonBlocking(lessonsCollection, {
-                ...lesson,
-                status: 'To Learn',
-                has_quiz: true, // Mark that a quiz can be generated
-                quiz_ready: false, // Quiz is not generated yet
+        if (lessonResult && lessonResult.validation.valid) {
+          const lessonsCollection = collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapStepId, 'lessons');
+          const lessonDocRef = await addDocumentNonBlocking(lessonsCollection, {
+              ...lessonResult.lesson,
+              status: 'To Learn',
+              has_quiz: true,
+              quiz_ready: false,
+              createdAt: lessonResult.created_at,
+              userId: user.uid,
+          });
+
+          if (lessonDocRef) {
+            allLessonsForTopic.push({
+                lessonId: lessonDocRef.id,
+                title: lessonResult.lesson.title,
+                description: lessonResult.lesson.overview
             });
-            
-            if (lessonDocRef) {
-              allLessonsForTopic.push({
-                  lessonId: lessonDocRef.id,
-                  title: lesson.title,
-                  description: lesson.description
-              });
-            }
+          }
+        } else {
+          console.warn(`Skipping lesson for step "${step.stepTitle}" due to validation failure.`);
         }
       }
       
@@ -287,5 +293,3 @@ export default function SearchPage() {
     </motion.div>
   );
 }
-
-    
