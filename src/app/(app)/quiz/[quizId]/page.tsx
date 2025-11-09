@@ -28,16 +28,16 @@ import {
 import { CheckCircle, XCircle, ArrowRight, LoaderCircle } from "lucide-react";
 import { useFirestore, useUser } from "@/firebase";
 import { collection, doc, addDoc, getDocs, query, limit, getDoc, writeBatch, where } from "firebase/firestore";
-import { generateQuizzesForKnowledgeAssessment } from "@/ai/flows/generate-quizzes-for-knowledge-assessment";
+import { generateQuizForLesson } from "@/ai/flows/generate-quizzes-for-knowledge-assessment";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter, useParams } from "next/navigation";
 
 
 type QuizQuestion = {
-  id: string;
   question: string;
   options: string[];
-  correctAnswer: string;
+  correct_answer: string;
+  explanation: string;
 };
 
 type QuizData = {
@@ -45,7 +45,7 @@ type QuizData = {
   topicId: string;
   roadmapId: string;
   title: string;
-  questions: QuizQuestion[];
+  questions: (QuizQuestion & { id: string })[];
 };
 
 export default function QuizPage() {
@@ -75,8 +75,6 @@ export default function QuizPage() {
         let lessonData: any = null;
         let topicId: string | null = null;
         let roadmapId: string | null = null;
-        let stepTitle: string | null = null;
-        let topicTitle: string | null = null;
         let lessonDocRef: any = null;
 
         const topicsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics'));
@@ -90,9 +88,6 @@ export default function QuizPage() {
               topicId = topicDoc.id;
               roadmapId = roadmapDoc.id;
               lessonDocRef = lessonRef;
-              const roadmapSnap = await getDoc(roadmapDoc.ref);
-              stepTitle = roadmapSnap.data()?.stepTitle || "A Step";
-              topicTitle = topicDoc.data()?.title || "General Knowledge";
               break;
             }
           }
@@ -101,6 +96,7 @@ export default function QuizPage() {
 
         if (!lessonData || !topicId || !roadmapId || !lessonDocRef) {
             toast({ variant: 'destructive', title: 'Lesson not found' });
+            router.push('/dashboard');
             return;
         }
 
@@ -108,43 +104,42 @@ export default function QuizPage() {
         const q = query(testsRef, limit(1));
         const existingTestSnapshot = await getDocs(q);
 
-        let quizQuestions;
+        let testResult;
         let testId;
 
         if (!existingTestSnapshot.empty) {
           const testDoc = existingTestSnapshot.docs[0];
           testId = testDoc.id;
-          const testData = testDoc.data();
-          quizQuestions = testData.questions;
+          testResult = testDoc.data();
         } else {
           toast({ title: 'Generating a new quiz...', description: 'This may take a moment.' });
           
-          const quizResult = await generateQuizzesForKnowledgeAssessment({
-            lessonId: lessonId,
-            topic: topicTitle!,
-            stepTitle: stepTitle!,
-            lessonTitle: lessonData.title,
-            lessonDescription: lessonData.description,
+          const lessonContent = lessonData.content || lessonData.synthesized_content || lessonData.instructions || "";
+          if (!lessonContent) {
+            toast({ variant: 'destructive', title: 'Cannot generate quiz', description: 'Lesson content is empty.' });
+            router.push(`/lesson/${lessonId}`);
+            return;
+          }
+
+          const quizResult = await generateQuizForLesson({
+            lesson_id: lessonId,
+            lesson_content: lessonContent,
           });
           
-          quizQuestions = quizResult.quiz.questions;
-
           const newTestDocRef = await addDoc(testsRef, {
-            lessonId: lessonId,
-            questions: quizQuestions,
+            ...quizResult,
             createdBy: user.uid,
+            createdAt: new Date().toISOString(),
           });
 
-          if (!newTestDocRef) {
-            throw new Error("Failed to create test document");
-          }
           testId = newTestDocRef.id;
+          testResult = quizResult;
         }
 
-        const formattedQuizData = {
+        const formattedQuizData: QuizData = {
             id: testId,
             title: lessonData.title,
-            questions: quizQuestions.map((q: any, index: number) => ({ ...q, id: `q${index}` })),
+            questions: testResult.questions.map((q: any, index: number) => ({ ...q, id: `q${index}` })),
             topicId,
             roadmapId,
         };
@@ -160,21 +155,20 @@ export default function QuizPage() {
     };
 
     fetchOrCreateQuiz();
-  }, [firestore, user, lessonId, toast]);
+  }, [firestore, user, lessonId, toast, router]);
 
   const score = quizData ? quizData.questions.reduce((acc, q) => {
-    return selectedAnswers[q.id] === q.correctAnswer ? acc + 1 : acc;
+    return selectedAnswers[q.id] === q.correct_answer ? acc + 1 : acc;
   }, 0) : 0;
   const scorePercentage = quizData ? (score / quizData.questions.length) * 100 : 0;
-  const passed = scorePercentage >= 80;
+  const passed = scorePercentage >= 70;
 
   const handleNext = async () => {
-    if (currentQuestionIndex < quizData!.questions.length - 1) {
+    if (quizData && currentQuestionIndex < quizData.questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
       setIsSubmitting(true);
       try {
-        
         if(passed) {
           await updateProgress();
         }
@@ -214,7 +208,7 @@ export default function QuizPage() {
         const currentStepRef = doc(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapId);
         batch.update(currentStepRef, { status: "Learned" });
 
-        // 4. Unlock next step
+        // 4. Unlock next step and set to "Learning"
         const currentStepSnap = await getDoc(currentStepRef);
         const currentStepNumber = currentStepSnap.data()?.stepNumber;
 
@@ -234,6 +228,7 @@ export default function QuizPage() {
   };
 
   const handleOptionChange = (value: string) => {
+    if (!currentQuestion) return;
     setSelectedAnswers({
         ...selectedAnswers,
         [currentQuestion.id]: value
@@ -244,7 +239,7 @@ export default function QuizPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-full py-12">
         <LoaderCircle className="h-12 w-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Loading Quiz...</p>
+        <p className="mt-4 text-muted-foreground">Đang tải bài kiểm tra...</p>
       </div>
     );
   }
@@ -265,12 +260,12 @@ export default function QuizPage() {
         >
       <Card>
         <CardHeader>
-          <p className="text-sm text-muted-foreground">Quiz for: {quizData.title}</p>
-          <CardTitle className="font-headline">Knowledge Check</CardTitle>
-          <CardDescription>Test your knowledge to unlock the next step.</CardDescription>
+          <p className="text-sm text-muted-foreground">Kiểm tra bài: {quizData.title}</p>
+          <CardTitle className="font-headline">Kiểm tra kiến thức</CardTitle>
+          <CardDescription>Hoàn thành bài kiểm tra để mở khóa bước tiếp theo.</CardDescription>
           <div className="pt-4">
             <div className="flex justify-between mb-1">
-                <span className="text-sm">Question {currentQuestionIndex + 1} of {quizData.questions.length}</span>
+                <span className="text-sm">Câu {currentQuestionIndex + 1} / {quizData.questions.length}</span>
                 <span className="text-sm">{Math.round(progress)}%</span>
             </div>
             <Progress value={progress} />
@@ -292,7 +287,7 @@ export default function QuizPage() {
         <CardFooter>
           <Button onClick={handleNext} className="w-full md:w-auto ml-auto" disabled={!selectedAnswers[currentQuestion.id] || isSubmitting}>
             {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-            {currentQuestionIndex < quizData.questions.length - 1 ? "Next Question" : "Submit Quiz"}
+            {currentQuestionIndex < quizData.questions.length - 1 ? "Câu tiếp theo" : "Nộp bài"}
             <ArrowRight className="ml-2 h-4 w-4"/>
           </Button>
         </CardFooter>
@@ -322,22 +317,22 @@ export default function QuizPage() {
                                   )}
                               </motion.div>
                               <AlertDialogTitle className="text-2xl font-headline">
-                                  {passed ? 'Congratulations! You Passed!' : 'Almost there!'}
+                                  {passed ? 'Chúc mừng! Bạn đã vượt qua!' : 'Cố gắng hơn nhé!'}
                               </AlertDialogTitle>
                               <AlertDialogDescription className="text-base">
-                                  You scored {score} out of {quizData.questions.length} (
+                                  Bạn đạt {score} trên {quizData.questions.length} câu (
                                   {scorePercentage.toFixed(0)}%).
                                   <br />
                                   {passed
-                                      ? "You've unlocked the next lesson."
-                                      : 'You need 80% to pass. Please try again.'}
+                                      ? "Bạn đã mở khóa bài học tiếp theo."
+                                      : 'Bạn cần đạt 70% để vượt qua. Vui lòng thử lại.'}
                               </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                               {passed ? (
                                   <AlertDialogAction asChild className="w-full">
                                       <Link href={`/roadmap/${quizData.topicId}`}>
-                                          Continue Your Journey
+                                          Tiếp tục hành trình
                                       </Link>
                                   </AlertDialogAction>
                               ) : (
@@ -349,7 +344,7 @@ export default function QuizPage() {
                                       }}
                                       className="w-full"
                                   >
-                                      Retry Quiz
+                                      Làm lại bài kiểm tra
                                   </AlertDialogAction>
                               )}
                           </AlertDialogFooter>
