@@ -114,11 +114,10 @@ export default function SearchPage() {
       const topicId = topicRef.id;
       
       const allLessonsForTopic: { lessonId: string, title: string, description: string }[] = [];
-      const totalSteps = roadmapResult.roadmap.length;
-
+      
       // 3. Generate and store lessons for each roadmap step
       setLoadingStep('validate');
-      for (const [index, step] of roadmapResult.roadmap.entries()) {
+      for (const step of roadmapResult.roadmap) {
         const roadmapStepsCollection = collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps');
         const roadmapStepDoc = await addDocumentNonBlocking(roadmapStepsCollection, {
             ...step,
@@ -126,7 +125,7 @@ export default function SearchPage() {
         });
         
         if (!roadmapStepDoc) {
-          toast({ variant: 'destructive', title: `Failed to create roadmap step ${index+1}`});
+          toast({ variant: 'destructive', title: `Failed to create roadmap step ${step.stepNumber}`});
           continue;
         }
         const roadmapStepId = roadmapStepDoc.id;
@@ -141,6 +140,8 @@ export default function SearchPage() {
             const lessonDocRef = await addDocumentNonBlocking(lessonsCollection, {
                 ...lesson,
                 status: 'To Learn',
+                has_quiz: true, // Mark that a quiz can be generated
+                quiz_ready: false, // Quiz is not generated yet
             });
             
             if (lessonDocRef) {
@@ -286,3 +287,5 @@ export default function SearchPage() {
     </motion.div>
   );
 }
+
+    

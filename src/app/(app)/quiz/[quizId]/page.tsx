@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { CheckCircle, XCircle, ArrowRight, LoaderCircle } from "lucide-react";
 import { useFirestore, useUser } from "@/firebase";
-import { collection, doc, addDoc, getDocs, query, limit, getDoc, writeBatch, where } from "firebase/firestore";
+import { collection, doc, addDoc, getDocs, query, limit, getDoc, writeBatch, where, updateDoc } from "firebase/firestore";
 import { generateQuizForLesson } from "@/ai/flows/generate-quizzes-for-knowledge-assessment";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter, useParams } from "next/navigation";
@@ -77,6 +77,7 @@ export default function QuizPage() {
         let roadmapId: string | null = null;
         let lessonDocRef: any = null;
 
+        // Find the lesson across all topics and roadmaps
         const topicsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics'));
         for (const topicDoc of topicsSnapshot.docs) {
           const roadmapsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps'));
@@ -101,40 +102,51 @@ export default function QuizPage() {
         }
 
         const testsRef = collection(lessonDocRef, 'tests');
-        const q = query(testsRef, limit(1));
-        const existingTestSnapshot = await getDocs(q);
-
         let testResult;
         let testId;
 
-        if (!existingTestSnapshot.empty) {
-          const testDoc = existingTestSnapshot.docs[0];
-          testId = testDoc.id;
-          testResult = testDoc.data();
-        } else {
-          toast({ title: 'Generating a new quiz...', description: 'This may take a moment.' });
-          
-          const lessonContent = lessonData.content || lessonData.synthesized_content || lessonData.instructions || "";
-          if (!lessonContent) {
-            toast({ variant: 'destructive', title: 'Cannot generate quiz', description: 'Lesson content is empty.' });
-            router.push(`/lesson/${lessonId}`);
-            return;
-          }
-
-          const quizResult = await generateQuizForLesson({
-            lesson_id: lessonId,
-            lesson_content: lessonContent,
-          });
-          
-          const newTestDocRef = await addDoc(testsRef, {
-            ...quizResult,
-            createdBy: user.uid,
-            createdAt: new Date().toISOString(),
-          });
-
-          testId = newTestDocRef.id;
-          testResult = quizResult;
+        // If quiz_id exists and quiz is ready, fetch it
+        if (lessonData.quiz_id && lessonData.quiz_ready) {
+            const testDocRef = doc(testsRef, lessonData.quiz_id);
+            const existingTestSnapshot = await getDoc(testDocRef);
+            if (existingTestSnapshot.exists()) {
+                testId = existingTestSnapshot.id;
+                testResult = existingTestSnapshot.data();
+            }
         }
+
+        // If no pre-existing quiz, generate a new one
+        if (!testResult) {
+            toast({ title: 'Generating a new quiz...', description: 'This may take a moment.' });
+          
+            const lessonContent = lessonData.content || lessonData.synthesized_content || lessonData.instructions || "";
+            if (!lessonContent) {
+                toast({ variant: 'destructive', title: 'Cannot generate quiz', description: 'Lesson content is empty.' });
+                router.push(`/lesson/${lessonId}`);
+                return;
+            }
+
+            const quizResultFromAI = await generateQuizForLesson({
+                lesson_id: lessonId,
+                lesson_content: lessonContent,
+            });
+          
+            const newTestDocRef = await addDoc(testsRef, {
+                ...quizResultFromAI,
+                createdBy: user.uid,
+                createdAt: new Date().toISOString(),
+            });
+
+            testId = newTestDocRef.id;
+            testResult = quizResultFromAI;
+
+            // Update the lesson with the new quiz_id and set it to ready
+            await updateDoc(lessonDocRef, {
+                quiz_id: testId,
+                quiz_ready: true,
+            });
+        }
+
 
         const formattedQuizData: QuizData = {
             id: testId,
@@ -356,3 +368,5 @@ export default function QuizPage() {
     </div>
   );
 }
+
+    

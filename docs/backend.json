@@ -111,6 +111,18 @@
           "items": {
             "type": "string"
           }
+        },
+        "has_quiz": {
+            "type": "boolean",
+            "description": "Indicates if a quiz is associated with this lesson."
+        },
+        "quiz_id": {
+            "type": "string",
+            "description": "The ID of the quiz associated with this lesson, if it exists."
+        },
+        "quiz_ready": {
+            "type": "boolean",
+            "description": "Indicates if the quiz has been generated and is ready."
         }
       },
       "required": [
@@ -144,7 +156,7 @@
       ]
     },
     "DailyTask": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "http://json-schema.org/draft.OFF-07/schema#",
       "title": "DailyTask",
       "type": "object",
       "description": "Represents a daily learning task assigned to a user.",
@@ -328,3 +340,5 @@
     "reasoning": "The Firestore structure is designed to support the SmartLearn AI platform, emphasizing authorization independence, clear data ownership, and efficient querying. Authorization Independence is achieved via path-based ownership for user-specific data. This eliminates the need for `get()` calls in security rules, ensuring atomic operations. Segregation via path-based ownership also enhances security and optimizes `list` operations. User-generated content is organized hierarchically under user-specific paths (`/users/{userId}/topics/{topicId}/roadmaps/{roadmapId}` etc.) to enforce clear ownership and facilitate secure, efficient queries."
   }
 }
+
+    
