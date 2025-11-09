@@ -14,13 +14,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Circle, PlayCircle } from "lucide-react";
+import { CheckCircle, Circle, PlayCircle, Lock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 type Lesson = {
   id: string;
   title: string;
-  status: "learned" | "learning" | "to-learn";
+  status: "Learned" | "Learning" | "To Learn";
 };
 
 type Step = {
@@ -28,7 +28,7 @@ type Step = {
   stepNumber: number;
   title: string;
   description: string;
-  status: "learned" | "learning" | "locked";
+  status: "Learned" | "Learning" | "Locked";
   lessons: Lesson[];
 };
 
@@ -38,10 +38,10 @@ const mockRoadmap: Step[] = [
     stepNumber: 1,
     title: "Introduction to Python",
     description: "Learn the basic syntax and data structures of Python.",
-    status: "learned",
+    status: "Learned",
     lessons: [
-      { id: "l1", title: "Python Syntax", status: "learned" },
-      { id: "l2", title: "Variables and Data Types", status: "learned" },
+      { id: "l1", title: "Python Syntax", status: "Learned" },
+      { id: "l2", title: "Variables and Data Types", status: "Learned" },
     ],
   },
   {
@@ -49,11 +49,11 @@ const mockRoadmap: Step[] = [
     stepNumber: 2,
     title: "Control Flow",
     description: "Understand conditional statements and loops.",
-    status: "learning",
+    status: "Learning",
     lessons: [
-      { id: "l3", title: "If-Else Statements", status: "learned" },
-      { id: "l4", title: "For and While Loops", status: "learning" },
-      { id: "l5", title: "Break and Continue", status: "to-learn" },
+      { id: "l3", title: "If-Else Statements", status: "Learned" },
+      { id: "l4", title: "For and While Loops", status: "Learning" },
+      { id: "l5", title: "Break and Continue", status: "To Learn" },
     ],
   },
   {
@@ -61,10 +61,10 @@ const mockRoadmap: Step[] = [
     stepNumber: 3,
     title: "Functions",
     description: "Learn to define and use functions.",
-    status: "locked",
+    status: "Locked",
     lessons: [
-      { id: "l6", title: "Defining Functions", status: "to-learn" },
-      { id: "l7", title: "Arguments and Return Values", status: "to-learn" },
+      { id: "l6", title: "Defining Functions", status: "To Learn" },
+      { id: "l7", title: "Arguments and Return Values", status: "To Learn" },
     ],
   },
    {
@@ -72,32 +72,32 @@ const mockRoadmap: Step[] = [
     stepNumber: 4,
     title: "Data Structures",
     description: "Deep dive into lists, tuples, sets, and dictionaries.",
-    status: "locked",
+    status: "Locked",
     lessons: [
-      { id: "l8", title: "Working with Lists", status: "to-learn" },
-      { id: "l9", title: "Understanding Dictionaries", status: "to-learn" },
+      { id: "l8", title: "Working with Lists", status: "To Learn" },
+      { id: "l9", title: "Understanding Dictionaries", status: "To Learn" },
     ],
   },
 ];
 
 const getStepIcon = (status: Step["status"]) => {
   switch (status) {
-    case "learned":
+    case "Learned":
       return <CheckCircle className="h-6 w-6 text-green-500" />;
-    case "learning":
+    case "Learning":
       return <PlayCircle className="h-6 w-6 text-blue-500" />;
-    case "locked":
-      return <Circle className="h-6 w-6 text-muted-foreground" />;
+    case "Locked":
+      return <Lock className="h-6 w-6 text-muted-foreground" />;
   }
 };
 
 const getLessonIcon = (status: Lesson["status"]) => {
   switch (status) {
-    case "learned":
+    case "Learned":
       return <CheckCircle className="h-4 w-4 text-green-500" />;
-    case "learning":
+    case "Learning":
       return <PlayCircle className="h-4 w-4 text-blue-500" />;
-    case "to-learn":
+    case "To Learn":
       return <Circle className="h-4 w-4 text-muted-foreground" />;
   }
 };
@@ -109,7 +109,7 @@ export default function RoadmapPage({ params }: { params: { topic: string } }) {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 
-  const completedSteps = mockRoadmap.filter(s => s.status === 'learned').length;
+  const completedSteps = mockRoadmap.filter(s => s.status === 'Learned').length;
   const progress = (completedSteps / mockRoadmap.length) * 100;
 
   return (
@@ -142,12 +142,13 @@ export default function RoadmapPage({ params }: { params: { topic: string } }) {
                             <CardTitle className="font-headline">{`Step ${step.stepNumber}: ${step.title}`}</CardTitle>
                             <CardDescription className="mt-1">{step.description}</CardDescription>
                         </div>
-                        {step.status === 'learning' && <Badge variant="default">Current</Badge>}
-                        {step.status === 'locked' && <Badge variant="outline">Locked</Badge>}
+                        {step.status === 'Learning' && <Badge variant="default">Current</Badge>}
+                        {step.status === 'Locked' && <Badge variant="outline">Locked</Badge>}
+                         {step.status === 'Learned' && <Badge variant="secondary">Completed</Badge>}
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <Accordion type="single" collapsible disabled={step.status === 'locked'}>
+                    <Accordion type="single" collapsible disabled={step.status === 'Locked'}>
                         <AccordionItem value="lessons" className="border-none">
                             <AccordionTrigger>Show Lessons</AccordionTrigger>
                             <AccordionContent>
@@ -157,7 +158,7 @@ export default function RoadmapPage({ params }: { params: { topic: string } }) {
                                             <Link href={`/lesson/${lesson.id}`} className="flex-1">
                                                 <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted transition-colors">
                                                     {getLessonIcon(lesson.status)}
-                                                    <span className={`flex-1 ${lesson.status === 'learned' ? 'line-through text-muted-foreground' : ''}`}>
+                                                    <span className={`flex-1 ${lesson.status === 'Learned' ? 'line-through text-muted-foreground' : ''}`}>
                                                         {lesson.title}
                                                     </span>
                                                 </div>
