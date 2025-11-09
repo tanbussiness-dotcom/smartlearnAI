@@ -301,41 +301,60 @@ export default function QuizPage() {
 
       <AnimatePresence>
         {showResult && (
-            <AlertDialog open={showResult} onOpenChange={setShowResult}>
-                <AlertDialogContent asChild>
+          <AlertDialog open={showResult} onOpenChange={setShowResult}>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            >
+              <AlertDialogContent>
+                <AlertDialogHeader className="items-center text-center">
                   <motion.div
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.9, opacity: 0 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1, transition: { delay: 0.2, type: 'spring' } }}
                   >
-                    <AlertDialogHeader className="items-center text-center">
-                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1, transition: { delay: 0.2, type: 'spring' } }}>
-                            {passed ? <CheckCircle className="h-16 w-16 text-green-500 mb-2"/> : <XCircle className="h-16 w-16 text-destructive mb-2"/>}
-                        </motion.div>
-                        <AlertDialogTitle className="text-2xl font-headline">
-                            {passed ? "Congratulations! You Passed!" : "Almost there!"}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-base">
-                            You scored {score} out of {quizData.questions.length} ({scorePercentage.toFixed(0)}%).
-                            <br/>
-                            {passed ? "You've unlocked the next lesson." : "You need 80% to pass. Please try again."}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        {passed ? (
-                            <AlertDialogAction asChild className="w-full">
-                               <Link href={`/roadmap/${quizData.topicId}`}>Continue Your Journey</Link>
-                            </AlertDialogAction>
-                        ) : (
-                            <AlertDialogAction onClick={() => { setShowResult(false); setCurrentQuestionIndex(0); setSelectedAnswers({}); }} className="w-full">
-                                Retry Quiz
-                            </AlertDialogAction>
-                        )}
-                    </AlertDialogFooter>
+                    {passed ? (
+                      <CheckCircle className="h-16 w-16 text-green-500 mb-2" />
+                    ) : (
+                      <XCircle className="h-16 w-16 text-destructive mb-2" />
+                    )}
                   </motion.div>
-                </AlertDialogContent>
-            </AlertDialog>
+                  <AlertDialogTitle className="text-2xl font-headline">
+                    {passed ? 'Congratulations! You Passed!' : 'Almost there!'}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-base">
+                    You scored {score} out of {quizData.questions.length} (
+                    {scorePercentage.toFixed(0)}%).
+                    <br />
+                    {passed
+                      ? "You've unlocked the next lesson."
+                      : 'You need 80% to pass. Please try again.'}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  {passed ? (
+                    <AlertDialogAction asChild className="w-full">
+                      <Link href={`/roadmap/${quizData.topicId}`}>
+                        Continue Your Journey
+                      </Link>
+                    </AlertDialogAction>
+                  ) : (
+                    <AlertDialogAction
+                      onClick={() => {
+                        setShowResult(false);
+                        setCurrentQuestionIndex(0);
+                        setSelectedAnswers({});
+                      }}
+                      className="w-full"
+                    >
+                      Retry Quiz
+                    </AlertDialogAction>
+                  )}
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </motion.div>
+          </AlertDialog>
         )}
       </AnimatePresence>
     </div>
