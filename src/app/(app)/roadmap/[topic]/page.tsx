@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Accordion,
@@ -18,8 +18,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, Circle, PlayCircle, Lock } from "lucide-react";
+import { CheckCircle, Circle, PlayCircle, Lock, LoaderCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useCollection } from "@/firebase";
+import { useFirestore } from "@/firebase/provider";
+import { collection, query, orderBy } from "firebase/firestore";
 
 type Lesson = {
   id: string;
@@ -30,59 +33,12 @@ type Lesson = {
 type Step = {
   id: string;
   stepNumber: number;
-  title: string;
+  stepTitle: string;
   description: string;
   status: "Learned" | "Learning" | "Locked";
   lessons: Lesson[];
 };
 
-const mockRoadmap: Step[] = [
-  {
-    id: "step1",
-    stepNumber: 1,
-    title: "Introduction to Python",
-    description: "Learn the basic syntax and data structures of Python.",
-    status: "Learned",
-    lessons: [
-      { id: "l1", title: "Python Syntax", status: "Learned" },
-      { id: "l2", title: "Variables and Data Types", status: "Learned" },
-    ],
-  },
-  {
-    id: "step2",
-    stepNumber: 2,
-    title: "Control Flow",
-    description: "Understand conditional statements and loops.",
-    status: "Learning",
-    lessons: [
-      { id: "l3", title: "If-Else Statements", status: "Learned" },
-      { id: "l4", title: "For and While Loops", status: "Learning" },
-      { id: "l5", title: "Break and Continue", status: "To Learn" },
-    ],
-  },
-  {
-    id: "step3",
-    stepNumber: 3,
-    title: "Functions",
-    description: "Learn to define and use functions.",
-    status: "Locked",
-    lessons: [
-      { id: "l6", title: "Defining Functions", status: "To Learn" },
-      { id: "l7", title: "Arguments and Return Values", status: "To Learn" },
-    ],
-  },
-   {
-    id: "step4",
-    stepNumber: 4,
-    title: "Data Structures",
-    description: "Deep dive into lists, tuples, sets, and dictionaries.",
-    status: "Locked",
-    lessons: [
-      { id: "l8", title: "Working with Lists", status: "To Learn" },
-      { id: "l9", title: "Understanding Dictionaries", status: "To Learn" },
-    ],
-  },
-];
 
 const getStepIcon = (status: Step["status"]) => {
   switch (status) {
@@ -106,7 +62,7 @@ const getLessonIcon = (status: Lesson["status"]) => {
   }
 };
 
-const LessonList = ({ lessons }: { lessons: Lesson[] }) => (
+const LessonList = ({ lessons, topicId, roadmapId }: { lessons: Lesson[], topicId: string, roadmapId: string }) => (
     <ul className="space-y-3 pt-2">
         {lessons.length > 0 ? lessons.map(lesson => (
             <li key={lesson.id} className="flex items-center">
@@ -126,24 +82,86 @@ const LessonList = ({ lessons }: { lessons: Lesson[] }) => (
 );
 
 
-export default function RoadmapPage({ params }: { params: { topic: string } }) {
-  const topicTitle = decodeURIComponent(params.topic)
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+export default function RoadmapPage({ params }: { params: { topic: string } }) { // topic is now topicId
+  const firestore = useFirestore();
+  const topicId = params.topic;
 
-  const completedSteps = mockRoadmap.filter(s => s.status === 'Learned').length;
-  const progress = (completedSteps / mockRoadmap.length) * 100;
+  const [topicTitle, setTopicTitle] = useState('');
+  const [roadmap, setRoadmap] = useState<Step[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const roadmapsQuery = useMemo(() => {
+    if (!firestore || !topicId) return null;
+    return query(collection(firestore, 'topics', topicId, 'roadmaps'), orderBy('stepNumber'));
+  }, [firestore, topicId]);
+
+  const { data: roadmapsData, isLoading: isLoadingRoadmaps } = useCollection(roadmapsQuery);
+
+  useEffect(() => {
+    if(!firestore || !topicId) return;
+
+    const fetchTopicDetails = async () => {
+        const topicRef = doc(firestore, 'topics', topicId);
+        const topicSnap = await getDoc(topicRef);
+        if (topicSnap.exists()) {
+            setTopicTitle(topicSnap.data().title);
+        }
+    };
+    fetchTopicDetails();
+  }, [firestore, topicId])
+
+  useEffect(() => {
+    const fetchAllLessons = async () => {
+      if (!roadmapsData || !firestore) return;
+      setLoading(true);
+      
+      const newRoadmap: Step[] = await Promise.all(
+        roadmapsData.map(async (stepData: any) => {
+          const lessonsQuery = query(collection(firestore, 'topics', topicId, 'roadmaps', stepData.id, 'lessons'));
+          const lessonsSnapshot = await getDocs(lessonsQuery);
+          const lessons = lessonsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lesson));
+          
+          return {
+            id: stepData.id,
+            stepNumber: stepData.stepNumber,
+            stepTitle: stepData.stepTitle,
+            description: stepData.description,
+            status: stepData.status,
+            lessons: lessons,
+          };
+        })
+      );
+      
+      setRoadmap(newRoadmap);
+      setLoading(false);
+    };
+
+    fetchAllLessons();
+  }, [roadmapsData, firestore, topicId]);
+
+  const completedSteps = roadmap.filter(s => s.status === 'Learned').length;
+  const progress = roadmap.length > 0 ? (completedSteps / roadmap.length) * 100 : 0;
   
   const [activeStep, setActiveStep] = useState<string | undefined>(
-    mockRoadmap.find(s => s.status === 'Learning')?.id
+    roadmap.find(s => s.status === 'Learning')?.id
   );
+
+  useEffect(() => {
+    const learningStep = roadmap.find(s => s.status === 'Learning');
+    if (learningStep) {
+        setActiveStep(learningStep.id);
+    }
+  }, [roadmap]);
+
+  if (isLoadingRoadmaps || loading) {
+    return <div className="flex h-full w-full items-center justify-center"><LoaderCircle className="h-12 w-12 animate-spin text-primary" /></div>
+  }
 
   return (
     <div className="container mx-auto py-8">
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle className="text-3xl font-headline">{topicTitle}</CardTitle>
+          <CardTitle className="text-3xl font-headline">{topicTitle || 'Loading topic...'}</CardTitle>
           <CardDescription>Your personalized AI-generated learning path.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -157,8 +175,8 @@ export default function RoadmapPage({ params }: { params: { topic: string } }) {
       <div className="relative">
         <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-border -z-10"></div>
         <div className="space-y-8">
-        <Accordion type="single" collapsible defaultValue={activeStep} onValueChange={setActiveStep} className="w-full space-y-8">
-          {mockRoadmap.map((step) => (
+        <Accordion type="single" collapsible value={activeStep} onValueChange={setActiveStep} className="w-full space-y-8">
+          {roadmap.map((step) => (
             <div key={step.id} className="flex items-start gap-6">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-card border shadow-sm shrink-0">
                   {getStepIcon(step.status)}
@@ -168,7 +186,7 @@ export default function RoadmapPage({ params }: { params: { topic: string } }) {
                       <AccordionTrigger className="p-6 hover:no-underline" disabled={step.status === 'Locked'}>
                           <div className="flex justify-between items-center w-full">
                               <div>
-                                  <CardTitle className="font-headline text-left">{`Step ${step.stepNumber}: ${step.title}`}</CardTitle>
+                                  <CardTitle className="font-headline text-left">{`Step ${step.stepNumber}: ${step.stepTitle}`}</CardTitle>
                                   <CardDescription className="mt-1 text-left">{step.description}</CardDescription>
                               </div>
                                 <div className="flex items-center gap-2 mr-4">
@@ -187,16 +205,16 @@ export default function RoadmapPage({ params }: { params: { topic: string } }) {
                                 <TabsTrigger value="Learned">Learned</TabsTrigger>
                               </TabsList>
                               <TabsContent value="all">
-                                <LessonList lessons={step.lessons} />
+                                <LessonList lessons={step.lessons} topicId={topicId} roadmapId={step.id} />
                               </TabsContent>
                               <TabsContent value="To Learn">
-                                <LessonList lessons={step.lessons.filter(l => l.status === 'To Learn')} />
+                                <LessonList lessons={step.lessons.filter(l => l.status === 'To Learn')} topicId={topicId} roadmapId={step.id} />
                               </TabsContent>
                               <TabsContent value="Learning">
-                                <LessonList lessons={step.lessons.filter(l => l.status === 'Learning')} />
+                                <LessonList lessons={step.lessons.filter(l => l.status === 'Learning')} topicId={topicId} roadmapId={step.id} />
                               </TabsContent>
                               <TabsContent value="Learned">
-                                <LessonList lessons={step.lessons.filter(l => l.status === 'Learned')} />
+                                <LessonList lessons={step.lessons.filter(l => l.status === 'Learned')} topicId={topicId} roadmapId={step.id} />
                               </TabsContent>
                             </Tabs>
                       </AccordionContent>
@@ -210,3 +228,5 @@ export default function RoadmapPage({ params }: { params: { topic: string } }) {
     </div>
   );
 }
+
+    

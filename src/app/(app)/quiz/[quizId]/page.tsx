@@ -25,10 +25,12 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { CheckCircle, XCircle, ArrowRight, LoaderCircle } from "lucide-react";
-import { useFirestore, useUser, useCollection } from "@/firebase";
-import { collection, doc, addDoc, getDocs, query, limit } from "firebase/firestore";
+import { useFirestore, useUser } from "@/firebase";
+import { collection, doc, addDoc, getDocs, query, limit, getDoc, writeBatch, where } from "firebase/firestore";
 import { generateQuizzesForKnowledgeAssessment } from "@/ai/flows/generate-quizzes-for-knowledge-assessment";
 import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+
 
 type QuizQuestion = {
   id: string;
@@ -39,6 +41,8 @@ type QuizQuestion = {
 
 type QuizData = {
   id: string;
+  topicId: string;
+  roadmapId: string;
   title: string;
   questions: QuizQuestion[];
 };
@@ -47,6 +51,7 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const router = useRouter();
 
   const [quizData, setQuizData] = useState<QuizData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,6 +59,8 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [showResult, setShowResult] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
 
   useEffect(() => {
     if (!firestore || !user) return;
@@ -62,6 +69,38 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
       setLoading(true);
       try {
         const lessonId = params.quizId;
+        const lessonRef = doc(firestore, 'lessons', lessonId); // This is not a valid path according to backend.json
+        // We need to find the lesson to get topicId and roadmapId. This is inefficient.
+        // A better approach would be to have topicId and roadmapId in the URL, but we work with what we have.
+        
+        // Let's find the lesson by querying all roadmaps. This is very inefficient and not scalable.
+        // In a real app, the lesson doc would either have parent IDs or the path would be more specific.
+        const topicsSnapshot = await getDocs(collection(firestore, 'topics'));
+        let lessonData: any = null;
+        let lessonDoc: any = null;
+        let topicId: string | null = null;
+        let roadmapId: string | null = null;
+
+        for (const topicDoc of topicsSnapshot.docs) {
+          const roadmapsSnapshot = await getDocs(collection(firestore, 'topics', topicDoc.id, 'roadmaps'));
+          for (const roadmapDoc of roadmapsSnapshot.docs) {
+            const lessonsSnapshot = await getDocs(collection(firestore, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons'));
+            lessonDoc = lessonsSnapshot.docs.find(d => d.id === lessonId);
+            if (lessonDoc) {
+              lessonData = lessonDoc.data();
+              topicId = topicDoc.id;
+              roadmapId = roadmapDoc.id;
+              break;
+            }
+          }
+          if (lessonDoc) break;
+        }
+
+        if (!lessonData || !topicId || !roadmapId) {
+            toast({ variant: 'destructive', title: 'Lesson not found' });
+            return;
+        }
+
         const testsRef = collection(firestore, 'lessons', lessonId, 'tests');
         const q = query(testsRef, limit(1));
         const existingTestSnapshot = await getDocs(q);
@@ -71,22 +110,20 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
           const testData = testDoc.data();
           setQuizData({
             id: testDoc.id,
-            title: "Knowledge Check", // Title can be fetched from lesson if needed
+            title: lessonData.title,
             questions: testData.questions.map((q: any, index: number) => ({ ...q, id: `q${index}` })),
+            topicId,
+            roadmapId,
           });
         } else {
-          // No test found, so generate one
-          // We need lesson details to generate a good quiz
-          // This requires fetching the lesson details. For simplicity, we'll use placeholder data.
-          // In a real app, you'd fetch lesson title and description first.
           toast({ title: 'Generating a new quiz...', description: 'This may take a moment.' });
           
           const quizResult = await generateQuizzesForKnowledgeAssessment({
             lessonId: lessonId,
-            topic: "General Knowledge", // Placeholder
-            stepTitle: "First Step", // Placeholder
-            lessonTitle: "A New Lesson", // Placeholder
-            lessonDescription: "This is a new lesson.", // Placeholder
+            topic: "General Knowledge", // Placeholder, ideally from topic data
+            stepTitle: "A Step", // Placeholder, ideally from roadmap step data
+            lessonTitle: lessonData.title,
+            lessonDescription: lessonData.description,
           });
           
           const newQuiz = quizResult.quiz;
@@ -99,8 +136,11 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
 
           setQuizData({
             id: newTestDocRef.id,
-            title: "Knowledge Check",
+            title: lessonData.title,
+
             questions: newQuiz.questions.map((q, index) => ({ ...q, id: `q${index}` })),
+            topicId,
+            roadmapId
           });
         }
       } catch (error) {
@@ -114,6 +154,83 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
     fetchOrCreateQuiz();
   }, [firestore, user, params.quizId, toast]);
 
+  const score = quizData ? quizData.questions.reduce((acc, q) => {
+    return selectedAnswers[q.id] === q.correctAnswer ? acc + 1 : acc;
+  }, 0) : 0;
+  const scorePercentage = quizData ? (score / quizData.questions.length) * 100 : 0;
+  const passed = scorePercentage >= 80;
+
+  const handleNext = async () => {
+    if (currentQuestionIndex < quizData!.questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    } else {
+      setIsSubmitting(true);
+      try {
+        if(passed) {
+          await updateProgress();
+        }
+      } catch (error) {
+        console.error("Failed to update progress:", error);
+        toast({
+          variant: 'destructive',
+          title: 'Error updating progress',
+          description: 'Could not update your learning status. Please try again.'
+        });
+      } finally {
+        setIsSubmitting(false);
+        setShowResult(true);
+      }
+    }
+  };
+
+  const updateProgress = async () => {
+    if (!firestore || !user || !quizData) return;
+
+    const batch = writeBatch(firestore);
+    const lessonId = params.quizId;
+    const { topicId, roadmapId } = quizData;
+    
+    // 1. Mark current lesson as "Learned"
+    const lessonRef = doc(firestore, 'topics', topicId, 'roadmaps', roadmapId, 'lessons', lessonId);
+    batch.update(lessonRef, { status: "Learned" });
+
+    // 2. Check if all other lessons in the step are learned
+    const lessonsInStepRef = collection(firestore, 'topics', topicId, 'roadmaps', roadmapId, 'lessons');
+    const lessonsSnapshot = await getDocs(lessonsInStepRef);
+    const allLessons = lessonsSnapshot.docs.map(d => ({id: d.id, ...d.data()}));
+    
+    const allLearned = allLessons.every(l => l.status === "Learned" || l.id === lessonId);
+
+    if (allLearned) {
+        // 3. Mark current step as "Learned"
+        const currentStepRef = doc(firestore, 'topics', topicId, 'roadmaps', roadmapId);
+        batch.update(currentStepRef, { status: "Learned" });
+
+        // 4. Unlock next step
+        const currentStepSnap = await getDoc(currentStepRef);
+        const currentStepNumber = currentStepSnap.data()?.stepNumber;
+
+        if (currentStepNumber) {
+            const roadmapsInTopicRef = collection(firestore, 'topics', topicId, 'roadmaps');
+            const nextStepQuery = query(roadmapsInTopicRef, where("stepNumber", "==", currentStepNumber + 1), limit(1));
+            const nextStepSnapshot = await getDocs(nextStepQuery);
+            if (!nextStepSnapshot.empty) {
+                const nextStepDoc = nextStepSnapshot.docs[0];
+                batch.update(nextStepDoc.ref, { status: "Learning" });
+            }
+        }
+    }
+
+    await batch.commit();
+    toast({ title: "Progress Saved!", description: "You've unlocked the next part of your journey." });
+  };
+
+  const handleOptionChange = (value: string) => {
+    setSelectedAnswers({
+        ...selectedAnswers,
+        [currentQuestion.id]: value
+    });
+  };
 
   if (loading || !quizData) {
     return (
@@ -127,34 +244,12 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
   const currentQuestion = quizData.questions[currentQuestionIndex];
   const progress = ((currentQuestionIndex + 1) / quizData.questions.length) * 100;
   
-  const handleNext = () => {
-    if (currentQuestionIndex < quizData.questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    } else {
-        setShowResult(true);
-    }
-  };
-
-  const handleOptionChange = (value: string) => {
-    setSelectedAnswers({
-        ...selectedAnswers,
-        [currentQuestion.id]: value
-    });
-  };
-
-  const score = quizData.questions.reduce((acc, q) => {
-      return selectedAnswers[q.id] === q.correctAnswer ? acc + 1 : acc;
-  }, 0);
-  const scorePercentage = (score / quizData.questions.length) * 100;
-  const passed = scorePercentage >= 80;
-
-
   return (
     <div className="flex items-center justify-center min-h-full py-12">
       <Card className="w-full max-w-2xl">
         <CardHeader>
-          <p className="text-sm text-muted-foreground">Quiz</p>
-          <CardTitle className="font-headline">{quizData.title}</CardTitle>
+          <p className="text-sm text-muted-foreground">Quiz for: {quizData.title}</p>
+          <CardTitle className="font-headline">Knowledge Check</CardTitle>
           <CardDescription>Test your knowledge to unlock the next step.</CardDescription>
           <div className="pt-4">
             <div className="flex justify-between mb-1">
@@ -178,7 +273,8 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
           </div>
         </CardContent>
         <CardFooter>
-          <Button onClick={handleNext} className="w-full md:w-auto ml-auto" disabled={!selectedAnswers[currentQuestion.id]}>
+          <Button onClick={handleNext} className="w-full md:w-auto ml-auto" disabled={!selectedAnswers[currentQuestion.id] || isSubmitting}>
+            {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
             {currentQuestionIndex < quizData.questions.length - 1 ? "Next Question" : "Submit Quiz"}
             <ArrowRight className="ml-2 h-4 w-4"/>
           </Button>
@@ -201,7 +297,7 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
             <AlertDialogFooter>
                 {passed ? (
                     <AlertDialogAction asChild className="w-full">
-                       <Link href="/roadmap/python">Continue to Next Lesson</Link>
+                       <Link href={`/roadmap/${quizData.topicId}`}>Continue Your Journey</Link>
                     </AlertDialogAction>
                 ) : (
                     <AlertDialogAction onClick={() => { setShowResult(false); setCurrentQuestionIndex(0); setSelectedAnswers({}); }} className="w-full">
@@ -214,3 +310,5 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
     </div>
   );
 }
+
+    
