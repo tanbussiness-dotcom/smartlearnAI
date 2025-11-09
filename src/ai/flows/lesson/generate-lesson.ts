@@ -68,9 +68,27 @@ const generateLessonFlow = ai.defineFlow(
     });
     console.log('[generateLesson] Step 2 COMPLETED: Lesson draft created.');
 
+    // Step 2.5: Basic content validation before calling the validation AI
+    console.log('[generateLesson] Step 2.5: Performing basic validation...');
+    const wordCount = lessonDraft.content.split(/\s+/).length;
+    const hasHeadings = /^(##|###) /m.test(lessonDraft.content);
+    const hasKeywords = /(ví dụ|ứng dụng|kết luận)/i.test(lessonDraft.content);
 
-    // Step 3: Validate the synthesized lesson
-    console.log('[generateLesson] Step 3: Validating lesson...');
+    if (wordCount < 800 || !hasHeadings) {
+        let feedback = `Validation failed: `;
+        if (wordCount < 800) feedback += `Content is too short (${wordCount} words). `;
+        if (!hasHeadings) feedback += `Content is missing proper section headings (## or ###). `;
+        
+        console.error(`[generateLesson] Step 2.5 FAILED: ${feedback}`);
+        // In a more robust implementation, we might retry synthesis with expanded prompts.
+        // For now, we will throw an error to indicate failure.
+        throw new Error(feedback);
+    }
+    console.log(`[generateLesson] Step 2.5 COMPLETED: Basic checks passed (Words: ${wordCount}, Headings: ${hasHeadings}, Keywords: ${hasKeywords}).`);
+
+
+    // Step 3: Validate the synthesized lesson using AI
+    console.log('[generateLesson] Step 3: Validating lesson with AI...');
     const validationResult = await validateLesson({ lessonDraft });
     console.log(`[generateLesson] Step 3 COMPLETED: Validation result: ${validationResult.valid} (Confidence: ${validationResult.confidence_score})`);
 
