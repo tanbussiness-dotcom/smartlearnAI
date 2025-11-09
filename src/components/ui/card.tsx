@@ -1,3 +1,4 @@
+
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -76,4 +77,31 @@ const CardFooter = React.forwardRef<
 ))
 CardFooter.displayName = "CardFooter"
 
-export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
+const CardList = React.forwardRef<
+  HTMLUListElement,
+  React.HTMLAttributes<HTMLUListElement>
+>(({ className, ...props }, ref) => (
+  <ul
+    ref={ref}
+    className={cn("flex flex-col p-6 pt-0", className)}
+    {...props}
+  />
+));
+CardList.displayName = "CardList";
+
+const CardListItem = React.forwardRef<
+  HTMLLIElement,
+  React.HTMLAttributes<HTMLLIElement>
+>(({ className, ...props }, ref) => (
+  <li
+    ref={ref}
+    className={cn("border-b last:border-b-0 py-2", className)}
+    {...props}
+  />
+));
+CardListItem.displayName = "CardListItem";
+
+
+export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent, CardList, CardListItem }
+
+    

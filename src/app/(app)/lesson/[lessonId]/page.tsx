@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -11,6 +11,8 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
+  CardList,
+  CardListItem,
   CardTitle,
 } from '@/components/ui/card';
 import {
@@ -26,6 +28,7 @@ import {
   Star,
   Film,
   Library,
+  List,
 } from 'lucide-react';
 import { useFirestore, useUser } from '@/firebase';
 import {
@@ -57,15 +60,21 @@ type Source = {
 };
 
 type Video = {
-    title: string;
-    url: string;
-    channel: string;
-}
+  title: string;
+  url: string;
+  channel: string;
+};
+
+type TocEntry = {
+  level: number;
+  id: string;
+  title: string;
+};
 
 type LessonInfo = {
   title: string;
-  overview: string; // New field for summary
-  content: string; // New field for detailed content (Markdown/HTML)
+  overview: string;
+  content: string;
   sources: Source[];
   videos: Video[];
   estimated_time_min: number;
@@ -74,6 +83,8 @@ type LessonInfo = {
   roadmapId: string;
   createdAt: string; // ISO date string
   isAiGenerated: boolean;
+  has_quiz: boolean;
+  quiz_ready: boolean;
 };
 
 const getYoutubeEmbedId = (url: string): string | null => {
@@ -90,10 +101,24 @@ const getYoutubeEmbedId = (url: string): string | null => {
       return urlObj.searchParams.get('v');
     }
   } catch (e) {
-    console.error("Invalid YouTube URL:", url);
+    console.error('Invalid YouTube URL:', url);
   }
   return null;
 };
+
+const generateSlug = (text: string) => {
+  return text
+    .toLowerCase()
+    .replace(/ /g, '-')
+    .replace(/[^\w-]+/g, '');
+};
+
+const HeadingRenderer = ({ level, children }: { level: any; children: any }) => {
+    const text = React.Children.toArray(children).join('');
+    const slug = generateSlug(text);
+    return React.createElement(`h${level}`, { id: slug }, children);
+};
+
 
 export default function LessonPage() {
   const params = useParams();
@@ -109,6 +134,42 @@ export default function LessonPage() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [activeTocId, setActiveTocId] = useState<string>('');
+
+  const tableOfContents = useMemo(() => {
+    if (!lesson?.content) return [];
+    const headings: TocEntry[] = [];
+    const matches = lesson.content.matchAll(/^(##|###) (.*)/gm);
+    for (const match of matches) {
+      const level = match[1].length;
+      const title = match[2];
+      headings.push({
+        level,
+        title,
+        id: generateSlug(title),
+      });
+    }
+    return headings;
+  }, [lesson?.content]);
+  
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActiveTocId(entry.target.id);
+          }
+        });
+      },
+      { rootMargin: '-20% 0px -80% 0px' }
+    );
+  
+    const headings = document.querySelectorAll('.prose h2, .prose h3');
+    headings.forEach((heading) => observer.observe(heading));
+  
+    return () => observer.disconnect();
+  }, [lesson]);
+
 
   useEffect(() => {
     if (!firestore || !user || !lessonId) return;
@@ -151,8 +212,15 @@ export default function LessonPage() {
               // Adapt to new structure, with fallbacks for old structure
               const fetchedLesson: LessonInfo = {
                 title: lessonData.title,
-                overview: lessonData.overview || lessonData.summary || lessonData.description,
-                content: lessonData.content || lessonData.synthesized_content || lessonData.instructions || "Nội dung bài học chưa được cập nhật.",
+                overview:
+                  lessonData.overview ||
+                  lessonData.summary ||
+                  lessonData.description,
+                content:
+                  lessonData.content ||
+                  lessonData.synthesized_content ||
+                  lessonData.instructions ||
+                  'Nội dung bài học chưa được cập nhật.',
                 sources: lessonData.sources || [],
                 videos: lessonData.videos || [],
                 estimated_time_min: lessonData.estimated_time_min || 15,
@@ -160,26 +228,38 @@ export default function LessonPage() {
                 topicId: topicDoc.id,
                 roadmapId: roadmapDoc.id,
                 createdAt: lessonData.createdAt
-                  ? (lessonData.createdAt.toDate ? lessonData.createdAt.toDate().toISOString() : lessonData.createdAt)
+                  ? lessonData.createdAt.toDate
+                    ? lessonData.createdAt.toDate().toISOString()
+                    : lessonData.createdAt
                   : new Date().toISOString(),
-                isAiGenerated: !!(lessonData.content || lessonData.synthesized_content),
+                isAiGenerated: !!(
+                  lessonData.content || lessonData.synthesized_content
+                ),
+                has_quiz: lessonData.has_quiz || false,
+                quiz_ready: lessonData.quiz_ready || false,
               };
 
               // Compatibility: If old video_links exists, convert to new video structure
-              if (lessonData.video_links && lessonData.video_links.length > 0 && fetchedLesson.videos.length === 0) {
-                 fetchedLesson.videos = lessonData.video_links.map((link: string) => ({
-                     title: "Video tham khảo",
-                     url: link,
-                     channel: "YouTube"
-                 }));
+              if (
+                lessonData.video_links &&
+                lessonData.video_links.length > 0 &&
+                fetchedLesson.videos.length === 0
+              ) {
+                fetchedLesson.videos = lessonData.video_links.map(
+                  (link: string) => ({
+                    title: 'Video tham khảo',
+                    url: link,
+                    channel: 'YouTube',
+                  })
+                );
               }
               // Compatibility: for even older youtubeLink
               if (lessonData.youtubeLink && fetchedLesson.videos.length === 0) {
-                 fetchedLesson.videos.push({
-                     title: "Video tham khảo",
-                     url: lessonData.youtubeLink,
-                     channel: "YouTube"
-                 })
+                fetchedLesson.videos.push({
+                  title: 'Video tham khảo',
+                  url: lessonData.youtubeLink,
+                  channel: 'YouTube',
+                });
               }
 
               setLesson(fetchedLesson);
@@ -206,7 +286,10 @@ export default function LessonPage() {
                 (l) => l.id === lessonId
               );
 
-              if (currentIndex !== -1 && currentIndex < allLessonsInStep.length - 1) {
+              if (
+                currentIndex !== -1 &&
+                currentIndex < allLessonsInStep.length - 1
+              ) {
                 const nextLessonData = allLessonsInStep[currentIndex + 1];
                 const stepSnap = await getDoc(roadmapDoc.ref);
                 setNextLesson({
@@ -329,7 +412,7 @@ export default function LessonPage() {
 
   return (
     <motion.div
-      className="container mx-auto max-w-5xl py-8"
+      className="container mx-auto max-w-7xl py-8"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
@@ -338,9 +421,7 @@ export default function LessonPage() {
         <h1 className="text-4xl font-extrabold font-headline tracking-tight">
           {lesson.title}
         </h1>
-        <p className="mt-2 text-lg text-muted-foreground">
-          {lesson.overview}
-        </p>
+        <p className="mt-2 text-lg text-muted-foreground">{lesson.overview}</p>
         <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
@@ -360,8 +441,8 @@ export default function LessonPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
+        <div className="lg:col-span-3 space-y-8">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 font-headline">
@@ -374,14 +455,18 @@ export default function LessonPage() {
                 className="prose dark:prose-invert max-w-none"
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw]}
+                components={{
+                    h2: ({node, ...props}) => <HeadingRenderer level={2} {...props} />,
+                    h3: ({node, ...props}) => <HeadingRenderer level={3} {...props} />,
+                }}
               >
                 {lesson.content}
               </ReactMarkdown>
             </CardContent>
           </Card>
-          
+
           {lesson.videos && lesson.videos.length > 0 && (
-             <Card>
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-headline">
                   <Film className="h-5 w-5" />
@@ -389,25 +474,41 @@ export default function LessonPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 {lesson.videos.map((video, index) => {
-                    const videoId = getYoutubeEmbedId(video.url);
-                    if (!videoId) return null;
-                    const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-                    return (
-                        <a key={index} href={video.url} target="_blank" rel="noopener noreferrer" className="group space-y-2">
-                             <div className="relative aspect-video overflow-hidden rounded-lg">
-                                <Image src={thumbnailUrl} alt={video.title} layout="fill" objectFit="cover" className="transition-transform duration-300 group-hover:scale-105" />
-                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Youtube className="h-10 w-10 text-white" />
-                                </div>
-                            </div>
-                            <div>
-                                <p className="font-medium text-sm leading-tight group-hover:text-primary">{video.title}</p>
-                                <p className="text-xs text-muted-foreground">{video.channel}</p>
-                            </div>
-                        </a>
-                    )
-                 })}
+                {lesson.videos.map((video, index) => {
+                  const videoId = getYoutubeEmbedId(video.url);
+                  if (!videoId) return null;
+                  const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+                  return (
+                    <a
+                      key={index}
+                      href={video.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group space-y-2"
+                    >
+                      <div className="relative aspect-video overflow-hidden rounded-lg">
+                        <Image
+                          src={thumbnailUrl}
+                          alt={video.title}
+                          fill
+                          objectFit="cover"
+                          className="transition-transform duration-300 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Youtube className="h-10 w-10 text-white" />
+                        </div>
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm leading-tight group-hover:text-primary">
+                          {video.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {video.channel}
+                        </p>
+                      </div>
+                    </a>
+                  );
+                })}
               </CardContent>
             </Card>
           )}
@@ -422,7 +523,10 @@ export default function LessonPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {lesson.sources.map((source, index) => (
-                  <div key={index} className="p-3 border rounded-md bg-muted/50">
+                  <div
+                    key={index}
+                    className="p-3 border rounded-md bg-muted/50"
+                  >
                     <a
                       href={source.url}
                       target="_blank"
@@ -435,9 +539,15 @@ export default function LessonPage() {
                       "{source.short_note}"
                     </p>
                     <div className="text-xs text-muted-foreground mt-2 flex items-center gap-4">
-                      <span className="flex items-center gap-1"><LinkIcon className="h-3 w-3"/>{source.domain}</span>
+                      <span className="flex items-center gap-1">
+                        <LinkIcon className="h-3 w-3" />
+                        {source.domain}
+                      </span>
                       {source.relevance && (
-                         <span className="flex items-center gap-1"><Star className="h-3 w-3"/>Tin cậy: {(source.relevance * 100).toFixed(0)}%</span>
+                        <span className="flex items-center gap-1">
+                          <Star className="h-3 w-3" />
+                          Tin cậy: {(source.relevance * 100).toFixed(0)}%
+                        </span>
                       )}
                     </div>
                   </div>
@@ -445,29 +555,32 @@ export default function LessonPage() {
               </CardContent>
             </Card>
           )}
-           {(!lesson.sources || lesson.sources.length === 0) && (
-             <Card>
-                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2 font-headline text-lg">
-                        <Library className="h-5 w-5" />
-                        Nguồn & Đọc thêm
-                    </CardTitle>
-                 </CardHeader>
-                 <CardContent>
-                     <p className="text-sm text-muted-foreground">Chưa có nguồn tham khảo.</p>
-                 </CardContent>
-             </Card>
-           )}
+          {(!lesson.sources || lesson.sources.length === 0) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-headline text-lg">
+                  <Library className="h-5 w-5" />
+                  Nguồn & Đọc thêm
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Chưa có nguồn tham khảo.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
-        <div className="lg:col-span-1 space-y-6">
+        <div className="lg:col-span-1 space-y-6 lg:sticky lg:top-24 self-start">
           <Card>
             <CardHeader>
               <CardTitle className="font-headline">Hoàn thành bài học</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Khi đã nắm vững kiến thức, hãy đánh dấu bài học này là đã hoàn thành.
+                Khi đã nắm vững kiến thức, hãy đánh dấu bài học này là đã hoàn
+                thành.
               </p>
               <Button
                 className="w-full"
@@ -484,22 +597,62 @@ export default function LessonPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-primary/10 border-primary">
-            <CardHeader>
-              <CardTitle className="font-headline">Làm bài kiểm tra</CardTitle>
-              <CardDescription>
-                Kiểm tra kiến thức của bạn để mở khóa bài học tiếp theo.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" asChild>
-                <Link href={`/quiz/${lessonId}`}>
-                  Bắt đầu kiểm tra
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
+          {lesson.has_quiz && (
+            <Card className="bg-primary/10 border-primary">
+              <CardHeader>
+                <CardTitle className="font-headline">Làm bài kiểm tra</CardTitle>
+                <CardDescription>
+                  Kiểm tra kiến thức của bạn để mở khóa bài học tiếp theo.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full"
+                  asChild
+                  disabled={!lesson.quiz_ready}
+                >
+                  <Link href={`/quiz/${lessonId}`}>
+                    {!lesson.quiz_ready && (
+                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    {lesson.quiz_ready
+                      ? 'Bắt đầu kiểm tra'
+                      : 'Quiz đang được tạo...'}
+                    {lesson.quiz_ready && (
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    )}
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {tableOfContents.length > 0 && (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 font-headline text-lg">
+                        <List className="h-5 w-5"/>
+                        Mục lục
+                    </CardTitle>
+                </CardHeader>
+                <CardList>
+                    {tableOfContents.map((item) => (
+                        <CardListItem key={item.id} className={item.level === 3 ? "pl-4" : ""}>
+                            <a
+                                href={`#${item.id}`}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }}
+                                className={`block text-sm hover:text-primary transition-colors ${activeTocId === item.id ? 'text-primary font-medium' : 'text-muted-foreground'}`}
+                            >
+                                {item.title}
+                            </a>
+                        </CardListItem>
+                    ))}
+                </CardList>
+            </Card>
+          )}
 
           {nextLesson && (
             <Card>
@@ -528,6 +681,5 @@ export default function LessonPage() {
     </motion.div>
   );
 }
-
 
     
