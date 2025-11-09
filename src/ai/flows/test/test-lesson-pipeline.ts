@@ -56,15 +56,15 @@ const testLessonPipelineFlow = ai.defineFlow(
       if (!lesson.lesson?.title) {
         throw new Error('Validation failed: Lesson title is missing.');
       }
-      if (!lesson.lesson?.synthesized_content) {
+      if (!lesson.lesson?.content) {
         throw new Error('Validation failed: Lesson content is missing.');
       }
       if (!lesson.lesson?.sources || lesson.lesson.sources.length === 0) {
         throw new Error('Validation failed: Lesson sources are missing or empty.');
       }
-      // video_links are optional, so we don't fail if they're missing, but we can log it.
-      if (!lesson.lesson?.video_links) {
-        console.warn('[TEST_PIPELINE] Warning: video_links array is missing.');
+      // videos are optional, so we don't fail if they're missing, but we can log it.
+      if (!lesson.lesson?.videos) {
+        console.warn('[TEST_PIPELINE] Warning: videos array is missing.');
       }
 
       console.log('[TEST_PIPELINE] All checks passed. Lesson is valid.');

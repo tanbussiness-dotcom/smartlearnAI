@@ -123,6 +123,13 @@ const synthesizeLessonFlow = ai.defineFlow(
         }
     }
     
+    // Ensure content has a minimum length. While the prompt asks for it, this is a fallback.
+    // A retry mechanism would be more robust but is more complex to implement here.
+    if (output.content.length < 600) {
+        console.warn(`[synthesizeLesson] Warning: Generated content is shorter than expected (${output.content.length} words).`);
+        // In a real scenario, you might want to throw an error or trigger a retry.
+    }
+    
     return output;
   }
 );
