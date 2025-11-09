@@ -22,7 +22,7 @@ import { CheckCircle, Circle, PlayCircle, Lock, LoaderCircle } from "lucide-reac
 import { Progress } from "@/components/ui/progress";
 import { useCollection } from "@/firebase";
 import { useFirestore } from "@/firebase/provider";
-import { collection, query, orderBy } from "firebase/firestore";
+import { collection, query, orderBy, doc, getDoc, getDocs } from "firebase/firestore";
 
 type Lesson = {
   id: string;
@@ -150,8 +150,12 @@ export default function RoadmapPage({ params }: { params: { topic: string } }) {
     const learningStep = roadmap.find(s => s.status === 'Learning');
     if (learningStep) {
         setActiveStep(learningStep.id);
+    } else if (roadmap.length > 0 && !activeStep) {
+        // If no step is 'Learning', default to the first unlearned step or the first step
+        const firstUnlearned = roadmap.find(s => s.status !== 'Learned');
+        setActiveStep(firstUnlearned ? firstUnlearned.id : roadmap[0].id);
     }
-  }, [roadmap]);
+  }, [roadmap, activeStep]);
 
   if (isLoadingRoadmaps || loading) {
     return <div className="flex h-full w-full items-center justify-center"><LoaderCircle className="h-12 w-12 animate-spin text-primary" /></div>
