@@ -9,5 +9,4 @@ import '@/ai/flows/lesson/synthesize-lesson.ts';
 import '@/ai/flows/lesson/validate-lesson.ts';
 import '@/ai/flows/lesson/generate-lesson.ts';
 import '@/ai/flows/lesson/generate-lesson-section.ts';
-import '@/ai/flows/test/test-lesson-pipeline.ts';
 import '@/ai/flows/quiz/validate-quiz-content.ts';
