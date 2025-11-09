@@ -2,7 +2,6 @@
 
 import {
   AppleLogoIcon,
-  GitHubLogoIcon,
   GoogleLogoIcon,
 } from '@radix-ui/react-icons';
 import {
