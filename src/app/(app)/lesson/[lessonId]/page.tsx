@@ -17,6 +17,7 @@ import { useFirestore, useUser, updateDocumentNonBlocking } from "@/firebase";
 import { collection, doc, getDocs, updateDoc, writeBatch, getDoc, query, where, limit } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
+import { useParams } from "next/navigation";
 
 
 const ResponsiveYoutubeEmbed = React.lazy(() => import('@/components/youtube-embed'));
@@ -43,8 +44,9 @@ const pageTransition = {
   duration: 0.5,
 };
 
-export default function LessonPage({ params }: { params: { lessonId: string } }) {
-  const { lessonId } = params;
+export default function LessonPage() {
+  const params = useParams();
+  const lessonId = params.lessonId as string;
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();

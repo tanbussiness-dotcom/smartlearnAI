@@ -30,7 +30,7 @@ import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
 import { collection, doc, addDoc, getDocs, query, limit, getDoc, writeBatch, where } from "firebase/firestore";
 import { generateQuizzesForKnowledgeAssessment } from "@/ai/flows/generate-quizzes-for-knowledge-assessment";
 import { useToast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 
 
 type QuizQuestion = {
@@ -48,8 +48,9 @@ type QuizData = {
   questions: QuizQuestion[];
 };
 
-export default function QuizPage({ params }: { params: { quizId: string } }) { // quizId is lessonId
-  const { quizId: lessonId } = params;
+export default function QuizPage() {
+  const params = useParams();
+  const lessonId = params.quizId as string; // quizId is lessonId
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();

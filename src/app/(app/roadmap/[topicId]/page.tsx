@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo } from "react";
@@ -24,6 +25,7 @@ import { Progress } from "@/components/ui/progress";
 import { useCollection, useUser } from "@/firebase";
 import { useFirestore } from "@/firebase/provider";
 import { collection, query, orderBy, doc, getDoc, getDocs } from "firebase/firestore";
+import { useParams } from "next/navigation";
 
 type Lesson = {
   id: string;
@@ -92,8 +94,9 @@ const LessonList = ({ lessons, userId, topicId, roadmapId }: { lessons: Lesson[]
 );
 
 
-export default function RoadmapPage({ params }: { params: { topicId: string } }) {
-  const { topicId } = params;
+export default function RoadmapPage() {
+  const params = useParams();
+  const topicId = params.topicId as string;
   const firestore = useFirestore();
   const { user } = useUser();
   
