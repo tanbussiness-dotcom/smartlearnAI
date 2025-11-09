@@ -97,54 +97,54 @@ const generateLessonFlow = ai.defineFlow(
     // Caching logic: Check if a similar lesson already exists and is ready.
     // This uses a collectionGroup query, which requires a Firestore index.
     // The index to create is: collection: 'lessons', fields: 'topic' (asc), 'phase' (asc), 'status' (asc).
-    const firestore = getFirestore();
-    const lessonsRef = collectionGroup(firestore, 'lessons');
-    const cacheQuery = query(
-      lessonsRef,
-      where('topic', '==', topic),
-      where('phase', '==', phase),
-      where('status', '==', 'ready'),
-      limit(1)
-    );
+    // const firestore = getFirestore();
+    // const lessonsRef = collectionGroup(firestore, 'lessons');
+    // const cacheQuery = query(
+    //   lessonsRef,
+    //   where('topic', '==', topic),
+    //   where('phase', '==', phase),
+    //   where('status', '==', 'ready'),
+    //   limit(1)
+    // );
 
-    try {
-        const cachedSnapshot = await getDocs(cacheQuery);
-        if (!cachedSnapshot.empty) {
-          console.log(`[generateLesson] Step 0: Found cached lesson for topic "${topic}"`);
-          const cachedData = cachedSnapshot.docs[0].data();
-          // Reconstruct the output to match the flow's schema, updating user and timestamp
-          return {
-            lesson: {
-                title: cachedData.title,
-                overview: cachedData.overview,
-                content: cachedData.content,
-                sources: cachedData.sources,
-                videos: cachedData.videos,
-            },
-            validation: { // Assume cached lessons are valid
-                valid: true,
-                confidence_score: 1.0,
-                issues: [],
-            },
-            created_by: userId, // Attribute to the current user
-            created_at: new Date().toISOString(), // Set a new creation date
-          };
-        }
-    } catch (serverError: any) {
-        // This is a critical addition. If getDocs fails on the server, we log a detailed server error
-        // and throw a generic error to the client.
-        const permissionError = new ServerFirestorePermissionError({
-            path: 'lessons (collectionGroup)', // It's a collectionGroup query, so the path is generic
-            operation: 'list',
-            serverDetails: serverError.message,
-        });
+    // try {
+    //     const cachedSnapshot = await getDocs(cacheQuery);
+    //     if (!cachedSnapshot.empty) {
+    //       console.log(`[generateLesson] Step 0: Found cached lesson for topic "${topic}"`);
+    //       const cachedData = cachedSnapshot.docs[0].data();
+    //       // Reconstruct the output to match the flow's schema, updating user and timestamp
+    //       return {
+    //         lesson: {
+    //             title: cachedData.title,
+    //             overview: cachedData.overview,
+    //             content: cachedData.content,
+    //             sources: cachedData.sources,
+    //             videos: cachedData.videos,
+    //         },
+    //         validation: { // Assume cached lessons are valid
+    //             valid: true,
+    //             confidence_score: 1.0,
+    //             issues: [],
+    //         },
+    //         created_by: userId, // Attribute to the current user
+    //         created_at: new Date().toISOString(), // Set a new creation date
+    //       };
+    //     }
+    // } catch (serverError: any) {
+    //     // This is a critical addition. If getDocs fails on the server, we log a detailed server error
+    //     // and throw a generic error to the client.
+    //     const permissionError = new ServerFirestorePermissionError({
+    //         path: 'lessons (collectionGroup)', // It's a collectionGroup query, so the path is generic
+    //         operation: 'list',
+    //         serverDetails: serverError.message,
+    //     });
         
-        // Log the detailed error on the server for debugging
-        console.error(permissionError.message);
+    //     // Log the detailed error on the server for debugging
+    //     console.error(permissionError.message);
         
-        // Re-throw a generic error that is safe to send to the client.
-        throw new Error('A server-side Firestore permission error occurred while checking for cached lessons. This is likely due to missing Firestore rules for collection group queries.');
-    }
+    //     // Re-throw a generic error that is safe to send to the client.
+    //     throw new Error('A server-side Firestore permission error occurred while checking for cached lessons. This is likely due to missing Firestore rules for collection group queries.');
+    // }
 
 
     // Step 1: Search for sources
