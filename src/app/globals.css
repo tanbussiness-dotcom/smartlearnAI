@@ -55,5 +55,6 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image: linear-gradient(to top, hsl(var(--background)), hsl(var(--muted)));
   }
 }
