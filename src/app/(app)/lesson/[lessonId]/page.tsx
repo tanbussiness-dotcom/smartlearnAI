@@ -30,7 +30,7 @@ import {
   Library,
   List,
 } from 'lucide-react';
-import { useFirestore, useUser } from '@/firebase';
+import { useFirestore, useUser, updateDocumentNonBlocking } from '@/firebase';
 import {
   collection,
   doc,
@@ -395,7 +395,7 @@ export default function LessonPage() {
         'lessons',
         lessonId
       );
-      await updateDoc(lessonRef, {
+      updateDocumentNonBlocking(lessonRef, {
         status: 'Learned',
       });
       toast({
@@ -706,5 +706,3 @@ export default function LessonPage() {
     </motion.div>
   );
 }
-
-    
