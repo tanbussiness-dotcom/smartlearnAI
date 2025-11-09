@@ -8,7 +8,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the User entity."
+          "description": "Unique identifier for the user entity."
         },
         "name": {
           "type": "string",
@@ -18,13 +18,6 @@
           "type": "string",
           "description": "The user's email address.",
           "format": "email"
-        },
-        "progress": {
-          "type": "array",
-          "description": "Tracks the user's learning progress for each topic.",
-          "items": {
-            "type": "string"
-          }
         }
       },
       "required": [
@@ -37,23 +30,23 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Topic",
       "type": "object",
-      "description": "Represents a learning topic (e.g., 'Learn Python').",
+      "description": "Represents a learning topic (e.g., 'Python', 'Guitar').",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Topic entity."
+          "description": "Unique identifier for the topic entity."
         },
         "title": {
           "type": "string",
-          "description": "The title of the learning topic."
+          "description": "The title of the topic."
         },
         "createdBy": {
           "type": "string",
-          "description": "Reference to User. (Relationship: User 1:N Topic). The user who created the topic/roadmap."
+          "description": "Reference to User. (Relationship: User 1:N Topic) The ID of the user who created the topic."
         },
-        "roadmap": {
+        "roadmapIds": {
           "type": "array",
-          "description": "An ordered list of roadmap step IDs for this topic.",
+          "description": "References to Roadmaps. (Relationship: Topic 1:N Roadmap) List of roadmap IDs associated with this topic.",
           "items": {
             "type": "string"
           }
@@ -62,35 +55,38 @@
       "required": [
         "id",
         "title",
-        "createdBy",
-        "roadmap"
+        "createdBy"
       ]
     },
     "Roadmap": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Roadmap",
       "type": "object",
-      "description": "Represents a step in a learning roadmap.",
+      "description": "Represents a learning roadmap for a topic, consisting of multiple steps.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Roadmap entity."
+          "description": "Unique identifier for the roadmap entity."
+        },
+        "topicId": {
+          "type": "string",
+          "description": "Reference to Topic. (Relationship: Topic 1:N Roadmap) The ID of the topic this roadmap belongs to."
         },
         "stepNumber": {
           "type": "number",
-          "description": "The step number in the roadmap sequence."
+          "description": "The order number of this step in the roadmap."
         },
         "stepTitle": {
           "type": "string",
-          "description": "The title of the roadmap step."
+          "description": "The title of this step in the roadmap."
         },
         "description": {
           "type": "string",
           "description": "A description of what the step covers."
         },
-        "lessons": {
+        "lessonIds": {
           "type": "array",
-          "description": "An ordered list of lesson IDs for this roadmap step.",
+          "description": "References to Lessons. (Relationship: Roadmap 1:N Lesson) List of lesson IDs associated with this roadmap step.",
           "items": {
             "type": "string"
           }
@@ -98,10 +94,10 @@
       },
       "required": [
         "id",
+        "topicId",
         "stepNumber",
         "stepTitle",
-        "description",
-        "lessons"
+        "description"
       ]
     },
     "Lesson": {
@@ -112,7 +108,11 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Lesson entity."
+          "description": "Unique identifier for the lesson entity."
+        },
+        "roadmapId": {
+          "type": "string",
+          "description": "Reference to Roadmap. (Relationship: Roadmap 1:N Lesson) The ID of the roadmap step this lesson belongs to."
         },
         "title": {
           "type": "string",
@@ -120,48 +120,50 @@
         },
         "description": {
           "type": "string",
-          "description": "A description of what the lesson covers."
+          "description": "A detailed description of the lesson content."
         },
         "youtubeLink": {
           "type": "string",
-          "description": "A link to a relevant YouTube video.",
+          "description": "Link to a YouTube video associated with the lesson.",
           "format": "uri"
         },
         "status": {
           "type": "string",
-          "description": "The current status of the lesson (To Learn, Learning, Learned)."
+          "description": "The status of the lesson (To Learn, Learning, Learned).",
+          "items": {
+            "type": "string"
+          }
         },
         "testId": {
           "type": "string",
-          "description": "Reference to Test. (Relationship: Lesson 1:1 Test). The ID of the test associated with this lesson."
+          "description": "Reference to Test. (Relationship: Lesson 1:1 Test) The ID of the test associated with this lesson."
         }
       },
       "required": [
         "id",
+        "roadmapId",
         "title",
         "description",
-        "youtubeLink",
-        "status",
-        "testId"
+        "status"
       ]
     },
     "Test": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Test",
       "type": "object",
-      "description": "Represents a test or quiz for a lesson.",
+      "description": "Represents a test/quiz associated with a lesson.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Test entity."
+          "description": "Unique identifier for the test entity."
         },
         "lessonId": {
           "type": "string",
-          "description": "Reference to Lesson. (Relationship: Lesson 1:1 Test). The ID of the lesson this test belongs to."
+          "description": "Reference to Lesson. (Relationship: Lesson 1:1 Test) The ID of the lesson this test belongs to."
         },
         "questions": {
           "type": "array",
-          "description": "An array of question objects.",
+          "description": "An array of question objects for the test.",
           "items": {
             "type": "string"
           }
@@ -181,19 +183,19 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the DailyTask entity."
+          "description": "Unique identifier for the daily task entity."
         },
         "userId": {
           "type": "string",
-          "description": "Reference to User. (Relationship: User 1:N DailyTask). The ID of the user assigned the task."
+          "description": "Reference to User. (Relationship: User 1:N DailyTask) The ID of the user assigned the task."
         },
         "topicId": {
           "type": "string",
-          "description": "Reference to Topic. (Relationship: Topic 1:N DailyTask). The ID of the topic the task belongs to."
+          "description": "Reference to Topic. (Relationship: Topic 1:N DailyTask) The ID of the topic the task belongs to."
         },
         "lessonId": {
           "type": "string",
-          "description": "Reference to Lesson. (Relationship: Lesson 1:N DailyTask). The ID of the lesson the task is for."
+          "description": "Reference to Lesson. (Relationship: Lesson 1:N DailyTask) The ID of the lesson associated with the task."
         },
         "date": {
           "type": "string",
@@ -202,7 +204,7 @@
         },
         "status": {
           "type": "string",
-          "description": "The status of the daily task."
+          "description": "The status of the task (e.g., 'Completed', 'Pending')."
         }
       },
       "required": [
@@ -218,9 +220,7 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous",
-      "google.com",
-      "apple.com"
+      "anonymous"
     ]
   },
   "firestore": {
@@ -232,128 +232,124 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profiles.  User data is private and accessible only to the user themselves.",
+          "description": "Stores user profile information.  The 'userId' parameter corresponds to the Firebase Authentication UID.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user."
+              "description": "The Firebase Authentication UID of the user."
             }
           ]
         }
       },
       {
-        "path": "/users/{userId}/progress",
-        "definition": {
-          "entityName": "progress",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Tracks the learning progress of a user for different topics. Uses path-based ownership, so access is restricted to the user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/topics/{topicId}",
+        "path": "/users/{userId}/topics/{topicId}",
         "definition": {
           "entityName": "Topic",
           "schema": {
             "$ref": "#/backend/entities/Topic"
           },
-          "description": "Stores learning topics. Includes denormalized 'createdBy' for authorization independence.",
+          "description": "Stores topics created by a specific user. Includes denormalized 'createdBy' field for authorization independence.",
           "params": [
             {
+              "name": "userId",
+              "description": "The Firebase Authentication UID of the user who owns the topic."
+            },
+            {
               "name": "topicId",
-              "description": "The unique identifier of the topic."
+              "description": "The unique identifier for the topic."
             }
           ]
         }
       },
       {
-        "path": "/roadmaps/{roadmapId}",
+        "path": "/users/{userId}/roadmaps/{roadmapId}",
         "definition": {
           "entityName": "Roadmap",
           "schema": {
             "$ref": "#/backend/entities/Roadmap"
           },
-          "description": "Stores learning roadmap steps.",
+          "description": "Stores roadmaps created by a specific user for a topic. Includes denormalized 'createdBy' from Topic for authorization independence.",
           "params": [
             {
+              "name": "userId",
+              "description": "The Firebase Authentication UID of the user who owns the roadmap."
+            },
+            {
               "name": "roadmapId",
-              "description": "The unique identifier of the roadmap step."
+              "description": "The unique identifier for the roadmap."
             }
           ]
         }
       },
       {
-        "path": "/lessons/{lessonId}",
+        "path": "/users/{userId}/roadmaps/{roadmapId}/lessons/{lessonId}",
         "definition": {
           "entityName": "Lesson",
           "schema": {
             "$ref": "#/backend/entities/Lesson"
           },
-          "description": "Stores individual lessons within a roadmap.",
+          "description": "Stores lessons associated with a specific roadmap. Includes denormalized 'createdBy' from Topic for authorization independence.",
           "params": [
             {
+              "name": "userId",
+              "description": "The Firebase Authentication UID of the user who owns the lesson."
+            },
+            {
+              "name": "roadmapId",
+              "description": "The unique identifier for the roadmap."
+            },
+            {
               "name": "lessonId",
-              "description": "The unique identifier of the lesson."
+              "description": "The unique identifier for the lesson."
             }
           ]
         }
       },
       {
-        "path": "/tests/{testId}",
+        "path": "/users/{userId}/lessons/{lessonId}/tests/{testId}",
         "definition": {
           "entityName": "Test",
           "schema": {
             "$ref": "#/backend/entities/Test"
           },
-          "description": "Stores tests associated with lessons.",
+          "description": "Stores tests associated with a specific lesson.",
           "params": [
             {
+              "name": "userId",
+              "description": "The Firebase Authentication UID of the user who owns the test."
+            },
+            {
+              "name": "lessonId",
+              "description": "The unique identifier for the lesson."
+            },
+            {
               "name": "testId",
-              "description": "The unique identifier of the test."
+              "description": "The unique identifier for the test."
             }
           ]
         }
       },
       {
-        "path": "/dailyTasks/{taskId}",
+        "path": "/users/{userId}/dailyTasks/{dailyTaskId}",
         "definition": {
           "entityName": "DailyTask",
           "schema": {
             "$ref": "#/backend/entities/DailyTask"
           },
-          "description": "Stores daily learning tasks assigned to users. Includes denormalized 'userId', 'topicId', and 'lessonId' for authorization independence.",
-          "params": [
-            {
-              "name": "taskId",
-              "description": "The unique identifier of the daily task."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "roles_admin",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Collection used to assign admin roles to users. Existence of a document at this path grants admin privileges.",
+          "description": "Stores daily tasks assigned to a specific user.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user."
+              "description": "The Firebase Authentication UID of the user assigned the task."
+            },
+            {
+              "name": "dailyTaskId",
+              "description": "The unique identifier for the daily task."
             }
           ]
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support the SmartLearn AI platform, prioritizing Authorization Independence, Clarity of Intent, and secure list operations (QAPs). It avoids hierarchical authorization dependencies (`get()` calls) by denormalizing authorization context where necessary.  It adheres to DBAC principles, relying on `request.auth.uid` for authorization and storing roles in the database, not custom claims. The structure supports the core features of the app: AI-powered roadmap generation, lesson generation, daily task assignment, AI test generation, and progress tracking. Segregation of data types into separate collections with homogeneous security postures simplifies rules. Path-based ownership is used where appropriate to maintain security and integrity of user-owned data.\n\n**Authorization Independence:** The `topics` collection denormalizes the `createdBy` field, allowing rules to check ownership without `get()` calls. The `dailyTasks` collection denormalizes `userId`, `topicId`, and `lessonId` for similar reasons, ensuring tasks can be queried and secured efficiently.\n\n**QAPs Support:** Segregation into user-owned data (e.g., `/users/{userId}/progress`) and globally accessible data (`/topics`) enables secure `list` operations.  The absence of `get()` calls in rules ensures that listing operations don't break down due to complex authorization logic. The use of a dedicated `roles_admin` collection allows for secure management of admin privileges.\n\n**Choice for DailyTasks Collection:** Daily tasks are placed in a top-level collection rather than a subcollection of users or topics. The primary reason for this architectural decision is to enable efficient querying of daily tasks across all users. Storing them as subcollections would make cross-user queries prohibitively expensive and complex.\n\nEach collection is explicitly defined with a schema reference and description to improve maintainability and debuggability."
+    "reasoning": "The Firestore structure is designed to support the SmartLearn AI platform, emphasizing authorization independence, clear data ownership, and efficient querying.  Authorization Independence is achieved via path-based ownership for user-specific data and the denormalization of the 'createdBy' field from `Topic` into `Roadmap` and `Lesson` entities. This eliminates the need for `get()` calls in security rules, ensuring atomic operations. Segregation via path-based ownership (`/users/{userId}/dailyTasks/{dailyTaskId}`) also enhances security and optimizes `list` operations. User-generated content (topics, roadmaps, lessons, daily tasks) is organized under user-specific paths (`/users/{userId}/topics/{topicId}`, `/users/{userId}/roadmaps/{roadmapId}`, etc.) to enforce clear ownership. This facilitates secure `list` operations (QAPs) and simplifies security rules. Additionally, a dedicated `users` collection stores user profile information. The structure also enables the AI to store generated roadmaps, lessons, tasks and quizzes."
   }
 }
