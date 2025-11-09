@@ -70,100 +70,95 @@ export default function QuizPage() {
 
     const fetchOrCreateQuiz = async () => {
       setLoading(true);
-      try {
-        
-        let lessonData: any = null;
-        let topicId: string | null = null;
-        let roadmapId: string | null = null;
-        let lessonDocRef: any = null;
+      
+      let lessonData: any = null;
+      let topicId: string | null = null;
+      let roadmapId: string | null = null;
+      let lessonDocRef: any = null;
 
-        // Find the lesson across all topics and roadmaps
-        const topicsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics'));
-        for (const topicDoc of topicsSnapshot.docs) {
-          const roadmapsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps'));
-          for (const roadmapDoc of roadmapsSnapshot.docs) {
-            const lessonRef = doc(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons', lessonId);
-            const lessonSnap = await getDoc(lessonRef);
-            if (lessonSnap.exists()) {
-              lessonData = lessonSnap.data();
-              topicId = topicDoc.id;
-              roadmapId = roadmapDoc.id;
-              lessonDocRef = lessonRef;
-              break;
-            }
+      // Find the lesson across all topics and roadmaps
+      const topicsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics'));
+      for (const topicDoc of topicsSnapshot.docs) {
+        const roadmapsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps'));
+        for (const roadmapDoc of roadmapsSnapshot.docs) {
+          const lessonRef = doc(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons', lessonId);
+          const lessonSnap = await getDoc(lessonRef);
+          if (lessonSnap.exists()) {
+            lessonData = lessonSnap.data();
+            topicId = topicDoc.id;
+            roadmapId = roadmapDoc.id;
+            lessonDocRef = lessonRef;
+            break;
           }
-          if (lessonData) break;
         }
-
-        if (!lessonData || !topicId || !roadmapId || !lessonDocRef) {
-            toast({ variant: 'destructive', title: 'Lesson not found' });
-            router.push('/dashboard');
-            return;
-        }
-
-        const testsRef = collection(lessonDocRef, 'tests');
-        let testResult;
-        let testId;
-
-        // If quiz_id exists and quiz is ready, fetch it
-        if (lessonData.quiz_id && lessonData.quiz_ready) {
-            const testDocRef = doc(testsRef, lessonData.quiz_id);
-            const existingTestSnapshot = await getDoc(testDocRef);
-            if (existingTestSnapshot.exists()) {
-                testId = existingTestSnapshot.id;
-                testResult = existingTestSnapshot.data();
-            }
-        }
-
-        // If no pre-existing quiz, generate a new one
-        if (!testResult) {
-            toast({ title: 'Generating a new quiz...', description: 'This may take a moment.' });
-          
-            const lessonContent = lessonData.content || lessonData.synthesized_content || lessonData.instructions || "";
-            if (!lessonContent) {
-                toast({ variant: 'destructive', title: 'Cannot generate quiz', description: 'Lesson content is empty.' });
-                router.push(`/lesson/${lessonId}`);
-                return;
-            }
-
-            const quizResultFromAI = await generateQuizForLesson({
-                lesson_id: lessonId,
-                lesson_content: lessonContent,
-            });
-          
-            const newTestDocRef = await addDocumentNonBlocking(testsRef, {
-                ...quizResultFromAI,
-                createdBy: user.uid,
-                createdAt: new Date().toISOString(),
-            });
-
-            testId = newTestDocRef.id;
-            testResult = quizResultFromAI;
-
-            // Update the lesson with the new quiz_id and set it to ready
-            updateDocumentNonBlocking(lessonDocRef, {
-                quiz_id: testId,
-                quiz_ready: true,
-            });
-        }
-
-
-        const formattedQuizData: QuizData = {
-            id: testId,
-            title: lessonData.title,
-            questions: testResult.questions.map((q: any, index: number) => ({ ...q, id: `q${index}` })),
-            topicId,
-            roadmapId,
-        };
-        setQuizData(formattedQuizData);
-        
-
-      } catch (error) {
-        console.error("Error fetching or creating quiz:", error);
-        toast({ variant: 'destructive', title: 'Failed to load quiz', description: 'Please try again later.' });
-      } finally {
-        setLoading(false);
+        if (lessonData) break;
       }
+
+      if (!lessonData || !topicId || !roadmapId || !lessonDocRef) {
+          toast({ variant: 'destructive', title: 'Lesson not found' });
+          router.push('/dashboard');
+          setLoading(false);
+          return;
+      }
+
+      const testsRef = collection(lessonDocRef, 'tests');
+      let testResult;
+      let testId;
+
+      // If quiz_id exists and quiz is ready, fetch it
+      if (lessonData.quiz_id && lessonData.quiz_ready) {
+          const testDocRef = doc(testsRef, lessonData.quiz_id);
+          const existingTestSnapshot = await getDoc(testDocRef);
+          if (existingTestSnapshot.exists()) {
+              testId = existingTestSnapshot.id;
+              testResult = existingTestSnapshot.data();
+          }
+      }
+
+      // If no pre-existing quiz, generate a new one
+      if (!testResult) {
+          toast({ title: 'Generating a new quiz...', description: 'This may take a moment.' });
+        
+          const lessonContent = lessonData.content || lessonData.synthesized_content || lessonData.instructions || "";
+          if (!lessonContent) {
+              toast({ variant: 'destructive', title: 'Cannot generate quiz', description: 'Lesson content is empty.' });
+              router.push(`/lesson/${lessonId}`);
+              setLoading(false);
+              return;
+          }
+
+          const quizResultFromAI = await generateQuizForLesson({
+              lesson_id: lessonId,
+              lesson_content: lessonContent,
+          });
+        
+          const newTestDocRef = await addDocumentNonBlocking(testsRef, {
+              ...quizResultFromAI,
+              createdBy: user.uid,
+              createdAt: new Date().toISOString(),
+          });
+
+          testId = newTestDocRef.id;
+          testResult = quizResultFromAI;
+
+          // Update the lesson with the new quiz_id and set it to ready
+          updateDocumentNonBlocking(lessonDocRef, {
+              quiz_id: testId,
+              quiz_ready: true,
+          });
+      }
+
+
+      const formattedQuizData: QuizData = {
+          id: testId,
+          title: lessonData.title,
+          questions: testResult.questions.map((q: any, index: number) => ({ ...q, id: `q${index}` })),
+          topicId,
+          roadmapId,
+      };
+      setQuizData(formattedQuizData);
+      setLoading(false);
+
     };
 
     fetchOrCreateQuiz();
