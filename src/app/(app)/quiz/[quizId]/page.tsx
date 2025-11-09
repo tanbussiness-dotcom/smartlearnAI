@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Card,
@@ -23,48 +24,105 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { CheckCircle, XCircle, ArrowRight } from "lucide-react";
+import { CheckCircle, XCircle, ArrowRight, LoaderCircle } from "lucide-react";
+import { useFirestore, useUser, useCollection } from "@/firebase";
+import { collection, doc, addDoc, getDocs, query, limit } from "firebase/firestore";
+import { generateQuizzesForKnowledgeAssessment } from "@/ai/flows/generate-quizzes-for-knowledge-assessment";
+import { useToast } from "@/hooks/use-toast";
 
-const quizData = {
-  title: "Variables and Data Types",
-  questions: [
-    {
-      id: "q1",
-      question: "Which of the following is the correct way to declare a variable in Python?",
-      options: ["var x = 5", "x = 5", "variable x = 5", "int x = 5"],
-      correctAnswer: "x = 5",
-    },
-    {
-      id: "q2",
-      question: "What is the data type of the following value: `10.5`?",
-      options: ["int", "string", "float", "boolean"],
-      correctAnswer: "float",
-    },
-    {
-      id: "q3",
-      question: "How can you get the data type of a variable `my_var`?",
-      options: ["typeof(my_var)", "my_var.type()", "type(my_var)", "dataType(my_var)"],
-      correctAnswer: "type(my_var)",
-    },
-    {
-      id: "q4",
-      question: "Which data type is used to store a sequence of characters?",
-      options: ["char", "str", "string", "text"],
-      correctAnswer: "str",
-    },
-    {
-      id: "q5",
-      question: "What will be the result of `bool(0)`?",
-      options: ["True", "False", "0", "Error"],
-      correctAnswer: "False",
-    },
-  ],
+type QuizQuestion = {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer: string;
 };
 
-export default function QuizPage({ params }: { params: { quizId: string } }) {
+type QuizData = {
+  id: string;
+  title: string;
+  questions: QuizQuestion[];
+};
+
+export default function QuizPage({ params }: { params: { quizId: string } }) { // quizId is lessonId
+  const firestore = useFirestore();
+  const { user } = useUser();
+  const { toast } = useToast();
+
+  const [quizData, setQuizData] = useState<QuizData | null>(null);
+  const [loading, setLoading] = useState(true);
+
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [showResult, setShowResult] = useState(false);
+
+  useEffect(() => {
+    if (!firestore || !user) return;
+
+    const fetchOrCreateQuiz = async () => {
+      setLoading(true);
+      try {
+        const lessonId = params.quizId;
+        const testsRef = collection(firestore, 'lessons', lessonId, 'tests');
+        const q = query(testsRef, limit(1));
+        const existingTestSnapshot = await getDocs(q);
+
+        if (!existingTestSnapshot.empty) {
+          const testDoc = existingTestSnapshot.docs[0];
+          const testData = testDoc.data();
+          setQuizData({
+            id: testDoc.id,
+            title: "Knowledge Check", // Title can be fetched from lesson if needed
+            questions: testData.questions.map((q: any, index: number) => ({ ...q, id: `q${index}` })),
+          });
+        } else {
+          // No test found, so generate one
+          // We need lesson details to generate a good quiz
+          // This requires fetching the lesson details. For simplicity, we'll use placeholder data.
+          // In a real app, you'd fetch lesson title and description first.
+          toast({ title: 'Generating a new quiz...', description: 'This may take a moment.' });
+          
+          const quizResult = await generateQuizzesForKnowledgeAssessment({
+            lessonId: lessonId,
+            topic: "General Knowledge", // Placeholder
+            stepTitle: "First Step", // Placeholder
+            lessonTitle: "A New Lesson", // Placeholder
+            lessonDescription: "This is a new lesson.", // Placeholder
+          });
+          
+          const newQuiz = quizResult.quiz;
+
+          const newTestDocRef = await addDoc(testsRef, {
+            lessonId: lessonId,
+            questions: newQuiz.questions,
+            createdBy: user.uid,
+          });
+
+          setQuizData({
+            id: newTestDocRef.id,
+            title: "Knowledge Check",
+            questions: newQuiz.questions.map((q, index) => ({ ...q, id: `q${index}` })),
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching or creating quiz:", error);
+        toast({ variant: 'destructive', title: 'Failed to load quiz', description: 'Please try again later.' });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrCreateQuiz();
+  }, [firestore, user, params.quizId, toast]);
+
+
+  if (loading || !quizData) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-full py-12">
+        <LoaderCircle className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Loading Quiz...</p>
+      </div>
+    );
+  }
 
   const currentQuestion = quizData.questions[currentQuestionIndex];
   const progress = ((currentQuestionIndex + 1) / quizData.questions.length) * 100;
@@ -135,7 +193,7 @@ export default function QuizPage({ params }: { params: { quizId: string } }) {
                     {passed ? "Congratulations! You Passed!" : "Almost there!"}
                 </AlertDialogTitle>
                 <AlertDialogDescription className="text-base">
-                    You scored {score} out of {quizData.questions.length} ({scorePercentage}%).
+                    You scored {score} out of {quizData.questions.length} ({scorePercentage.toFixed(0)}%).
                     <br/>
                     {passed ? "You've unlocked the next lesson." : "You need 80% to pass. Please try again."}
                 </AlertDialogDescription>
