@@ -35,7 +35,6 @@ import {
   collection,
   doc,
   getDocs,
-  updateDoc,
   getDoc,
   query,
   where,
@@ -380,38 +379,34 @@ export default function LessonPage() {
     };
   }, [firestore, user, lessonId, toast]);
 
-  const handleMarkAsComplete = async () => {
+  const handleMarkAsComplete = () => {
     if (!firestore || !lesson) return;
     setIsCompleting(true);
-    try {
-      const lessonRef = doc(
-        firestore,
-        'users',
-        lesson.userId,
-        'topics',
-        lesson.topicId,
-        'roadmaps',
-        lesson.roadmapId,
-        'lessons',
-        lessonId
-      );
-      updateDocumentNonBlocking(lessonRef, {
-        status: 'Learned',
-      });
-      toast({
-        title: 'Lesson Completed!',
-        description: 'Great job! Your progress has been updated.',
-      });
-    } catch (error) {
-      console.error('Error updating lesson status:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Oops!',
-        description: 'Could not update your progress. Please try again.',
-      });
-    } finally {
-      setIsCompleting(false);
-    }
+    
+    const lessonRef = doc(
+      firestore,
+      'users',
+      lesson.userId,
+      'topics',
+      lesson.topicId,
+      'roadmaps',
+      lesson.roadmapId,
+      'lessons',
+      lessonId
+    );
+
+    updateDocumentNonBlocking(lessonRef, {
+      status: 'Learned',
+    });
+
+    // We don't need a try/catch block because the non-blocking function
+    // handles the error emission. The UI can optimistically update.
+    toast({
+      title: 'Lesson Completed!',
+      description: 'Great job! Your progress has been updated.',
+    });
+
+    setIsCompleting(false);
   };
 
   if (loading && !lesson) {
@@ -706,3 +701,5 @@ export default function LessonPage() {
     </motion.div>
   );
 }
+
+    
