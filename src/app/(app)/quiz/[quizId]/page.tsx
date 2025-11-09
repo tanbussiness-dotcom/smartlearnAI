@@ -303,12 +303,12 @@ export default function QuizPage() {
         {showResult && (
           <AlertDialog open={showResult} onOpenChange={setShowResult}>
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             >
-              <AlertDialogContent>
+            <AlertDialogContent>
                 <AlertDialogHeader className="items-center text-center">
                   <motion.div
                     initial={{ scale: 0 }}
@@ -352,7 +352,7 @@ export default function QuizPage() {
                     </AlertDialogAction>
                   )}
                 </AlertDialogFooter>
-              </AlertDialogContent>
+            </AlertDialogContent>
             </motion.div>
           </AlertDialog>
         )}
@@ -360,3 +360,4 @@ export default function QuizPage() {
     </div>
   );
 }
+
