@@ -76,16 +76,16 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
         
         // Let's find the lesson by querying all roadmaps. This is very inefficient and not scalable.
         // In a real app, the lesson doc would either have parent IDs or the path would be more specific.
-        const topicsSnapshot = await getDocs(collection(firestore, 'topics'));
+        const topicsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics'));
         let lessonData: any = null;
         let lessonDoc: any = null;
         let topicId: string | null = null;
         let roadmapId: string | null = null;
 
         for (const topicDoc of topicsSnapshot.docs) {
-          const roadmapsSnapshot = await getDocs(collection(firestore, 'topics', topicDoc.id, 'roadmaps'));
+          const roadmapsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps'));
           for (const roadmapDoc of roadmapsSnapshot.docs) {
-            const lessonsSnapshot = await getDocs(collection(firestore, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons'));
+            const lessonsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons'));
             lessonDoc = lessonsSnapshot.docs.find(d => d.id === lessonId);
             if (lessonDoc) {
               lessonData = lessonDoc.data();
@@ -102,7 +102,7 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
             return;
         }
 
-        const testsRef = collection(firestore, 'lessons', lessonId, 'tests');
+        const testsRef = collection(firestore, 'users', user.uid, 'lessons', lessonId, 'tests');
         const q = query(testsRef, limit(1));
         const existingTestSnapshot = await getDocs(q);
 
@@ -194,11 +194,11 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
     const { topicId, roadmapId } = quizData;
     
     // 1. Mark current lesson as "Learned"
-    const lessonRef = doc(firestore, 'topics', topicId, 'roadmaps', roadmapId, 'lessons', lessonId);
+    const lessonRef = doc(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapId, 'lessons', lessonId);
     batch.update(lessonRef, { status: "Learned" });
 
     // 2. Check if all other lessons in the step are learned
-    const lessonsInStepRef = collection(firestore, 'topics', topicId, 'roadmaps', roadmapId, 'lessons');
+    const lessonsInStepRef = collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapId, 'lessons');
     const lessonsSnapshot = await getDocs(lessonsInStepRef);
     const allLessons = lessonsSnapshot.docs.map(d => ({id: d.id, ...d.data()}));
     
@@ -206,7 +206,7 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
 
     if (allLearned) {
         // 3. Mark current step as "Learned"
-        const currentStepRef = doc(firestore, 'topics', topicId, 'roadmaps', roadmapId);
+        const currentStepRef = doc(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapId);
         batch.update(currentStepRef, { status: "Learned" });
 
         // 4. Unlock next step
@@ -214,7 +214,7 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
         const currentStepNumber = currentStepSnap.data()?.stepNumber;
 
         if (currentStepNumber) {
-            const roadmapsInTopicRef = collection(firestore, 'topics', topicId, 'roadmaps');
+            const roadmapsInTopicRef = collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps');
             const nextStepQuery = query(roadmapsInTopicRef, where("stepNumber", "==", currentStepNumber + 1), limit(1));
             const nextStepSnapshot = await getDocs(nextStepQuery);
             if (!nextStepSnapshot.empty) {

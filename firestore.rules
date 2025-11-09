@@ -1,3 +1,4 @@
+
 /**
  * @fileoverview Firestore Security Rules for the SmartLearn AI platform.
  *
@@ -60,7 +61,7 @@ service cloud.firestore {
     match /users/{userId}/topics/{topicId} {
       allow get: if isSignedIn() && isOwner(userId);
       allow list: if isSignedIn() && isOwner(userId);
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.createdBy == request.auth.uid;
       allow update: if isSignedIn() && isExistingOwner(userId);
       allow delete: if isSignedIn() && isExistingOwner(userId);
     }

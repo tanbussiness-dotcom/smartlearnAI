@@ -100,11 +100,12 @@ export default function SearchPage() {
 
       // 2. Create Topic in Firestore
       setLoadingMessage('Step 2 of 4: Saving your new topic...');
-      const topicRef = await addDocumentNonBlocking(collection(firestore, 'topics'), {
+      const topicsCollection = collection(firestore, 'users', user.uid, 'topics');
+      const topicRef = await addDocumentNonBlocking(topicsCollection, {
         title: currentTopic,
         createdBy: user.uid,
       });
-      
+
       if (!topicRef) {
         throw new Error("Failed to create topic reference.");
       }
@@ -117,7 +118,7 @@ export default function SearchPage() {
       for (const [index, step] of roadmapResult.roadmap.entries()) {
         setLoadingMessage(`Step 3 of 4: Generating lessons for step ${index + 1}/${totalSteps}...`);
         
-        const roadmapStepsCollection = collection(firestore, 'topics', topicId, 'roadmaps');
+        const roadmapStepsCollection = collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps');
         const roadmapStepDoc = await addDocumentNonBlocking(roadmapStepsCollection, {
             ...step,
             status: step.stepNumber === 1 ? 'Learning' : 'Locked',
@@ -134,7 +135,7 @@ export default function SearchPage() {
           stepDescription: step.description,
         });
 
-        const lessonsCollection = collection(firestore, 'topics', topicId, 'roadmaps', roadmapStepId, 'lessons');
+        const lessonsCollection = collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapStepId, 'lessons');
         for (const lesson of lessonsResult) {
             const lessonDocRef = await addDocumentNonBlocking(lessonsCollection, {
                 ...lesson,

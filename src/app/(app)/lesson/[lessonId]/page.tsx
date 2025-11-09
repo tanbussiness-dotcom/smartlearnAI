@@ -26,6 +26,7 @@ type LessonInfo = {
     description: string;
     youtubeLink: string;
     instructions: string;
+    userId: string;
     topicId: string;
     roadmapId: string;
 }
@@ -45,6 +46,7 @@ const pageTransition = {
 export default function LessonPage({ params }: { params: { lessonId: string } }) {
   const { lessonId } = params;
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const [lesson, setLesson] = useState<LessonInfo | null>(null);
   const [nextLesson, setNextLesson] = useState<{ id: string, title: string, stepTitle: string } | null>(null);
@@ -56,18 +58,18 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
 
 
   useEffect(() => {
-    if (!firestore || !lessonId) return;
+    if (!firestore || !user || !lessonId) return;
 
     const fetchLessonDetails = async () => {
       setLoading(true);
       try {
-        const topicsSnapshot = await getDocs(collection(firestore, 'topics'));
+        const topicsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics'));
         let found = false;
 
         for (const topicDoc of topicsSnapshot.docs) {
-          const roadmapsSnapshot = await getDocs(collection(firestore, 'topics', topicDoc.id, 'roadmaps'));
+          const roadmapsSnapshot = await getDocs(collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps'));
           for (const roadmapDoc of roadmapsSnapshot.docs) {
-            const lessonRef = doc(firestore, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons', lessonId);
+            const lessonRef = doc(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons', lessonId);
             const lessonSnap = await getDoc(lessonRef);
             
             if (lessonSnap.exists()) {
@@ -77,6 +79,7 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
                 description: lessonData.description,
                 youtubeLink: lessonData.youtubeLink,
                 instructions: lessonData.instructions,
+                userId: user.uid,
                 topicId: topicDoc.id,
                 roadmapId: roadmapDoc.id,
               };
@@ -85,7 +88,7 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
 
               
               // Find next lesson
-              const lessonsInStepQuery = query(collection(firestore, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons'));
+              const lessonsInStepQuery = query(collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons'));
               const lessonsInStepSnapshot = await getDocs(lessonsInStepQuery);
               const allLessonsInStep = lessonsInStepSnapshot.docs.map(d => ({id: d.id, ...d.data()}));
               const currentIndex = allLessonsInStep.findIndex(l => l.id === lessonId);
@@ -100,7 +103,7 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
                   const currentStepNumber = currentStepSnap.data()?.stepNumber;
 
                   if (currentStepNumber) {
-                      const roadmapsInTopicRef = collection(firestore, 'topics', topicDoc.id, 'roadmaps');
+                      const roadmapsInTopicRef = collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps');
                       const nextStepQuery = query(roadmapsInTopicRef, where("stepNumber", "==", currentStepNumber + 1), limit(1));
                       const nextStepSnapshot = await getDocs(nextStepQuery);
                       
@@ -135,13 +138,13 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
     };
 
     fetchLessonDetails();
-  }, [firestore, lessonId, toast]);
+  }, [firestore, user, lessonId, toast]);
 
   const handleMarkAsComplete = async () => {
     if (!firestore || !lesson) return;
     setIsCompleting(true);
     try {
-      const lessonRef = doc(firestore, 'topics', lesson.topicId, 'roadmaps', lesson.roadmapId, 'lessons', lessonId);
+      const lessonRef = doc(firestore, 'users', lesson.userId, 'topics', lesson.topicId, 'roadmaps', lesson.roadmapId, 'lessons', lessonId);
       updateDocumentNonBlocking(lessonRef, {
         status: "Learned"
       });

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from "react";
@@ -20,7 +21,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CheckCircle, Circle, PlayCircle, Lock, LoaderCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { useCollection } from "@/firebase";
+import { useCollection, useUser } from "@/firebase";
 import { useFirestore } from "@/firebase/provider";
 import { collection, query, orderBy, doc, getDoc, getDocs } from "firebase/firestore";
 
@@ -71,7 +72,7 @@ const lessonItemVariants = {
     visible: { opacity: 1, y: 0 }
 };
 
-const LessonList = ({ lessons, topicId, roadmapId }: { lessons: Lesson[], topicId: string, roadmapId: string }) => (
+const LessonList = ({ lessons, userId, topicId, roadmapId }: { lessons: Lesson[], userId: string, topicId: string, roadmapId: string }) => (
     <motion.ul className="space-y-3 pt-2" variants={lessonListVariants} initial="hidden" animate="visible">
         {lessons.length > 0 ? lessons.map(lesson => (
             <motion.li key={lesson.id} className="flex items-center" variants={lessonItemVariants}>
@@ -93,6 +94,7 @@ const LessonList = ({ lessons, topicId, roadmapId }: { lessons: Lesson[], topicI
 
 export default function RoadmapPage({ params }: { params: { topicId: string } }) {
   const firestore = useFirestore();
+  const { user } = useUser();
   const { topicId } = params;
 
   const [topicTitle, setTopicTitle] = useState('');
@@ -100,17 +102,17 @@ export default function RoadmapPage({ params }: { params: { topicId: string } })
   const [loading, setLoading] = useState(true);
 
   const roadmapsQuery = useMemo(() => {
-    if (!firestore || !topicId) return null;
-    return query(collection(firestore, 'topics', topicId, 'roadmaps'), orderBy('stepNumber'));
-  }, [firestore, topicId]);
+    if (!firestore || !user?.uid || !topicId) return null;
+    return query(collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps'), orderBy('stepNumber'));
+  }, [firestore, user, topicId]);
 
   const { data: roadmapsData, isLoading: isLoadingRoadmaps } = useCollection(roadmapsQuery);
 
   useEffect(() => {
-    if(!firestore || !topicId) return;
+    if(!firestore || !user?.uid || !topicId) return;
 
     const fetchTopicDetails = async () => {
-        const topicRef = doc(firestore, 'topics', topicId);
+        const topicRef = doc(firestore, 'users', user.uid, 'topics', topicId);
         const topicSnap = await getDoc(topicRef);
         if (topicSnap.exists()) {
             const title = topicSnap.data().title;
@@ -119,16 +121,16 @@ export default function RoadmapPage({ params }: { params: { topicId: string } })
         }
     };
     fetchTopicDetails();
-  }, [firestore, topicId])
+  }, [firestore, user, topicId])
 
   useEffect(() => {
     const fetchAllLessons = async () => {
-      if (!roadmapsData || !firestore) return;
+      if (!roadmapsData || !firestore || !user?.uid) return;
       setLoading(true);
       
       const newRoadmap: Step[] = await Promise.all(
         roadmapsData.map(async (stepData: any) => {
-          const lessonsQuery = query(collection(firestore, 'topics', topicId, 'roadmaps', stepData.id, 'lessons'));
+          const lessonsQuery = query(collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', stepData.id, 'lessons'));
           const lessonsSnapshot = await getDocs(lessonsQuery);
           const lessons = lessonsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Lesson));
           
@@ -148,7 +150,7 @@ export default function RoadmapPage({ params }: { params: { topicId: string } })
     };
 
     fetchAllLessons();
-  }, [roadmapsData, firestore, topicId]);
+  }, [roadmapsData, firestore, user, topicId]);
 
   const completedSteps = roadmap.filter(s => s.status === 'Learned').length;
   const progress = roadmap.length > 0 ? (completedSteps / roadmap.length) * 100 : 0;
@@ -168,7 +170,7 @@ export default function RoadmapPage({ params }: { params: { topicId: string } })
     }
   }, [roadmap, activeStep]);
 
-  if (isLoadingRoadmaps || loading) {
+  if (isLoadingRoadmaps || loading || !user) {
     return <div className="flex h-full w-full items-center justify-center"><LoaderCircle className="h-12 w-12 animate-spin text-primary" /></div>
   }
 
@@ -246,16 +248,16 @@ export default function RoadmapPage({ params }: { params: { topicId: string } })
                                     exit={{ opacity: 0, y: -10 }}
                                   >
                                     <TabsContent value="all">
-                                      <LessonList lessons={step.lessons} topicId={topicId} roadmapId={step.id} />
+                                      <LessonList lessons={step.lessons} userId={user.uid} topicId={topicId} roadmapId={step.id} />
                                     </TabsContent>
                                     <TabsContent value="To Learn">
-                                      <LessonList lessons={step.lessons.filter(l => l.status === 'To Learn')} topicId={topicId} roadmapId={step.id} />
+                                      <LessonList lessons={step.lessons.filter(l => l.status === 'To Learn')} userId={user.uid} topicId={topicId} roadmapId={step.id} />
                                     </TabsContent>
                                     <TabsContent value="Learning">
-                                      <LessonList lessons={step.lessons.filter(l => l.status === 'Learning')} topicId={topicId} roadmapId={step.id} />
+                                      <LessonList lessons={step.lessons.filter(l => l.status === 'Learning')} userId={user.uid} topicId={topicId} roadmapId={step.id} />
                                     </TabsContent>
                                     <TabsContent value="Learned">
-                                      <LessonList lessons={step.lessons.filter(l => l.status === 'Learned')} topicId={topicId} roadmapId={step.id} />
+                                      <LessonList lessons={step.lessons.filter(l => l.status === 'Learned')} userId={user.uid} topicId={topicId} roadmapId={step.id} />
                                     </TabsContent>
                                   </motion.div>
                                 </AnimatePresence>
