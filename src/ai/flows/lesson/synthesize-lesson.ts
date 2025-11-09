@@ -52,7 +52,7 @@ const VideoSchema = z.object({
 export const SynthesizeLessonOutputSchema = z.object({
   title: z.string().describe('A clear and concise title for the lesson.'),
   overview: z.string().describe('A short introductory paragraph that summarizes the main content of the lesson.'),
-  content: z.string().describe('The full lesson content in Markdown or HTML format, at least 600 words, with clear sections and practical examples.'),
+  content: z.string().describe('The full lesson content in Markdown or HTML format, between 800 and 1200 words, with clear sections and practical examples.'),
   sources: z.array(OutputSourceSchema).describe('A curated list of the most reliable sources used for synthesis.'),
   videos: z.array(VideoSchema).describe('A list of relevant videos found in the sources.'),
 });
@@ -66,7 +66,7 @@ const synthesizePrompt = ai.definePrompt({
   name: 'synthesizeLessonPrompt',
   input: {schema: SynthesizeLessonInputSchema},
   output: {schema: SynthesizeLessonOutputSchema},
-  prompt: `You are an expert instructional designer. Your task is to synthesize a high-quality, structured learning lesson from the provided sources about the given topic and phase.
+  prompt: `You are an expert instructional designer and technical writer. Your task is to synthesize a high-quality, comprehensive, and structured learning lesson from the provided sources about the given topic and phase.
 
 Topic: {{{topic}}}
 Phase: {{{phase}}}
@@ -75,20 +75,21 @@ Sources:
 
 **Your response MUST follow these instructions:**
 
-1.  **Generate Structured Content:** Create the lesson content ('content') in Markdown. It must be **at least 600 words**, well-organized, and include the following sections:
-    *   **Introduction:** Briefly introduce the topic, its importance, and what the learner will achieve.
-    *   **Core Concepts:** Explain the main ideas in a logical flow. Use clear headings for each concept.
-    *   **Practical Examples:** Provide well-explained, easy-to-understand code snippets or real-world examples.
-    *   **Conclusion:** Summarize the key takeaways and suggest next steps or areas for further exploration.
+1.  **Generate In-Depth, Structured Content:** Create the lesson content ('content') in **Markdown**. It must be between **800 and 1200 words**, well-organized, and include the following sections using appropriate Markdown headings (##, ###):
+    *   **Introduction:** Introduce the core concepts, explain their importance, and describe their practical applications.
+    *   **Main Body:** Logically break down the topic into several sub-sections. Explain each concept clearly and thoroughly.
+        *   Provide **at least 3 practical, real-world examples** to illustrate the concepts.
+        *   If applicable, include formulas, tables, or visual descriptions.
+    *   **Conclusion:** Summarize the key takeaways and provide specific, actionable practice suggestions or exercises for the learner.
 
-2.  **Write Original, Engaging Content:** Do NOT copy content directly from the sources. Synthesize the information in your own words to create a clear, practical, and easy-to-apply lesson. The tone should be encouraging and accessible.
+2.  **Write Original, Engaging, and Self-Contained Content:** Do NOT copy content directly from the sources. Synthesize the information in your own words to create a clear, practical, and easy-to-apply lesson. The content must be comprehensive enough for a learner to understand the topic without needing external resources. The tone should be encouraging and accessible but technically accurate.
 
 3.  **Title and Overview:**
     *   Create a concise, descriptive 'title' for the lesson.
-    *   Write a short introductory 'overview' that summarizes the lesson's main points.
+    *   Write a short introductory 'overview' (around 50 words) that summarizes the lesson's main points.
 
 4.  **Curate Sources and Videos:**
-    *   From the input 'sources' list, select the most relevant and high-quality ones to include in the output 'sources' array. For each, add a 'short_note' explaining its value.
+    *   From the input 'sources' list, select the most relevant and high-quality ones to include in the output 'sources' array. For each, add a 'short_note' explaining its value. Ensure all links are functional.
     *   If any of the sources are videos (especially from YouTube), extract their information and add them to the 'videos' array, including the 'title', original watch 'url', and 'channel' name if possible.
 
 Your final output must be a single, valid JSON object that strictly conforms to the provided output schema.`,
