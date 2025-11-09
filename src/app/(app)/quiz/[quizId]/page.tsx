@@ -105,7 +105,7 @@ export default function QuizPage() {
             return;
         }
 
-        const testsRef = collection(lessonDocRef.parent, 'tests');
+        const testsRef = collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapId, 'lessons', lessonId, 'tests');
         const q = query(testsRef, limit(1));
         const existingTestSnapshot = await getDocs(q);
 
