@@ -26,7 +26,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { CheckCircle, XCircle, ArrowRight, LoaderCircle } from "lucide-react";
-import { useFirestore, useUser, addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
+import { useFirestore, useUser, addDocumentNonBlocking, updateDocumentNonBlocking, FirestorePermissionError, errorEmitter } from "@/firebase";
 import { collection, doc, addDoc, getDocs, query, limit, getDoc, writeBatch, where, updateDoc } from "firebase/firestore";
 import { generateQuizForLesson } from "@/ai/flows/generate-quizzes-for-knowledge-assessment";
 import { useToast } from "@/hooks/use-toast";
@@ -180,21 +180,11 @@ export default function QuizPage() {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
       setIsSubmitting(true);
-      try {
-        if(passed) {
-          await updateProgress();
-        }
-      } catch (error) {
-        console.error("Failed to update progress:", error);
-        toast({
-          variant: 'destructive',
-          title: 'Error updating progress',
-          description: 'Could not update your learning status. Please try again.'
-        });
-      } finally {
-        setIsSubmitting(false);
-        setShowResult(true);
+      if (passed) {
+        await updateProgress();
       }
+      setIsSubmitting(false);
+      setShowResult(true);
     }
   };
 
@@ -215,6 +205,7 @@ export default function QuizPage() {
     
     const allLearned = allLessons.every(l => l.status === "Learned" || l.id === lessonId);
 
+    let nextStepRef: any = null;
     if (allLearned) {
         // 3. Mark current step as "Learned"
         const currentStepRef = doc(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapId);
@@ -231,12 +222,33 @@ export default function QuizPage() {
             if (!nextStepSnapshot.empty) {
                 const nextStepDoc = nextStepSnapshot.docs[0];
                 batch.update(nextStepDoc.ref, { status: "Learning" });
+                nextStepRef = nextStepDoc.ref;
             }
         }
     }
 
-    await batch.commit();
-    toast({ title: "Progress Saved!", description: "You've unlocked the next part of your journey." });
+    try {
+        await batch.commit();
+        toast({ title: "Progress Saved!", description: "You've unlocked the next part of your journey." });
+    } catch (serverError) {
+        // Create and emit a contextual error for debugging
+        const permissionError = new FirestorePermissionError({
+            path: nextStepRef ? nextStepRef.path : lessonRef.path, // Use next step path if available, otherwise lesson path
+            operation: 'update',
+            requestResourceData: { status: 'Learned' }, // Representative data for the batch operation
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        
+        // Also show a generic error to the user
+        toast({
+            variant: 'destructive',
+            title: 'Error updating progress',
+            description: 'Could not update your learning status. Please try again.'
+        });
+        
+        // Re-throw the original error to be caught by any outer error boundaries if needed
+        throw serverError;
+    }
   };
 
   const handleOptionChange = (value: string) => {
@@ -368,5 +380,3 @@ export default function QuizPage() {
     </div>
   );
 }
-
-    
