@@ -26,11 +26,12 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { CheckCircle, XCircle, ArrowRight, LoaderCircle } from "lucide-react";
-import { useFirestore, useUser } from "@/firebase";
+import { useFirestore, useUser, useAnalytics } from "@/firebase";
 import { collection, doc, addDoc, getDocs, query, limit, getDoc, writeBatch, where } from "firebase/firestore";
 import { generateQuizzesForKnowledgeAssessment } from "@/ai/flows/generate-quizzes-for-knowledge-assessment";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { trackQuizStart, trackQuizCompletion } from "@/lib/analytics";
 
 
 type QuizQuestion = {
@@ -50,6 +51,7 @@ type QuizData = {
 
 export default function QuizPage({ params }: { params: { quizId: string } }) { // quizId is lessonId
   const firestore = useFirestore();
+  const analytics = useAnalytics();
   const { user } = useUser();
   const { toast } = useToast();
   const router = useRouter();
@@ -106,16 +108,14 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
         const q = query(testsRef, limit(1));
         const existingTestSnapshot = await getDocs(q);
 
+        let quizQuestions;
+        let testId;
+
         if (!existingTestSnapshot.empty) {
           const testDoc = existingTestSnapshot.docs[0];
+          testId = testDoc.id;
           const testData = testDoc.data();
-          setQuizData({
-            id: testDoc.id,
-            title: lessonData.title,
-            questions: testData.questions.map((q: any, index: number) => ({ ...q, id: `q${index}` })),
-            topicId,
-            roadmapId,
-          });
+          quizQuestions = testData.questions;
         } else {
           toast({ title: 'Generating a new quiz...', description: 'This may take a moment.' });
           
@@ -127,23 +127,28 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
             lessonDescription: lessonData.description,
           });
           
-          const newQuiz = quizResult.quiz;
+          quizQuestions = quizResult.quiz.questions;
 
           const newTestDocRef = await addDoc(testsRef, {
             lessonId: lessonId,
-            questions: newQuiz.questions,
+            questions: quizQuestions,
             createdBy: user.uid,
           });
-
-          setQuizData({
-            id: newTestDocRef.id,
-            title: lessonData.title,
-
-            questions: newQuiz.questions.map((q, index) => ({ ...q, id: `q${index}` })),
-            topicId,
-            roadmapId
-          });
+          testId = newTestDocRef.id;
         }
+
+        const formattedQuizData = {
+            id: testId,
+            title: lessonData.title,
+            questions: quizQuestions.map((q: any, index: number) => ({ ...q, id: `q${index}` })),
+            topicId,
+            roadmapId,
+        };
+        setQuizData(formattedQuizData);
+        if (analytics) {
+            trackQuizStart(analytics, lessonId, topicId);
+        }
+
       } catch (error) {
         console.error("Error fetching or creating quiz:", error);
         toast({ variant: 'destructive', title: 'Failed to load quiz', description: 'Please try again later.' });
@@ -153,7 +158,7 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
     };
 
     fetchOrCreateQuiz();
-  }, [firestore, user, params.quizId, toast]);
+  }, [firestore, user, params.quizId, toast, analytics]);
 
   const score = quizData ? quizData.questions.reduce((acc, q) => {
     return selectedAnswers[q.id] === q.correctAnswer ? acc + 1 : acc;
@@ -167,6 +172,9 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
     } else {
       setIsSubmitting(true);
       try {
+        if(analytics && quizData) {
+            trackQuizCompletion(analytics, params.quizId, quizData.topicId, score, passed);
+        }
         if(passed) {
           await updateProgress();
         }

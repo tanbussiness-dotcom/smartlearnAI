@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -13,10 +13,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Check, ArrowRight, FileText, ChevronRight, LoaderCircle } from "lucide-react";
-import { useFirestore, useUser } from "@/firebase";
+import { useFirestore, useUser, useAnalytics } from "@/firebase";
 import { collection, doc, getDocs, updateDoc, writeBatch, getDoc, query, where, limit } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
+import { trackLessonCompletion, trackLessonView } from "@/lib/analytics";
 
 const ResponsiveYoutubeEmbed = React.lazy(() => import('@/components/youtube-embed'));
 
@@ -44,12 +45,16 @@ const pageTransition = {
 export default function LessonPage({ params }: { params: { lessonId: string } }) {
   const { lessonId } = params;
   const firestore = useFirestore();
+  const analytics = useAnalytics();
   const { toast } = useToast();
   const [lesson, setLesson] = useState<LessonInfo | null>(null);
   const [nextLesson, setNextLesson] = useState<{ id: string, title: string, stepTitle: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isCompleting, setIsCompleting] = useState(false);
   const [embedId, setEmbedId] = useState<string | null>(null);
+  const viewTracked = useRef(false);
+  const startTime = useRef(Date.now());
+
 
   useEffect(() => {
     if (!firestore || !lessonId) return;
@@ -78,6 +83,12 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
               };
               setLesson(fetchedLesson);
               setEmbedId(getYoutubeEmbedId(fetchedLesson.youtubeLink));
+
+              if (analytics && !viewTracked.current) {
+                trackLessonView(analytics, lessonId, fetchedLesson.title);
+                viewTracked.current = true;
+                startTime.current = Date.now();
+              }
               
               // Find next lesson
               const lessonsInStepQuery = query(collection(firestore, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons'));
@@ -130,16 +141,17 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
     };
 
     fetchLessonDetails();
-  }, [firestore, lessonId, toast]);
+  }, [firestore, lessonId, toast, analytics]);
 
   const handleMarkAsComplete = async () => {
-    if (!firestore || !lesson) return;
+    if (!firestore || !lesson || !analytics) return;
     setIsCompleting(true);
     try {
       const lessonRef = doc(firestore, 'topics', lesson.topicId, 'roadmaps', lesson.roadmapId, 'lessons', lessonId);
       await updateDoc(lessonRef, {
         status: "Learned"
       });
+      trackLessonCompletion(analytics, lessonId, "manual");
       toast({ title: 'Lesson Completed!', description: 'Great job! Your progress has been updated.' });
     } catch (error) {
         console.error("Error updating lesson status:", error);
