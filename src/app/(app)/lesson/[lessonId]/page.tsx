@@ -50,6 +50,10 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { format } from 'date-fns';
 
+const ResponsiveYoutubeEmbed = React.lazy(
+  () => import('@/components/youtube-embed')
+);
+
 type Source = {
   title: string;
   url: string;
@@ -275,7 +279,8 @@ export default function LessonPage() {
                   'roadmaps',
                   roadmapDoc.id,
                   'lessons'
-                )
+                ),
+                orderBy('title') // Assuming lessons can be ordered by title or another field
               );
               const lessonsInStepSnapshot = await getDocs(lessonsInStepQuery);
               const allLessonsInStep = lessonsInStepSnapshot.docs.map((d) => ({
@@ -321,6 +326,7 @@ export default function LessonPage() {
                     const nextStepDoc = nextStepSnapshot.docs[0];
                     const nextStepLessonsQuery = query(
                       collection(nextStepDoc.ref, 'lessons'),
+                      orderBy('title'),
                       limit(1)
                     );
                     const nextStepLessonsSnapshot = await getDocs(
@@ -451,17 +457,24 @@ export default function LessonPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ReactMarkdown
-                className="prose dark:prose-invert max-w-none"
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw]}
-                components={{
-                    h2: ({node, ...props}) => <HeadingRenderer level={2} {...props} />,
-                    h3: ({node, ...props}) => <HeadingRenderer level={3} {...props} />,
-                }}
-              >
-                {lesson.content}
-              </ReactMarkdown>
+              {lesson.content && lesson.content.length < 400 ? (
+                <div className="text-center py-8">
+                  <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary mb-4" />
+                  <p className="text-muted-foreground">Bài học này đang được AI mở rộng nội dung chi tiết. Vui lòng quay lại sau.</p>
+                </div>
+              ) : (
+                <ReactMarkdown
+                    className="prose dark:prose-invert max-w-none"
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw]}
+                    components={{
+                        h2: ({node, ...props}) => <HeadingRenderer level={2} {...props} />,
+                        h3: ({node, ...props}) => <HeadingRenderer level={3} {...props} />,
+                    }}
+                >
+                    {lesson.content}
+                </ReactMarkdown>
+              )}
             </CardContent>
           </Card>
 
@@ -491,7 +504,8 @@ export default function LessonPage() {
                           src={thumbnailUrl}
                           alt={video.title}
                           fill
-                          objectFit="cover"
+                          sizes="(max-width: 640px) 100vw, 50vw"
+                          style={{objectFit: 'cover'}}
                           className="transition-transform duration-300 group-hover:scale-105"
                         />
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -513,7 +527,7 @@ export default function LessonPage() {
             </Card>
           )}
 
-          {lesson.sources && lesson.sources.length > 0 && (
+          {lesson.sources && lesson.sources.length > 0 ? (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-headline text-lg">
@@ -554,9 +568,8 @@ export default function LessonPage() {
                 ))}
               </CardContent>
             </Card>
-          )}
-          {(!lesson.sources || lesson.sources.length === 0) && (
-            <Card>
+          ) : (
+             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-headline text-lg">
                   <Library className="h-5 w-5" />
@@ -564,9 +577,7 @@ export default function LessonPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Chưa có nguồn tham khảo.
-                </p>
+                 <p className="text-sm text-muted-foreground">Chưa có nguồn tham khảo cho bài học này.</p>
               </CardContent>
             </Card>
           )}
