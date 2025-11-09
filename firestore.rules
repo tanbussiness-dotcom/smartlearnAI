@@ -11,7 +11,8 @@
  * - User listing is disallowed to protect user privacy.
  * - All write operations require a valid, authenticated user.
  * - All write operations on user-owned data require that the authenticated
- *   user's UID matches the `userId` in the path.
+ *   user's UID matches the `userId` in the path, or the request comes
+ *   from a trusted system process (AI Worker/Service Account).
  */
 rules_version = '2';
 service cloud.firestore {
@@ -39,12 +40,12 @@ service cloud.firestore {
 
         /**
          * @description Allows a user to manage their own roadmaps within a topic.
+         * AI workers are also allowed to create/update/delete roadmaps.
          * @path /users/{userId}/topics/{topicId}/roadmaps/{roadmapId}
          */
         match /roadmaps/{roadmapId} {
           allow read, list: if isSignedIn() && isOwner(userId);
-          allow create: if isSignedIn() && isOwner(userId);
-          allow update, delete: if isSignedIn() && isExistingOwner(userId);
+          allow create, update, delete: if (isSignedIn() && isOwner(userId)) || isServiceAccount() || isAIWorker();
 
           /**
            * @description Allows a user to manage their own lessons within a roadmap.
@@ -88,6 +89,16 @@ service cloud.firestore {
 
     function isExistingOwner(userId) {
         return isOwner(userId) && resource != null;
+    }
+
+    function isServiceAccount() {
+      return request.auth.token.admin == true ||
+             request.auth.token.firebase.sign_in_provider == "service_account";
+    }
+
+    function isAIWorker() {
+      // For system users like Genkit/Firebase Studio
+      return request.auth.uid == "system_ai_worker" || request.auth.token.role == "ai_worker";
     }
   }
 }
