@@ -17,6 +17,7 @@ import {z} from 'genkit';
 import { getFirestore, collectionGroup, query, where, limit, getDocs } from 'firebase/firestore';
 import { initializeApp, getApps } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
+import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
 import {searchSources} from './search-sources';
 import {synthesizeLesson} from './synthesize-lesson';
@@ -106,27 +107,38 @@ const generateLessonFlow = ai.defineFlow(
       limit(1)
     );
 
-    const cachedSnapshot = await getDocs(cacheQuery);
-    if (!cachedSnapshot.empty) {
-      console.log(`[generateLesson] Step 0: Found cached lesson for topic "${topic}"`);
-      const cachedData = cachedSnapshot.docs[0].data();
-      // Reconstruct the output to match the flow's schema, updating user and timestamp
-      return {
-        lesson: {
-            title: cachedData.title,
-            overview: cachedData.overview,
-            content: cachedData.content,
-            sources: cachedData.sources,
-            videos: cachedData.videos,
-        },
-        validation: { // Assume cached lessons are valid
-            valid: true,
-            confidence_score: 1.0,
-            issues: [],
-        },
-        created_by: userId, // Attribute to the current user
-        created_at: new Date().toISOString(), // Set a new creation date
-      };
+    try {
+        const cachedSnapshot = await getDocs(cacheQuery);
+        if (!cachedSnapshot.empty) {
+          console.log(`[generateLesson] Step 0: Found cached lesson for topic "${topic}"`);
+          const cachedData = cachedSnapshot.docs[0].data();
+          // Reconstruct the output to match the flow's schema, updating user and timestamp
+          return {
+            lesson: {
+                title: cachedData.title,
+                overview: cachedData.overview,
+                content: cachedData.content,
+                sources: cachedData.sources,
+                videos: cachedData.videos,
+            },
+            validation: { // Assume cached lessons are valid
+                valid: true,
+                confidence_score: 1.0,
+                issues: [],
+            },
+            created_by: userId, // Attribute to the current user
+            created_at: new Date().toISOString(), // Set a new creation date
+          };
+        }
+    } catch (serverError) {
+        // This is a critical addition. If getDocs fails, we create and emit a contextual error.
+        const permissionError = new FirestorePermissionError({
+            path: 'lessons', // It's a collectionGroup query, so the path is generic
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        // Re-throw the error to stop the flow execution.
+        throw serverError;
     }
 
 
