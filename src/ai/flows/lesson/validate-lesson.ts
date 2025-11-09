@@ -49,7 +49,7 @@ Analyze the provided lesson draft:
 **Validation Criteria:**
 
 1.  **Factual Accuracy:** Is the information correct and up-to-date? Are there any misleading statements or technical errors?
-2.  **Clarity and Coherence:** Is the lesson well-structured and easy to understand for the target audience? Does it flow logically?
+2.  **Clarity and Coherence:** Is the lesson well-structured and easy to understand for the target audience? Does it flow logically? Is the content at least 600 words?
 3.  **Originality:** Does the content appear to be synthesized and original, or is it just copied from a few sources? (You don't have the original sources, but you can judge based on the writing style).
 4.  **Completeness:** Does the lesson fulfill the goals outlined in its summary and introduction?
 
