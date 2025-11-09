@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -129,7 +130,7 @@ export default function QuizPage() {
           
           quizQuestions = quizResult.quiz.questions;
 
-          const newTestDocRef = await addDocumentNonBlocking(collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapId, 'lessons', lessonId, 'tests'), {
+          const newTestDocRef = await addDoc(collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapId, 'lessons', lessonId, 'tests'), {
             lessonId: lessonId,
             questions: quizQuestions,
             createdBy: user.uid,
@@ -349,3 +350,6 @@ export default function QuizPage() {
     </div>
   );
 }
+
+
+    
