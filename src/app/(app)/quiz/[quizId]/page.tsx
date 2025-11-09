@@ -69,16 +69,10 @@ export default function QuizPage() {
     if (!firestore || !user) return;
 
     const fetchOrCreateQuiz = async () => {
-        setLoading(true);
-
+      setLoading(true);
+      try {
         const topicsCollectionRef = collection(firestore, 'users', user.uid, 'topics');
-        const topicsSnapshot = await getDocs(topicsCollectionRef).catch(serverError => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: topicsCollectionRef.path,
-                operation: 'list'
-            }));
-            throw serverError;
-        });
+        const topicsSnapshot = await getDocs(topicsCollectionRef);
 
         let lessonData: any = null;
         let topicId: string | null = null;
@@ -87,23 +81,11 @@ export default function QuizPage() {
 
         for (const topicDoc of topicsSnapshot.docs) {
             const roadmapsCollectionRef = collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps');
-            const roadmapsSnapshot = await getDocs(roadmapsCollectionRef).catch(serverError => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: roadmapsCollectionRef.path,
-                    operation: 'list'
-                }));
-                throw serverError;
-            });
+            const roadmapsSnapshot = await getDocs(roadmapsCollectionRef);
 
             for (const roadmapDoc of roadmapsSnapshot.docs) {
                 const currentLessonRef = doc(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons', lessonId);
-                const lessonSnap = await getDoc(currentLessonRef).catch(serverError => {
-                    errorEmitter.emit('permission-error', new FirestorePermissionError({
-                        path: currentLessonRef.path,
-                        operation: 'get'
-                    }));
-                    throw serverError;
-                });
+                const lessonSnap = await getDoc(currentLessonRef);
 
                 if (lessonSnap && lessonSnap.exists()) {
                     lessonData = lessonSnap.data();
@@ -129,13 +111,7 @@ export default function QuizPage() {
 
         if (lessonData.quiz_id && lessonData.quiz_ready) {
             const testDocRef = doc(testsRef, lessonData.quiz_id);
-            const existingTestSnapshot = await getDoc(testDocRef).catch(serverError => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({
-                    path: testDocRef.path,
-                    operation: 'get'
-                }));
-                throw serverError;
-            });
+            const existingTestSnapshot = await getDoc(testDocRef);
 
             if (existingTestSnapshot && existingTestSnapshot.exists()) {
                 testId = existingTestSnapshot.id;
@@ -188,7 +164,18 @@ export default function QuizPage() {
             router.push(`/lesson/${lessonId}`);
         }
         
+      } catch (serverError: any) {
+        // This is the crucial part. We catch any error, create a generic contextual error,
+        // and emit it. This will catch permission errors from getDocs, getDoc, etc.
+        const permissionError = new FirestorePermissionError({
+            path: 'users/' + user.uid, // A generic path for the context
+            operation: 'list', // Assume list operation as it's the most likely to fail first
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        console.error("Caught in fetchOrCreateQuiz:", serverError);
+      } finally {
         setLoading(false);
+      }
     };
 
     fetchOrCreateQuiz();
