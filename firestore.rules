@@ -49,12 +49,12 @@ service cloud.firestore {
 
           /**
            * @description Allows a user to manage their own lessons within a roadmap.
+           * AI workers are also allowed to create/update/delete lessons.
            * @path /users/{userId}/topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}
            */
           match /lessons/{lessonId} {
             allow read, list: if isSignedIn() && isOwner(userId);
-            allow create: if isSignedIn() && isOwner(userId);
-            allow update, delete: if isSignedIn() && isExistingOwner(userId);
+            allow create, update, delete: if (isSignedIn() && isOwner(userId)) || isServiceAccount() || isAIWorker();
 
             /**
              * @description Allows a user to manage their own tests within a lesson.
