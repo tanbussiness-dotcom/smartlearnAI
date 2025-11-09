@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -16,19 +16,9 @@ import { Check, ArrowRight, FileText, ChevronRight, LoaderCircle } from "lucide-
 import { useFirestore, useUser } from "@/firebase";
 import { collection, doc, getDocs, updateDoc, writeBatch, getDoc, query, where, limit } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import React from "react";
 
-const ResponsiveYoutubeEmbed = ({ embedId }: { embedId: string }) => (
-  <div className="relative overflow-hidden w-full" style={{ paddingTop: "56.25%" }}>
-    <iframe
-      className="absolute top-0 left-0 bottom-0 right-0 w-full h-full"
-      src={`https://www.youtube.com/embed/${embedId}`}
-      frameBorder="0"
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-      allowFullScreen
-      title="Embedded youtube"
-    />
-  </div>
-);
+const ResponsiveYoutubeEmbed = React.lazy(() => import('@/components/youtube-embed'));
 
 type LessonInfo = {
     title: string;
@@ -59,6 +49,7 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
   const [nextLesson, setNextLesson] = useState<{ id: string, title: string, stepTitle: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [embedId, setEmbedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!firestore || !lessonId) return;
@@ -77,14 +68,16 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
             
             if (lessonSnap.exists()) {
               const lessonData = lessonSnap.data();
-              setLesson({
+              const fetchedLesson = {
                 title: lessonData.title,
                 description: lessonData.description,
                 youtubeLink: lessonData.youtubeLink,
                 instructions: lessonData.instructions,
                 topicId: topicDoc.id,
                 roadmapId: roadmapDoc.id,
-              });
+              };
+              setLesson(fetchedLesson);
+              setEmbedId(getYoutubeEmbedId(fetchedLesson.youtubeLink));
               
               // Find next lesson
               const lessonsInStepQuery = query(collection(firestore, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons'));
@@ -172,7 +165,7 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
       )
   }
 
-  const getYoutubeEmbedId = (url: string) => {
+  const getYoutubeEmbedId = (url: string): string | null => {
     try {
         const urlObj = new URL(url);
         if (urlObj.hostname === 'youtu.be') {
@@ -204,7 +197,9 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
                 <Card className="overflow-hidden">
-                    <ResponsiveYoutubeEmbed embedId={getYoutubeEmbedId(lesson.youtubeLink) || ''} />
+                    <Suspense fallback={<div className="aspect-video w-full bg-muted animate-pulse" />}>
+                        {embedId && <ResponsiveYoutubeEmbed embedId={embedId} />}
+                    </Suspense>
                 </Card>
 
                 <Card className="mt-8">

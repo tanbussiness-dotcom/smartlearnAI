@@ -114,7 +114,9 @@ export default function RoadmapPage({ params }: { params: { topic: string } }) {
         const topicRef = doc(firestore, 'topics', topicId);
         const topicSnap = await getDoc(topicRef);
         if (topicSnap.exists()) {
-            setTopicTitle(topicSnap.data().title);
+            const title = topicSnap.data().title;
+            setTopicTitle(title);
+            document.title = `${title} | SmartLearn AI`;
         }
     };
     fetchTopicDetails();
