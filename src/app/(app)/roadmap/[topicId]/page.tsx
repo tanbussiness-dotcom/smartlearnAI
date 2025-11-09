@@ -92,10 +92,9 @@ const LessonList = ({ lessons, userId, topicId, roadmapId }: { lessons: Lesson[]
 );
 
 
-export default function RoadmapPage({ params }: { params: { topicId: string } }) {
+export default function RoadmapPage({ params: { topicId } }: { params: { topicId: string } }) {
   const firestore = useFirestore();
   const { user } = useUser();
-  const { topicId } = params;
 
   const [topicTitle, setTopicTitle] = useState('');
   const [roadmap, setRoadmap] = useState<Step[]>([]);
