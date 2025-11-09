@@ -8,3 +8,4 @@ import '@/ai/flows/generate-quizzes-for-knowledge-assessment.ts';
 import '@/ai/flows/lesson/search-sources.ts';
 import '@/ai/flows/lesson/synthesize-lesson.ts';
 import '@/ai/flows/lesson/validate-lesson.ts';
+import '@/ai/flows/lesson/generate-lesson.ts';
