@@ -143,7 +143,7 @@ const generateLessonFlow = ai.defineFlow(
         console.error(permissionError.message);
         
         // Re-throw a generic error that is safe to send to the client.
-        throw new Error('A server-side Firestore permission error occurred while checking for cached lessons.');
+        throw new Error('A server-side Firestore permission error occurred while checking for cached lessons. This is likely due to missing Firestore rules for collection group queries.');
     }
 
 

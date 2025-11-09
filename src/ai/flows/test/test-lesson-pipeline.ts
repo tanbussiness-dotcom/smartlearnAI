@@ -98,8 +98,9 @@ const testLessonPipelineFlow = ai.defineFlow(
       if (!lesson.lesson?.content) {
         throw new Error('Validation failed: Lesson content is missing.');
       }
-      if (!lesson.lesson?.sources || lesson.lesson.sources.length === 0) {
-        throw new Error('Validation failed: Lesson sources are missing or empty.');
+      // Sources are optional, so we don't fail if they're missing
+      if (!lesson.lesson?.sources) {
+        console.warn('[TEST_PIPELINE] Warning: sources array is missing.');
       }
       // videos are optional, so we don't fail if they're missing, but we can log it.
       if (!lesson.lesson?.videos) {

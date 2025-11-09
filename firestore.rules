@@ -19,6 +19,15 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
+     * @description Allows AI workers to query across all 'lessons' collections
+     * for caching and validation purposes.
+     * @path /users/{userId}/topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}
+     */
+    match /users/{userId}/topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId} {
+        allow list: if isServiceAccount() || isAIWorker();
+    }
+
+    /**
      * @description Allows authenticated users to read and write their own user profile.
      * @path /users/{userId}
      */
@@ -53,7 +62,8 @@ service cloud.firestore {
            * @path /users/{userId}/topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}
            */
           match /lessons/{lessonId} {
-            allow read, list: if isSignedIn() && isOwner(userId);
+            allow read: if isSignedIn() && isOwner(userId);
+            // list is handled by the collection group rule above
             allow create, update, delete: if (isSignedIn() && isOwner(userId)) || isServiceAccount() || isAIWorker();
 
             /**
@@ -62,8 +72,7 @@ service cloud.firestore {
              */
             match /tests/{testId} {
               allow read, list: if isSignedIn() && isOwner(userId);
-              allow create: if isSignedIn() && isOwner(userId);
-              allow update, delete: if isSignedIn() && isExistingOwner(userId);
+              allow create, update, delete: if (isSignedIn() && isOwner(userId)) || isServiceAccount() || isAIWorker();
             }
           }
         }

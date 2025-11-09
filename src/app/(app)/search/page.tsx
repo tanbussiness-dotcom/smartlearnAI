@@ -208,7 +208,7 @@ export default function SearchPage() {
         toast({
           variant: 'destructive',
           title: 'Server Error',
-          description: "A permission error occurred on the server while generating the lesson. Please check server logs for details.",
+          description: "A permission error occurred on the server while generating the lesson. Please check server logs and Firestore rules.",
         });
       } else if (!(error instanceof FirestorePermissionError)) {
         // Generic catch-all for other errors
