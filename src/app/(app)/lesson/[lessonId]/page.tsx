@@ -45,6 +45,21 @@ const pageTransition = {
   duration: 0.5,
 };
 
+const getYoutubeEmbedId = (url: string): string | null => {
+    try {
+        const urlObj = new URL(url);
+        if (urlObj.hostname === 'youtu.be') {
+            return urlObj.pathname.slice(1);
+        }
+        if (urlObj.hostname === 'www.youtube.com' || urlObj.hostname === 'youtube.com') {
+            return urlObj.searchParams.get('v');
+        }
+    } catch (e) {
+        // invalid url, just return it
+    }
+    return 'Z1Yd7upQsXY'; // default fallback
+  }
+
 export default function LessonPage() {
   const params = useParams();
   const lessonId = params.lessonId as string;
@@ -174,21 +189,6 @@ export default function LessonPage() {
              <p className="text-muted-foreground">Lesson not found.</p>
           </div>
       )
-  }
-
-  const getYoutubeEmbedId = (url: string): string | null => {
-    try {
-        const urlObj = new URL(url);
-        if (urlObj.hostname === 'youtu.be') {
-            return urlObj.pathname.slice(1);
-        }
-        if (urlObj.hostname === 'www.youtube.com' || urlObj.hostname === 'youtube.com') {
-            return urlObj.searchParams.get('v');
-        }
-    } catch (e) {
-        // invalid url, just return it
-    }
-    return 'Z1Yd7upQsXY'; // default fallback
   }
 
   return (
