@@ -15,7 +15,8 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { getFirestore, collectionGroup, query, where, limit, getDocs } from 'firebase/firestore';
-
+import { initializeApp, getApps } from 'firebase/app';
+import { firebaseConfig } from '@/firebase/config';
 
 import {searchSources} from './search-sources';
 import {synthesizeLesson} from './synthesize-lesson';
@@ -63,7 +64,6 @@ const ValidateLessonOutputSchema = z.object({
 const GenerateLessonInputSchema = SearchSourcesInputSchema.extend({
   userId: z.string().describe('The ID of the user requesting the lesson.'),
 });
-type GenerateLessonInput = z.infer<typeof GenerateLessonInputSchema>;
 
 // The final output schema, combining synthesis and validation results.
 const GenerateLessonOutputSchema = z.object({
@@ -72,9 +72,14 @@ const GenerateLessonOutputSchema = z.object({
   created_by: z.string(),
   created_at: z.string().datetime(),
 });
-type GenerateLessonOutput = z.infer<typeof GenerateLessonOutputSchema>;
 
-export async function generateLesson(input: GenerateLessonInput): Promise<GenerateLessonOutput> {
+function initializeServerFirebase() {
+  if (getApps().length === 0) {
+    initializeApp(firebaseConfig);
+  }
+}
+
+export async function generateLesson(input: z.infer<typeof GenerateLessonInputSchema>): Promise<z.infer<typeof GenerateLessonOutputSchema>> {
   return generateLessonFlow(input);
 }
 
@@ -85,6 +90,7 @@ const generateLessonFlow = ai.defineFlow(
     outputSchema: GenerateLessonOutputSchema,
   },
   async (input) => {
+    initializeServerFirebase();
     const { topic, phase, userId } = input;
     
     // Caching logic: Check if a similar lesson already exists and is ready.
