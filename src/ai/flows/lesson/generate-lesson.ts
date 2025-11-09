@@ -16,6 +16,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { getFirestore, collectionGroup, query, where, limit, getDocs } from 'firebase/firestore';
+
 
 import {searchSources, SearchSourcesInputSchema} from './search-sources';
 import {synthesizeLesson} from './synthesize-lesson';
@@ -49,6 +51,43 @@ const generateLessonFlow = ai.defineFlow(
   },
   async (input) => {
     const { topic, phase, userId } = input;
+    const firestore = getFirestore();
+
+    // Caching logic: Check if a similar lesson already exists and is ready.
+    // Note: This uses a collectionGroup query, which may require a Firestore index.
+    const lessonsRef = collectionGroup(firestore, 'lessons');
+    const cacheQuery = query(
+      lessonsRef,
+      where('userId', '==', userId),
+      where('topic', '==', topic),
+      where('phase', '==', phase),
+      where('status', '==', 'ready'),
+      limit(1)
+    );
+
+    const cachedSnapshot = await getDocs(cacheQuery);
+    if (!cachedSnapshot.empty) {
+      console.log(`[generateLesson] Step 0: Found cached lesson for topic "${topic}"`);
+      const cachedData = cachedSnapshot.docs[0].data();
+      // Reconstruct the output to match the flow's schema
+      return {
+        lesson: {
+            title: cachedData.title,
+            overview: cachedData.overview,
+            content: cachedData.content,
+            sources: cachedData.sources,
+            videos: cachedData.videos,
+        },
+        validation: { // Assume cached lessons are valid
+            valid: true,
+            confidence_score: 1.0,
+            issues: [],
+        },
+        created_by: cachedData.userId,
+        created_at: cachedData.createdAt,
+      };
+    }
+
 
     // Step 1: Search for sources
     console.log(`[generateLesson] Step 1: Searching sources for topic: "${topic}"`);
