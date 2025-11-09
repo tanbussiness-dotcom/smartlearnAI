@@ -49,6 +49,7 @@ type QuizData = {
 };
 
 export default function QuizPage({ params }: { params: { quizId: string } }) { // quizId is lessonId
+  const { quizId: lessonId } = params;
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
@@ -69,7 +70,6 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
     const fetchOrCreateQuiz = async () => {
       setLoading(true);
       try {
-        const lessonId = params.quizId;
         
         let lessonData: any = null;
         let lessonDocRef: any = null;
@@ -159,7 +159,7 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
     };
 
     fetchOrCreateQuiz();
-  }, [firestore, user, params.quizId, toast]);
+  }, [firestore, user, lessonId, toast]);
 
   const score = quizData ? quizData.questions.reduce((acc, q) => {
     return selectedAnswers[q.id] === q.correctAnswer ? acc + 1 : acc;
@@ -195,7 +195,6 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
     if (!firestore || !user || !quizData) return;
 
     const batch = writeBatch(firestore);
-    const lessonId = params.quizId;
     const { topicId, roadmapId } = quizData;
     
     // 1. Mark current lesson as "Learned"

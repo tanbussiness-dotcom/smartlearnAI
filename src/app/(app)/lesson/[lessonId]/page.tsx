@@ -257,7 +257,7 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
                     </CardHeader>
                     <CardContent>
                         <Button className="w-full" asChild>
-                            <Link href={`/quiz/${params.lessonId}`}>
+                            <Link href={`/quiz/${lessonId}`}>
                                 Start Quiz
                                 <ArrowRight className="ml-2 h-4 w-4"/>
                             </Link>
