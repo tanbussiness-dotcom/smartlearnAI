@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -37,6 +38,18 @@ type LessonInfo = {
     topicId: string;
     roadmapId: string;
 }
+
+const pageVariants = {
+  initial: { opacity: 0, y: 20 },
+  in: { opacity: 1, y: 0 },
+  out: { opacity: 0, y: -20 },
+};
+
+const pageTransition = {
+  type: "tween",
+  ease: "anticipate",
+  duration: 0.5,
+};
 
 export default function LessonPage({ params }: { params: { lessonId: string } }) {
   const { lessonId } = params;
@@ -175,7 +188,14 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
   }
 
   return (
-    <div className="container mx-auto max-w-5xl py-8">
+    <motion.div 
+        className="container mx-auto max-w-5xl py-8"
+        initial="initial"
+        animate="in"
+        exit="out"
+        variants={pageVariants}
+        transition={pageTransition}
+    >
         <div className="mb-6">
             <h1 className="text-4xl font-extrabold font-headline tracking-tight">{lesson.title}</h1>
             <p className="mt-2 text-lg text-muted-foreground">{lesson.description}</p>
@@ -209,7 +229,17 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
                     <CardContent className="space-y-4">
                         <p className="text-sm text-muted-foreground">Once you've watched the video and practiced the concepts, mark this lesson as complete.</p>
                         <Button className="w-full" onClick={handleMarkAsComplete} disabled={isCompleting}>
-                            {isCompleting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4"/>}
+                            <AnimatePresence mode="wait">
+                                {isCompleting ? (
+                                    <motion.span key="loading" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}>
+                                        <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                                    </motion.span>
+                                ) : (
+                                    <motion.span key="check" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}>
+                                        <Check className="mr-2 h-4 w-4"/>
+                                    </motion.span>
+                                )}
+                            </AnimatePresence>
                             Mark as Completed
                         </Button>
                     </CardContent>
@@ -252,8 +282,6 @@ export default function LessonPage({ params }: { params: { lessonId: string } })
                 )}
             </div>
         </div>
-    </div>
+    </motion.div>
   );
 }
-
-    

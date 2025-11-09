@@ -1,12 +1,13 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { SearchIcon, ArrowRight, LoaderCircle } from 'lucide-react';
-import { collection, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, writeBatch } from 'firebase/firestore';
+import { motion } from 'framer-motion';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -54,15 +55,26 @@ export default function SearchPage() {
     },
   ];
 
-  const [topic, setTopic] = useState('');
-  const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
   const router = useRouter();
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
 
-  const handleGenerateRoadmap = async () => {
-    if (!topic.trim()) {
+  const [topic, setTopic] = useState(searchParams.get('topic') || '');
+  const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Generating your personalized roadmap...');
+  
+  useEffect(() => {
+    const topicFromUrl = searchParams.get('topic');
+    if (topicFromUrl && !loading) {
+      setTopic(topicFromUrl);
+      handleGenerateRoadmap(topicFromUrl);
+    }
+  }, [searchParams, user, firestore]);
+
+  const handleGenerateRoadmap = async (currentTopic: string) => {
+    if (!currentTopic.trim()) {
       toast({
         variant: 'destructive',
         title: 'Topic is required',
@@ -70,7 +82,7 @@ export default function SearchPage() {
       });
       return;
     }
-    if (!user) {
+    if (!user || !firestore) {
       toast({
         variant: 'destructive',
         title: 'Authentication Error',
@@ -83,35 +95,39 @@ export default function SearchPage() {
     setLoading(true);
     try {
       // 1. Generate Roadmap
-      const roadmapResult = await generatePersonalizedLearningRoadmap({ topic });
+      setLoadingMessage('Step 1 of 4: Generating your personalized roadmap...');
+      const roadmapResult = await generatePersonalizedLearningRoadmap({ topic: currentTopic });
 
       // 2. Create Topic in Firestore
+      setLoadingMessage('Step 2 of 4: Saving your new topic...');
       const topicRef = await addDoc(collection(firestore, 'topics'), {
-        title: topic,
+        title: currentTopic,
         createdBy: user.uid,
-        createdAt: serverTimestamp(),
       });
       const topicId = topicRef.id;
       
-      const batch = writeBatch(firestore);
       const allLessonsForTopic: { lessonId: string, title: string, description: string }[] = [];
+      const totalSteps = roadmapResult.roadmap.length;
 
       // 3. Generate and store lessons for each roadmap step
-      for (const step of roadmapResult.roadmap) {
-        const roadmapStepRef = collection(firestore, 'topics', topicId, 'roadmaps');
-        const roadmapDocRef = await addDoc(roadmapStepRef, {
-          ...step,
-          status: step.stepNumber === 1 ? 'Learning' : 'Locked',
-        });
+      for (const [index, step] of roadmapResult.roadmap.entries()) {
+        setLoadingMessage(`Step 3 of 4: Generating lessons for step ${index + 1}/${totalSteps}...`);
         
+        const roadmapStepsCollection = collection(firestore, 'topics', topicId, 'roadmaps');
+        const roadmapStepDoc = await addDoc(roadmapStepsCollection, {
+            ...step,
+            status: step.stepNumber === 1 ? 'Learning' : 'Locked',
+        });
+        const roadmapStepId = roadmapStepDoc.id;
+
         const lessonsResult = await generateLessonsForEachStep({
           stepTitle: step.stepTitle,
           stepDescription: step.description,
         });
 
+        const lessonsCollection = collection(firestore, 'topics', topicId, 'roadmaps', roadmapStepId, 'lessons');
         for (const lesson of lessonsResult) {
-            const lessonRef = collection(firestore, 'topics', topicId, 'roadmaps', roadmapDocRef.id, 'lessons');
-            const lessonDocRef = await addDoc(lessonRef, {
+            const lessonDocRef = await addDoc(lessonsCollection, {
                 ...lesson,
                 status: 'To Learn',
             });
@@ -125,6 +141,7 @@ export default function SearchPage() {
       
       // 4. Create daily tasks from all lessons
       if(allLessonsForTopic.length > 0) {
+        setLoadingMessage('Step 4 of 4: Creating your daily learning tasks...');
         const dailyTasksResult = await createDailyLearningTasks({
             lessons: allLessonsForTopic,
             userId: user.uid,
@@ -132,15 +149,15 @@ export default function SearchPage() {
             tasksPerDay: 1, // Or make this configurable
         });
 
+        const tasksCollection = collection(firestore, 'users', user.uid, 'tasks');
         for(const task of dailyTasksResult) {
-            const taskRef = collection(firestore, 'users', user.uid, 'tasks');
-            await addDoc(taskRef, { ...task, status: 'To Learn'});
+            await addDoc(tasksCollection, { ...task, status: 'To Learn'});
         }
       }
 
       toast({
         title: 'Roadmap Generated!',
-        description: `Your roadmap for "${topic}" is ready.`,
+        description: `Your roadmap for "${currentTopic}" is ready.`,
       });
 
       router.push(`/roadmap/${topicId}`);
@@ -153,19 +170,52 @@ export default function SearchPage() {
         description:
           'There was an error generating your learning roadmap. Please try again.',
       });
-    } finally {
       setLoading(false);
-    }
+    } 
   };
   
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    handleGenerateRoadmap();
+    handleGenerateRoadmap(topic);
   };
+  
+  if (loading) {
+    return (
+        <div className="flex flex-col items-center justify-center w-full h-full p-4 text-center">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'spring', damping: 10, stiffness: 100}}
+            >
+              <LoaderCircle className="h-16 w-16 animate-spin text-primary mb-6" />
+            </motion.div>
+            <motion.h2 
+              className="text-2xl font-bold font-headline mb-2"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              Crafting Your Learning Adventure...
+            </motion.h2>
+            <motion.p 
+              className="text-muted-foreground"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              {loadingMessage}
+            </motion.p>
+        </div>
+    );
+  }
 
 
   return (
-    <div className="flex flex-col items-center justify-center w-full h-full p-4">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="flex flex-col items-center justify-center w-full h-full p-4"
+    >
       <div className="w-full max-w-2xl text-center">
         <h1 className="text-4xl md:text-5xl font-extrabold font-headline text-center mb-4">
           What do you want to learn today?
@@ -200,40 +250,52 @@ export default function SearchPage() {
         <h2 className="text-2xl font-bold font-headline mb-6">
           Or start with a popular topic
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            visible: { transition: { staggerChildren: 0.1 } },
+            hidden: {},
+          }}
+        >
           {popularTopics.map((topic) => (
-            <Card
+            <motion.div
               key={topic.id}
-              className="text-left hover:shadow-xl transition-shadow"
+              variants={{
+                hidden: { y: 20, opacity: 0 },
+                visible: { y: 0, opacity: 1 },
+              }}
             >
-              <CardHeader>
-                {topic.image && (
-                  <div className="overflow-hidden rounded-lg mb-4">
-                    <Image
-                      src={topic.image.imageUrl}
-                      alt={topic.title}
-                      width={400}
-                      height={300}
-                      data-ai-hint={topic.image.imageHint}
-                      className="object-cover aspect-[4/3]"
-                    />
-                  </div>
-                )}
-                <CardTitle className="font-headline">{topic.title}</CardTitle>
-                <CardDescription>{topic.description}</CardDescription>
-              </CardHeader>
-              <CardFooter>
-                <Button variant="ghost" asChild className="-ml-4">
-                  <Link href={topic.href}>
-                    Start Learning <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardFooter>
-            </Card>
+              <Card className="text-left hover:shadow-xl transition-shadow h-full flex flex-col">
+                <CardHeader>
+                  {topic.image && (
+                    <div className="overflow-hidden rounded-lg mb-4">
+                      <Image
+                        src={topic.image.imageUrl}
+                        alt={topic.title}
+                        width={400}
+                        height={300}
+                        data-ai-hint={topic.image.imageHint}
+                        className="object-cover aspect-[4/3]"
+                      />
+                    </div>
+                  )}
+                  <CardTitle className="font-headline">{topic.title}</CardTitle>
+                  <CardDescription>{topic.description}</CardDescription>
+                </CardHeader>
+                <CardFooter className="mt-auto">
+                  <Button variant="ghost" asChild className="-ml-4">
+                    <Link href={topic.href}>
+                      Start Learning <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }
-

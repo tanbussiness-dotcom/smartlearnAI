@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Card,
   CardContent,
@@ -69,7 +70,7 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
       setLoading(true);
       try {
         const lessonId = params.quizId;
-        const lessonRef = doc(firestore, 'lessons', lessonId); // This is not a valid path according to backend.json
+        // This is not a valid path according to backend.json
         // We need to find the lesson to get topicId and roadmapId. This is inefficient.
         // A better approach would be to have topicId and roadmapId in the URL, but we work with what we have.
         
@@ -246,7 +247,16 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
   
   return (
     <div className="flex items-center justify-center min-h-full py-12">
-      <Card className="w-full max-w-2xl">
+      <AnimatePresence mode="wait">
+        <motion.div
+            key={currentQuestionIndex}
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -50 }}
+            transition={{ duration: 0.3 }}
+            className="w-full max-w-2xl"
+        >
+      <Card>
         <CardHeader>
           <p className="text-sm text-muted-foreground">Quiz for: {quizData.title}</p>
           <CardTitle className="font-headline">Knowledge Check</CardTitle>
@@ -280,35 +290,55 @@ export default function QuizPage({ params }: { params: { quizId: string } }) { /
           </Button>
         </CardFooter>
       </Card>
+      </motion.div>
+      </AnimatePresence>
 
-      <AlertDialog open={showResult} onOpenChange={setShowResult}>
-        <AlertDialogContent>
-            <AlertDialogHeader className="items-center text-center">
-                {passed ? <CheckCircle className="h-16 w-16 text-green-500 mb-2"/> : <XCircle className="h-16 w-16 text-destructive mb-2"/>}
-                <AlertDialogTitle className="text-2xl font-headline">
-                    {passed ? "Congratulations! You Passed!" : "Almost there!"}
-                </AlertDialogTitle>
-                <AlertDialogDescription className="text-base">
-                    You scored {score} out of {quizData.questions.length} ({scorePercentage.toFixed(0)}%).
-                    <br/>
-                    {passed ? "You've unlocked the next lesson." : "You need 80% to pass. Please try again."}
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                {passed ? (
-                    <AlertDialogAction asChild className="w-full">
-                       <Link href={`/roadmap/${quizData.topicId}`}>Continue Your Journey</Link>
-                    </AlertDialogAction>
-                ) : (
-                    <AlertDialogAction onClick={() => { setShowResult(false); setCurrentQuestionIndex(0); setSelectedAnswers({}); }} className="w-full">
-                        Retry Quiz
-                    </AlertDialogAction>
-                )}
-            </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <AnimatePresence>
+        {showResult && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 z-50"
+          >
+            <AlertDialog open={showResult} onOpenChange={setShowResult}>
+                <AlertDialogContent asChild>
+                  <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  >
+                    <AlertDialogHeader className="items-center text-center">
+                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1, transition: { delay: 0.2, type: 'spring' } }}>
+                            {passed ? <CheckCircle className="h-16 w-16 text-green-500 mb-2"/> : <XCircle className="h-16 w-16 text-destructive mb-2"/>}
+                        </motion.div>
+                        <AlertDialogTitle className="text-2xl font-headline">
+                            {passed ? "Congratulations! You Passed!" : "Almost there!"}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-base">
+                            You scored {score} out of {quizData.questions.length} ({scorePercentage.toFixed(0)}%).
+                            <br/>
+                            {passed ? "You've unlocked the next lesson." : "You need 80% to pass. Please try again."}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        {passed ? (
+                            <AlertDialogAction asChild className="w-full">
+                               <Link href={`/roadmap/${quizData.topicId}`}>Continue Your Journey</Link>
+                            </AlertDialogAction>
+                        ) : (
+                            <AlertDialogAction onClick={() => { setShowResult(false); setCurrentQuestionIndex(0); setSelectedAnswers({}); }} className="w-full">
+                                Retry Quiz
+                            </AlertDialogAction>
+                        )}
+                    </AlertDialogFooter>
+                  </motion.div>
+                </AlertDialogContent>
+            </AlertDialog>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
-
-    
