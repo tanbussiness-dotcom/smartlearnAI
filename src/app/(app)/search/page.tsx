@@ -25,6 +25,7 @@ import { generatePersonalizedLearningRoadmap } from '@/ai/flows/generate-persona
 import { generateLessonsForEachStep } from '@/ai/flows/generate-lessons-for-each-step';
 import { createDailyLearningTasks } from '@/ai/flows/create-daily-learning-tasks';
 import { useToast } from '@/hooks/use-toast';
+import { LessonGeneratingModal } from '@/components/lesson-generating-modal';
 
 
 export default function SearchPage() {
@@ -63,7 +64,7 @@ export default function SearchPage() {
 
   const [topic, setTopic] = useState(searchParams.get('topic') || '');
   const [loading, setLoading] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState('Generating your personalized roadmap...');
+  const [loadingStep, setLoadingStep] = useState('');
   
   useEffect(() => {
     const topicFromUrl = searchParams.get('topic');
@@ -71,6 +72,7 @@ export default function SearchPage() {
       setTopic(topicFromUrl);
       handleGenerateRoadmap(topicFromUrl);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, user, firestore]);
 
   const handleGenerateRoadmap = async (currentTopic: string) => {
@@ -95,11 +97,11 @@ export default function SearchPage() {
     setLoading(true);
     try {
       // 1. Generate Roadmap
-      setLoadingMessage('Step 1 of 4: Generating your personalized roadmap...');
+      setLoadingStep('sources');
       const roadmapResult = await generatePersonalizedLearningRoadmap({ topic: currentTopic });
 
       // 2. Create Topic in Firestore
-      setLoadingMessage('Step 2 of 4: Saving your new topic...');
+      setLoadingStep('synthesize');
       const topicsCollection = collection(firestore, 'users', user.uid, 'topics');
       const topicRef = await addDocumentNonBlocking(topicsCollection, {
         title: currentTopic,
@@ -115,9 +117,8 @@ export default function SearchPage() {
       const totalSteps = roadmapResult.roadmap.length;
 
       // 3. Generate and store lessons for each roadmap step
+      setLoadingStep('validate');
       for (const [index, step] of roadmapResult.roadmap.entries()) {
-        setLoadingMessage(`Step 3 of 4: Generating lessons for step ${index + 1}/${totalSteps}...`);
-        
         const roadmapStepsCollection = collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps');
         const roadmapStepDoc = await addDocumentNonBlocking(roadmapStepsCollection, {
             ...step,
@@ -154,7 +155,7 @@ export default function SearchPage() {
       
       // 4. Create daily tasks from all lessons
       if(allLessonsForTopic.length > 0) {
-        setLoadingMessage('Step 4 of 4: Creating your daily learning tasks...');
+        setLoadingStep('save');
         const dailyTasksResult = await createDailyLearningTasks({
             lessons: allLessonsForTopic,
             userId: user.uid,
@@ -194,37 +195,6 @@ export default function SearchPage() {
     e.preventDefault();
     handleGenerateRoadmap(topic);
   };
-  
-  if (loading) {
-    return (
-        <div className="flex flex-col items-center justify-center w-full h-full p-4 text-center">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: 'spring', damping: 10, stiffness: 100}}
-            >
-              <LoaderCircle className="h-16 w-16 animate-spin text-primary mb-6" />
-            </motion.div>
-            <motion.h2 
-              className="text-2xl font-bold font-headline mb-2"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              Crafting Your Learning Adventure...
-            </motion.h2>
-            <motion.p 
-              className="text-muted-foreground"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              {loadingMessage}
-            </motion.p>
-        </div>
-    );
-  }
-
 
   return (
     <motion.div 
@@ -232,19 +202,20 @@ export default function SearchPage() {
       animate={{ opacity: 1 }}
       className="flex flex-col items-center justify-center w-full h-full p-4"
     >
+      <LessonGeneratingModal isOpen={loading} currentStepKey={loadingStep} />
       <div className="w-full max-w-2xl text-center">
         <h1 className="text-4xl md:text-5xl font-extrabold font-headline text-center mb-4">
-          What do you want to learn today?
+          Bạn muốn học gì hôm nay?
         </h1>
         <p className="text-lg text-muted-foreground mb-8">
-          Our AI will create a personalized roadmap just for you.
+          AI sẽ tạo ra một lộ trình học được cá nhân hóa dành riêng cho bạn.
         </p>
 
         <form onSubmit={handleFormSubmit} className="relative mb-12">
           <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="e.g., 'Learn Python from scratch' or 'Basics of cooking'"
+            placeholder="ví dụ: 'Học Python từ đầu' hoặc 'Căn bản về nấu ăn'"
             className="w-full pl-12 h-14 text-lg rounded-full shadow-lg"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
@@ -258,13 +229,13 @@ export default function SearchPage() {
             {loading ? (
               <LoaderCircle className="animate-spin" />
             ) : (
-              'Generate'
+              'Tạo'
             )}
           </Button>
         </form>
 
         <h2 className="text-2xl font-bold font-headline mb-6">
-          Or start with a popular topic
+          Hoặc bắt đầu với một chủ đề phổ biến
         </h2>
         <motion.div
           className="grid grid-cols-1 md:grid-cols-3 gap-6"
@@ -303,7 +274,7 @@ export default function SearchPage() {
                 <CardFooter className="mt-auto">
                   <Button variant="ghost" asChild className="-ml-4">
                     <Link href={`/roadmap/${t.id}`}>
-                      Start Learning <ArrowRight className="ml-2 h-4 w-4" />
+                      Bắt đầu học <ArrowRight className="ml-2 h-4 w-4" />
                     </Link>
                   </Button>
                 </CardFooter>
