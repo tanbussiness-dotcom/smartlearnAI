@@ -5,14 +5,8 @@
  * Core Philosophy:
  * This ruleset enforces a strict user-ownership model for all user-generated
  * content. Data is nested hierarchically under `/users/{userId}` to simplify
- * security rules and ensure data isolation.
- *
- * Key Security Decisions:
- * - User listing is disallowed to protect user privacy.
- * - All write operations require a valid, authenticated user.
- * - All write operations on user-owned data require that the authenticated
- *   user's UID matches the `userId` in the path, or the request comes
- *   from a trusted system process (AI Worker/Service Account).
+ * security rules and ensure data isolation. A global rule for collection group
+ * queries on 'lessons' is also included for AI worker processes.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -21,9 +15,12 @@ service cloud.firestore {
     /**
      * @description Allows AI workers to query across all 'lessons' collections
      * for caching and validation purposes. This is a collection group query.
+     * This rule must be placed at the top level to work correctly.
      */
     match /{path=**}/lessons/{lessonId} {
         allow list: if isServiceAccount() || isAIWorker();
+        // Read, create, update, delete for individual documents are handled by the more specific
+        // path-based rules below. This rule is ONLY for the 'list' (collectionGroup) operation.
     }
 
     /**
@@ -32,7 +29,7 @@ service cloud.firestore {
      */
     match /users/{userId} {
       allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
+      allow list: if false; // Users cannot list other users.
       allow create: if isSignedIn() && isOwner(userId);
       allow update: if isSignedIn() && isExistingOwner(userId);
       allow delete: if isSignedIn() && isExistingOwner(userId);
@@ -58,11 +55,12 @@ service cloud.firestore {
           /**
            * @description Allows a user to manage their own lessons within a roadmap.
            * AI workers are also allowed to create/update/delete lessons.
+           * The 'list' operation is handled by the global collection group rule.
            * @path /users/{userId}/topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}
            */
           match /lessons/{lessonId} {
             allow read: if isSignedIn() && isOwner(userId);
-            // list is handled by the collection group rule above
+            // 'list' is intentionally omitted here to allow the global collection group rule to apply.
             allow create, update, delete: if (isSignedIn() && isOwner(userId)) || isServiceAccount() || isAIWorker();
 
             /**
