@@ -1,7 +1,8 @@
 
+
 'use client';
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -22,8 +23,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CheckCircle, Circle, PlayCircle, Lock, LoaderCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useCollection, useUser } from "@/firebase";
-import { useFirestore } from "@/firebase/provider";
+import { useFirestore, useMemoFirebase } from "@/firebase/provider";
 import { collection, query, orderBy, doc, getDoc, getDocs } from "firebase/firestore";
+import { useParams } from "next/navigation";
 
 type Lesson = {
   id: string;
@@ -92,7 +94,9 @@ const LessonList = ({ lessons, userId, topicId, roadmapId }: { lessons: Lesson[]
 );
 
 
-export default function RoadmapPage({ params: { topicId } }: { params: { topicId: string } }) {
+export default function RoadmapPage() {
+  const params = useParams();
+  const topicId = params.topicId as string;
   const firestore = useFirestore();
   const { user } = useUser();
   
@@ -100,7 +104,7 @@ export default function RoadmapPage({ params: { topicId } }: { params: { topicId
   const [roadmap, setRoadmap] = useState<Step[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const roadmapsQuery = useMemo(() => {
+  const roadmapsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.uid || !topicId) return null;
     return query(collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps'), orderBy('stepNumber'));
   }, [firestore, user, topicId]);
