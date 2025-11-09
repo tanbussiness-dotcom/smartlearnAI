@@ -40,6 +40,7 @@ import {
   query,
   where,
   limit,
+  orderBy,
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import React from 'react';
@@ -692,5 +693,3 @@ export default function LessonPage() {
     </motion.div>
   );
 }
-
-    
