@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SearchIcon, ArrowRight, LoaderCircle } from 'lucide-react';
-import { collection, addDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, writeBatch } from 'firebase/firestore';
 import { motion } from 'framer-motion';
 
 import { Input } from '@/components/ui/input';
@@ -124,7 +124,8 @@ export default function SearchPage() {
         });
         
         if (!roadmapStepDoc) {
-          throw new Error("Failed to create roadmap step.");
+          toast({ variant: 'destructive', title: `Failed to create roadmap step ${index+1}`});
+          continue;
         }
         const roadmapStepId = roadmapStepDoc.id;
 
@@ -140,14 +141,13 @@ export default function SearchPage() {
                 status: 'To Learn',
             });
             
-            if (!lessonDocRef) {
-              throw new Error("Failed to create lesson document.");
+            if (lessonDocRef) {
+              allLessonsForTopic.push({
+                  lessonId: lessonDocRef.id,
+                  title: lesson.title,
+                  description: lesson.description
+              });
             }
-            allLessonsForTopic.push({
-                lessonId: lessonDocRef.id,
-                title: lesson.title,
-                description: lesson.description
-            });
         }
       }
       
@@ -162,9 +162,12 @@ export default function SearchPage() {
         });
 
         const tasksCollection = collection(firestore, 'users', user.uid, 'tasks');
+        const batch = writeBatch(firestore);
         for(const task of dailyTasksResult) {
-            addDocumentNonBlocking(tasksCollection, { ...task, status: 'To Learn'});
+            const taskRef = doc(tasksCollection);
+            batch.set(taskRef, { ...task, status: 'To Learn'});
         }
+        await batch.commit();
       }
 
       toast({
@@ -311,5 +314,3 @@ export default function SearchPage() {
     </motion.div>
   );
 }
-
-    
