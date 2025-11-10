@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { CheckCircle, XCircle, ArrowRight, LoaderCircle } from "lucide-react";
 import { useFirestore, useUser, addDocumentNonBlocking, updateDocumentNonBlocking, FirestorePermissionError, errorEmitter } from "@/firebase";
-import { collection, doc, addDoc, getDocs, query, limit, getDoc, writeBatch, where, updateDoc } from "firebase/firestore";
+import { collection, doc, addDoc, getDocs, query, limit, getDoc, writeBatch, where } from "firebase/firestore";
 import { generateQuizForLesson } from "@/ai/flows/generate-quizzes-for-knowledge-assessment";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter, useParams } from "next/navigation";

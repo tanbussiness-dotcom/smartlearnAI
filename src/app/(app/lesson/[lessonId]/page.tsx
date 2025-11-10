@@ -497,6 +497,8 @@ export default function LessonPage() {
               <span>AI Generated</span>
             </Badge>
           )}
+           {lesson.status === 'Learned' && <Badge variant="secondary" className='bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'><Check className="h-4 w-4 mr-1" />Đã hoàn thành</Badge>}
+           {lesson.status === 'Learning' && <Badge variant="secondary" className='bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'>Đang học</Badge>}
           <div className="flex items-center gap-2">
             <span>
               Tạo ngày {format(new Date(lesson.createdAt), 'dd/MM/yyyy')}
@@ -654,14 +656,14 @@ export default function LessonPage() {
               <Button
                 className="w-full"
                 onClick={handleMarkAsComplete}
-                disabled={isCompleting || isGeneratingContent}
+                disabled={isCompleting || isGeneratingContent || lesson.status === 'Learned'}
               >
                 {isCompleting ? (
                   <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Check className="mr-2 h-4 w-4" />
                 )}
-                Đánh dấu đã hoàn thành
+                {lesson.status === 'Learned' ? 'Đã hoàn thành' : 'Đánh dấu đã hoàn thành'}
               </Button>
             </CardContent>
           </Card>
@@ -750,3 +752,5 @@ export default function LessonPage() {
     </motion.div>
   );
 }
+
+    
