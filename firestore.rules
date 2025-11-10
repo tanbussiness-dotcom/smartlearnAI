@@ -22,6 +22,15 @@ service cloud.firestore {
         // Read, create, update, delete for individual documents are handled by the more specific
         // path-based rules below. This rule is ONLY for the 'list' (collectionGroup) operation.
     }
+    
+    /**
+     * @description Allows signed-in users to write logs for AI operations.
+     * This is used for debugging and monitoring AI generation failures.
+     */
+    match /aiLogs/{logId} {
+      allow create: if isSignedIn();
+      allow read, update, delete, list: if false; // Only allow creation
+    }
 
     /**
      * @description Allows authenticated users to read and write their own user profile.
