@@ -7,26 +7,39 @@
  */
 
 import { ai } from '../../../genkit.config';
-import {z} from 'genkit';
+import { z } from 'zod';
 
 const GeneratePersonalizedLearningRoadmapInputSchema = z.object({
-  topic: z
-    .string()
-    .describe('The topic for which to generate a learning roadmap.'),
+  topic: z.string().describe('The topic for which to generate a learning roadmap.'),
+  duration: z.string().default('6 tháng').describe('The total duration of the course.'),
+  level: z.string().default('beginner').describe('The learner\'s level.'),
+  goal: z.string().default('nắm vững lĩnh vực').describe('The learning goal.'),
+  targetAudience: z.string().default('người mới bắt đầu').describe('The target audience.'),
 });
 export type GeneratePersonalizedLearningRoadmapInput = z.infer<
   typeof GeneratePersonalizedLearningRoadmapInputSchema
 >;
 
-const LearningStepSchema = z.object({
-  stepNumber: z.number().describe('The step number in the roadmap.'),
-  stepTitle: z.string().describe('The title of the learning step.'),
-  description: z.string().describe('A detailed description of the step.'),
-  skills: z.array(z.string()).describe('The skills acquired in this step.'),
+const LessonSchema = z.object({
+    lessonId: z.string().describe("A unique ID for the lesson."),
+    title: z.string().describe("The title of the lesson."),
+    description: z.string().describe("A short description of the lesson."),
+    difficulty: z.enum(["beginner", "intermediate", "advanced"]).describe("The difficulty of the lesson."),
+});
+
+const RoadmapPhaseSchema = z.object({
+    phaseId: z.string().describe("A short ID for the phase (e.g., basics, practice)."),
+    title: z.string().describe("The title of the phase."),
+    goal: z.string().describe("The learning goal for this phase."),
+    duration: z.string().describe("The estimated duration for this phase."),
+    lessons: z.array(LessonSchema).describe("A list of lessons within this phase."),
 });
 
 const GeneratePersonalizedLearningRoadmapOutputSchema = z.object({
-  roadmap: z.array(LearningStepSchema).describe('The generated learning roadmap.'),
+  title: z.string().describe("The title of the learning roadmap."),
+  overview: z.string().describe("An overview of the roadmap."),
+  totalDuration: z.string().describe("The total duration of the roadmap."),
+  roadmap: z.array(RoadmapPhaseSchema).describe('The generated learning roadmap.'),
 });
 export type GeneratePersonalizedLearningRoadmapOutput = z.infer<
   typeof GeneratePersonalizedLearningRoadmapOutputSchema
@@ -38,42 +51,43 @@ export async function generatePersonalizedLearningRoadmap(
   return generatePersonalizedLearningRoadmapFlow(input);
 }
 
-const prompt = ai.prompt({
+const prompt = ai.definePrompt({
   name: 'generatePersonalizedLearningRoadmapPrompt',
-  input: {schema: GeneratePersonalizedLearningRoadmapInputSchema},
-  output: {schema: GeneratePersonalizedLearningRoadmapOutputSchema},
-  model: 'googleai/gemini-pro',
-  prompt: `You are an expert in curriculum design. Generate a personalized, step-by-step learning roadmap from basic to advanced levels for the topic: {{{topic}}}. The roadmap should clearly outline the skills the user will acquire in each step.
+  input: { schema: GeneratePersonalizedLearningRoadmapInputSchema },
+  output: { schema: GeneratePersonalizedLearningRoadmapOutputSchema },
+  prompt: `Bạn là chuyên gia đào tạo và cố vấn học tập AI.
+    Hãy thiết kế một lộ trình học tập toàn diện cho lĩnh vực "{{topic}}".
+    - Mục tiêu chính: {{goal}}
+    - Thời lượng tổng: {{duration}}
+    - Cấp độ người học: {{level}}
+    - Đối tượng: {{targetAudience}}
 
-Output the roadmap in JSON format. Each step should include a stepNumber, stepTitle, description, and an array of skills.
+    Lộ trình cần chia thành 3–6 giai đoạn (phases), mỗi giai đoạn có:
+    - "phaseId": id ngắn gọn (vd: basics, practice, project)
+    - "title": tiêu đề giai đoạn
+    - "goal": mục tiêu học của giai đoạn
+    - "duration": thời lượng dự kiến (vd: 3 tuần)
+    - "lessons": danh sách các bài học, mỗi bài có:
+        - "lessonId"
+        - "title"
+        - "description"
+        - "difficulty": beginner | intermediate | advanced
 
-Example:
-{
-  "roadmap": [
-    {
-      "stepNumber": 1,
-      "stepTitle": "Introduction to Python",
-      "description": "Learn the basic syntax and data structures of Python.",
-      "skills": ["Basic Python syntax", "Data structures", "Variables", "Operators"]
-    },
-    {
-      "stepNumber": 2,
-      "stepTitle": "Control Flow and Functions",
-      "description": "Understand control flow statements and define functions in Python.",
-      "skills": ["Conditional statements", "Loops", "Function definitions", "Error handling"]
-    }
-  ]
-}`,
+    Trả kết quả duy nhất dưới dạng JSON. Không thêm markdown, không giải thích, chỉ JSON thuần.
+    `,
 });
 
-const generatePersonalizedLearningRoadmapFlow = ai.flow(
+const generatePersonalizedLearningRoadmapFlow = ai.defineFlow(
   {
     name: 'generatePersonalizedLearningRoadmapFlow',
     inputSchema: GeneratePersonalizedLearningRoadmapInputSchema,
     outputSchema: GeneratePersonalizedLearningRoadmapOutputSchema,
   },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
+  async (input) => {
+    const { output } = await prompt(input);
+    if (!output) {
+        throw new Error("Failed to get a valid response from the AI model.");
+    }
+    return output;
   }
 );
