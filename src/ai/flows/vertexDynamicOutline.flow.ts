@@ -62,11 +62,29 @@ export async function vertexDynamicOutline(
 Hãy tạo cấu trúc bài học dễ hiểu nhất cho chủ đề "${input.topic}".
 - Cấp độ: ${input.level}
 - Đối tượng học: ${input.targetAudience}
-- Hãy tự quyết định số phần hợp lý (từ 3 đến 8 phần).
-- Mỗi phần có: sectionId (slug ngắn gọn), title (tên phần), goal (mục tiêu học tập), status ("not_started").
-- Trả kết quả dạng JSON.
 
-Không thêm markdown hay \`\`\`json, chỉ trả về JSON thuần.
+**Yêu cầu:**
+1.  Tự quyết định số phần hợp lý (từ 3 đến 8 phần).
+2.  Mỗi phần trong 'outline' phải có: sectionId (slug ngắn gọn), title (tên phần), goal (mục tiêu học tập), status ("not_started").
+3.  Kết quả trả về phải là một đối tượng JSON duy nhất theo đúng cấu trúc ví dụ dưới đây.
+
+**Cấu trúc JSON bắt buộc:**
+\`\`\`json
+{
+  "title": "Tiêu đề của toàn bộ bài học",
+  "overview": "Mô tả tổng quan về bài học (3-5 câu).",
+  "outline": [
+    {
+      "sectionId": "gioi-thieu",
+      "title": "Giới thiệu",
+      "goal": "Hiểu mục tiêu và cấu trúc bài học.",
+      "status": "not_started"
+    }
+  ]
+}
+\`\`\`
+
+Không thêm markdown hay \`\`\`json vào đầu hoặc cuối, chỉ trả về JSON thuần.
 `;
   
   const aiText = await generateWithGemini(prompt);
