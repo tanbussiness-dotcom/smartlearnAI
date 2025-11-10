@@ -30,6 +30,13 @@ type GeminiResponse = {
  */
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+/**
+ * Returns a random integer between min and max (inclusive).
+ */
+const getRandomDelay = (min: number, max: number) => {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+};
+
 
 /**
  * A cached function to generate content with the Gemini API with retry logic.
@@ -85,12 +92,17 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
       if (res.status === 429 || res.status === 500 || res.status === 503) {
         lastError = new Error(`Gemini API request failed with status ${res.status}: ${await res.text()}`);
         if (attempt < maxRetries) {
-          const delayTime = 1000 * attempt;
-          console.warn(`[Gemini Retry ${attempt}] API returned status ${res.status}. Retrying in ${delayTime}ms...`);
+          let delayTime = 0;
+          if (attempt === 1) {
+            delayTime = getRandomDelay(1000, 2000);
+          } else if (attempt === 2) {
+            delayTime = getRandomDelay(3000, 5000);
+          }
+          
+          console.warn(`[Gemini Retry ${attempt}] Waiting ${delayTime}ms before retry (error: ${res.status}).`);
           await delay(delayTime);
-          continue; // Go to the next iteration
+          continue;
         }
-        // If it's the last attempt, fall through to throw the error
       }
       
       if (!res.ok) {
@@ -127,6 +139,7 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
     } catch (error: any) {
       lastError = error;
       if (attempt < maxRetries) {
+        // For general network errors, use a simpler retry
         const delayTime = 1000 * attempt;
         console.warn(`[Gemini Retry ${attempt}] An error occurred: ${error.message}. Retrying in ${delayTime}ms...`);
         await delay(delayTime);
@@ -137,3 +150,4 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
   // If the loop finishes without returning, it means all retries failed.
   throw new Error(`Gemini API Unavailable after ${maxRetries} retries. Last error: ${lastError?.message}`);
 }
+
