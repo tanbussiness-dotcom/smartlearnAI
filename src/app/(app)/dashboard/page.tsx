@@ -1,7 +1,8 @@
 
 "use client"
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { ArrowUpRight, CheckCircle, BookCopy, Target } from "lucide-react";
+import { ArrowUpRight, CheckCircle, BookCopy, Target, LoaderCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { Badge } from "@/components/ui/badge";
@@ -27,17 +28,10 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
-
-const chartData = [
-  { day: "Monday", tasks: 1, desktop: 186 },
-  { day: "Tuesday", tasks: 2, desktop: 305 },
-  { day: "Wednesday", tasks: 1, desktop: 237 },
-  { day: "Thursday", tasks: 3, desktop: 73 },
-  { day: "Friday", tasks: 2, desktop: 209 },
-  { day: "Saturday", tasks: 4, desktop: 214 },
-  { day: "Sunday", tasks: 1, desktop: 214 },
-];
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { collection, query, where, orderBy } from "firebase/firestore";
+import { format, subDays, startOfDay } from 'date-fns';
 
 const chartConfig = {
   tasks: {
@@ -65,6 +59,45 @@ const itemVariants = {
 };
 
 export default function Dashboard() {
+    const { user } = useUser();
+    const firestore = useFirestore();
+
+    const dailyTasksQuery = useMemoFirebase(() => {
+        if (!user || !firestore) return null;
+        const sevenDaysAgo = subDays(startOfDay(new Date()), 6);
+        return query(
+            collection(firestore, `users/${user.uid}/dailyTasks`),
+            where('date', '>=', format(sevenDaysAgo, 'yyyy-MM-dd')),
+            orderBy('date', 'asc')
+        );
+    }, [user, firestore]);
+
+    const { data: dailyTasks, isLoading: isLoadingTasks } = useCollection(dailyTasksQuery);
+    
+    const chartData = useMemo(() => {
+        const last7Days = Array.from({ length: 7 }).map((_, i) => {
+            const date = subDays(new Date(), 6 - i);
+            return {
+                date: format(date, 'yyyy-MM-dd'),
+                day: format(date, 'EEE'),
+                tasks: 0,
+            };
+        });
+
+        if (dailyTasks) {
+            dailyTasks.forEach(task => {
+                if (task.status === 'Completed') {
+                    const taskDateStr = task.date.split('T')[0];
+                    const dayEntry = last7Days.find(d => d.date === taskDateStr);
+                    if (dayEntry) {
+                        dayEntry.tasks += 1;
+                    }
+                }
+            });
+        }
+        return last7Days;
+    }, [dailyTasks]);
+
   return (
     <motion.div 
       className="flex flex-1 flex-col gap-4 md:gap-8"
@@ -208,16 +241,21 @@ export default function Dashboard() {
               <CardDescription>These are your completed tasks for this week.</CardDescription>
             </CardHeader>
             <CardContent>
+            {isLoadingTasks ? (
+                <div className="flex h-[180px] w-full items-center justify-center">
+                    <LoaderCircle className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+            ) : (
               <ChartContainer config={chartConfig} className="h-[180px] w-full">
-                <BarChart accessibilityLayer data={chartData}>
+                <BarChart accessibilityLayer data={chartData} margin={{ top: 20, right: 20, bottom: 0, left: -20 }}>
                    <CartesianGrid vertical={false} />
                   <XAxis
                     dataKey="day"
                     tickLine={false}
                     tickMargin={10}
                     axisLine={false}
-                    tickFormatter={(value) => value.slice(0, 3)}
                   />
+                  <YAxis tickLine={false} axisLine={false} tickMargin={10} allowDecimals={false} />
                   <ChartTooltip
                     cursor={false}
                     content={<ChartTooltipContent indicator="dot" />}
@@ -225,6 +263,7 @@ export default function Dashboard() {
                   <Bar dataKey="tasks" fill="var(--color-tasks)" radius={4} />
                 </BarChart>
               </ChartContainer>
+            )}
             </CardContent>
           </Card>
         </motion.div>
@@ -232,3 +271,5 @@ export default function Dashboard() {
     </motion.div>
   );
 }
+
+    
