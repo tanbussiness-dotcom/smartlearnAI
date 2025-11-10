@@ -15,3 +15,5 @@ import './flows/getLessonFromFirestore.flow';
 import './flows/updateLessonProgress.flow';
 import './flows/getUserProgressStats.flow';
 import './flows/recommendNextLesson.flow';
+import './flows/generateCourseCertificate.flow';
+import './flows/getCertificateList.flow';
