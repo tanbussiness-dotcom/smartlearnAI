@@ -9,8 +9,9 @@
  * @exports generateLessonSection - The main function to generate a lesson section.
  */
 
-import { ai } from '../../../genkit.config';
+import { ai } from '../../../../genkit.config';
 import { z } from 'zod';
+import { googleAI } from '@genkit-ai/google-genai';
 
 // Defines the schema for the flow's input.
 const GenerateLessonSectionInputSchema = z.object({
@@ -71,7 +72,14 @@ const generateLessonSectionFlow = ai.defineFlow(
     outputSchema: GenerateLessonSectionOutputSchema,
   },
   async (input) => {
-    const { output } = await generateLessonSectionPrompt(input);
+    const { output } = await ai.generate({
+      prompt: generateLessonSectionPrompt.prompt,
+      model: googleAI.model('gemini-1.5-pro-001'),
+      input: input,
+      output: {
+        schema: GenerateLessonSectionOutputSchema,
+      },
+    });
     if (!output) {
       throw new Error('Failed to get a valid response from the AI model.');
     }

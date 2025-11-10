@@ -9,6 +9,7 @@
 
 import { ai } from '../../../genkit.config';
 import { z } from 'zod';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const GeneratePersonalizedLearningRoadmapInputSchema = z.object({
   topic: z.string().describe('The topic for which to generate a learning roadmap.'),
@@ -85,7 +86,14 @@ const generatePersonalizedLearningRoadmapFlow = ai.defineFlow(
     outputSchema: GeneratePersonalizedLearningRoadmapOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
+    const { output } = await ai.generate({
+      prompt: prompt.prompt,
+      model: googleAI.model('gemini-1.5-pro-001'),
+      input: input,
+      output: {
+        schema: GeneratePersonalizedLearningRoadmapOutputSchema,
+      },
+    });
     if (!output) {
         throw new Error("Failed to get a valid response from the AI model.");
     }

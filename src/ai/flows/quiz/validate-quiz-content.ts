@@ -12,6 +12,7 @@
 
 import { ai } from '../../../../genkit.config';
 import { z } from 'zod';
+import { googleAI } from '@genkit-ai/google-genai';
 
 // Schema for a single question, consistent with quiz generation flow.
 const QuestionSchema = z.object({
@@ -111,9 +112,16 @@ const validateQuizContentFlow = ai.defineFlow(
     outputSchema: ValidateQuizContentOutputSchema,
   },
   async input => {
-    const { output } = await validationPrompt({
+    const { output } = await ai.generate({
+      prompt: validationPrompt.prompt,
+      model: googleAI.model('gemini-1.5-pro-001'),
+      input: {
         ...input,
         quizQuestionsString: JSON.stringify(input.quiz_questions),
+      },
+      output: {
+        schema: ValidateQuizContentOutputSchema,
+      },
     });
     if (!output) {
       throw new Error('Failed to get a valid validation response from the AI model.');

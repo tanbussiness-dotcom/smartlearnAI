@@ -12,6 +12,7 @@
 
 import { ai } from '../../../../genkit.config';
 import {z} from 'zod';
+import { googleAI } from '@genkit-ai/google-genai';
 
 // Defines the schema for a single source provided as input.
 const InputSourceSchema = z.object({
@@ -101,9 +102,16 @@ const synthesizeLessonFlow = ai.defineFlow(
     outputSchema: SynthesizeLessonOutputSchema,
   },
   async input => {
-    const {output} = await synthesizePrompt({
+    const {output} = await ai.generate({
+      prompt: synthesizePrompt.prompt,
+      model: googleAI.model('gemini-1.5-pro-001'),
+      input: {
         ...input,
         sourcesString: JSON.stringify(input.sources),
+      },
+      output: {
+        schema: SynthesizeLessonOutputSchema,
+      },
     });
     if (!output) {
       throw new Error("Failed to get a valid response from the AI model.");

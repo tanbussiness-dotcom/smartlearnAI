@@ -11,6 +11,7 @@
 
 import { ai } from '../../../genkit.config';
 import { z } from 'zod';
+import { googleAI } from '@genkit-ai/google-genai';
 
 // Defines the schema for the flow's input.
 const VertexDynamicOutlineInputSchema = z.object({
@@ -80,7 +81,14 @@ export const vertexDynamicOutline = ai.defineFlow(
   async (input) => {
     console.log(`🚀 Generating adaptive outline for topic: ${input.topic}`);
     
-    const { output } = await prompt(input);
+    const { output } = await ai.generate({
+      prompt: prompt.prompt,
+      model: googleAI.model('gemini-1.5-pro-001'),
+      input: input,
+      output: {
+        schema: VertexDynamicOutlineOutputSchema,
+      },
+    });
     if (!output) {
         throw new Error("Failed to get a valid response from the AI model.");
     }

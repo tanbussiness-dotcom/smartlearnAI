@@ -9,6 +9,7 @@
 
 import { ai } from '../../../genkit.config';
 import {z} from 'zod';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const GenerateQuizForLessonInputSchema = z.object({
   lesson_id: z.string().describe('The ID of the lesson to generate a quiz for.'),
@@ -69,7 +70,14 @@ const generateQuizForLessonFlow = ai.defineFlow(
     outputSchema: GenerateQuizForLessonOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    const {output} = await ai.generate({
+      prompt: prompt.prompt,
+      model: googleAI.model('gemini-1.5-pro-001'),
+      input: input,
+      output: {
+        schema: GenerateQuizForLessonOutputSchema,
+      },
+    });
     if (!output) {
       throw new Error("Failed to generate quiz from the AI model.");
     }
