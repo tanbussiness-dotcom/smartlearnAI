@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -19,13 +20,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, Circle, PlayCircle, Lock, LoaderCircle } from "lucide-react";
+import { CheckCircle, Circle, PlayCircle, Lock, LoaderCircle, Award } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useCollection, useUser, updateDocumentNonBlocking } from "@/firebase";
 import { useFirestore, useMemoFirebase } from "@/firebase/provider";
 import { collection, query, orderBy, doc, getDoc, getDocs } from "firebase/firestore";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
+import { generateCertificate } from "@/lib/certificate-generator";
+import { Button } from "@/components/ui/button";
 
 type Lesson = {
   id: string;
@@ -108,6 +111,7 @@ export default function RoadmapPage() {
   const [topicTitle, setTopicTitle] = useState('');
   const [roadmap, setRoadmap] = useState<Step[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isGeneratingCert, setIsGeneratingCert] = useState(false);
 
   const roadmapsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.uid || !topicId) return null;
@@ -185,6 +189,34 @@ export default function RoadmapPage() {
     roadmap.find(s => s.status === 'Learning')?.id
   );
 
+  const handleDownloadCertificate = async () => {
+    if (!user?.displayName || !topicTitle) {
+        toast({
+            variant: "destructive",
+            title: "Không thể tạo chứng chỉ",
+            description: "Thiếu thông tin người dùng hoặc chủ đề."
+        });
+        return;
+    }
+    setIsGeneratingCert(true);
+    try {
+        await generateCertificate(user.displayName, topicTitle);
+        toast({
+            title: "Đã tạo chứng chỉ!",
+            description: "File PDF của bạn đang được tải xuống."
+        });
+    } catch (error) {
+        console.error("Certificate generation failed:", error);
+        toast({
+            variant: "destructive",
+            title: "Lỗi tạo chứng chỉ",
+            description: "Đã có lỗi xảy ra. Vui lòng thử lại."
+        });
+    } finally {
+        setIsGeneratingCert(false);
+    }
+  };
+
   useEffect(() => {
     const learningStep = roadmap.find(s => s.status === 'Learning');
     if (learningStep) {
@@ -214,19 +246,38 @@ export default function RoadmapPage() {
     visible: { opacity: 1, x: 0 }
   };
 
+  const isCompleted = progress === 100;
+
   return (
     <div className="container mx-auto py-8">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="text-3xl font-headline">{topicTitle || 'Loading topic...'}</CardTitle>
-            <CardDescription>Your personalized AI-generated learning path.</CardDescription>
+            <CardDescription>Lộ trình học được cá nhân hóa bởi AI.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
               <Progress value={progress} className="w-full" />
               <span className="text-sm font-medium text-muted-foreground">{Math.round(progress)}%</span>
             </div>
+             {isCompleted && (
+                <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-4 text-center p-4 border-2 border-dashed border-green-500 rounded-lg bg-green-50 dark:bg-green-900/20">
+                    <Award className="h-10 w-10 text-green-600 dark:text-green-400" />
+                    <div>
+                        <h3 className="text-lg font-semibold text-green-800 dark:text-green-200">Chúc mừng! Bạn đã hoàn thành lộ trình!</h3>
+                        <p className="text-sm text-green-700 dark:text-green-300">Hãy nhận chứng chỉ để ghi nhận thành quả của bạn.</p>
+                    </div>
+                     <Button onClick={handleDownloadCertificate} disabled={isGeneratingCert}>
+                        {isGeneratingCert ? (
+                            <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                             <Award className="mr-2 h-4 w-4" />
+                        )}
+                        Tải chứng chỉ
+                    </Button>
+                </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
@@ -247,23 +298,23 @@ export default function RoadmapPage() {
                         <AccordionTrigger className="p-6 hover:no-underline" disabled={step.status === 'Locked'}>
                             <div className="flex justify-between items-center w-full">
                                 <div>
-                                    <CardTitle className="font-headline text-left">{`Step ${step.stepNumber}: ${step.stepTitle}`}</CardTitle>
+                                    <CardTitle className="font-headline text-left">{`Giai đoạn ${step.stepNumber}: ${step.stepTitle}`}</CardTitle>
                                     <CardDescription className="mt-1 text-left">{step.description}</CardDescription>
                                 </div>
                                   <div className="flex items-center gap-2 mr-4">
-                                    {step.status === 'Learning' && <Badge variant="default">Current</Badge>}
-                                    {step.status === 'Locked' && <Badge variant="outline">Locked</Badge>}
-                                    {step.status === 'Learned' && <Badge variant="secondary">Completed</Badge>}
+                                    {step.status === 'Learning' && <Badge variant="default">Hiện tại</Badge>}
+                                    {step.status === 'Locked' && <Badge variant="outline">Đã khóa</Badge>}
+                                    {step.status === 'Learned' && <Badge variant="secondary">Hoàn thành</Badge>}
                                   </div>
                             </div>
                         </AccordionTrigger>
                         <AccordionContent className="px-6 pb-6">
                             <Tabs defaultValue="all">
                                 <TabsList className="grid w-full grid-cols-4">
-                                  <TabsTrigger value="all">All</TabsTrigger>
-                                  <TabsTrigger value="To Learn">To Learn</TabsTrigger>
-                                  <TabsTrigger value="Learning">Learning</TabsTrigger>
-                                  <TabsTrigger value="Learned">Learned</TabsTrigger>
+                                  <TabsTrigger value="all">Tất cả</TabsTrigger>
+                                  <TabsTrigger value="To Learn">Cần học</TabsTrigger>
+                                  <TabsTrigger value="Learning">Đang học</TabsTrigger>
+                                  <TabsTrigger value="Learned">Đã học</TabsTrigger>
                                 </TabsList>
                                 <AnimatePresence mode="wait">
                                   <motion.div

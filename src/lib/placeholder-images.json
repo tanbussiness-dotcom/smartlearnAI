@@ -35,6 +35,18 @@
       "description": "A placeholder thumbnail for a lesson video.",
       "imageUrl": "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8YWJzdHJhY3QlMjBncmFkaWVudHxlbnwwfHx8fDE3NjI2NTQ1OTd8MA&ixlib=rb-4.1.0&q=80&w=1080",
       "imageHint": "abstract gradient"
+    },
+    {
+      "id": "certificateLogo",
+      "description": "The logo for SmartLearn AI to be used on certificates.",
+      "imageUrl": "https://raw.githubusercontent.com/firebase/studio-demo-projects/main/smart-learn-ai/public/logo.png",
+      "imageHint": "logo education"
+    },
+    {
+      "id": "certificateSignature",
+      "description": "A placeholder signature for the certificate.",
+      "imageUrl": "https://raw.githubusercontent.com/firebase/studio-demo-projects/main/smart-learn-ai/public/signature.png",
+      "imageHint": "signature script"
     }
   ]
 }
