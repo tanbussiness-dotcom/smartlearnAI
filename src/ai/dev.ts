@@ -13,3 +13,4 @@ import './flows/vertexDynamicSectionGenerator.flow';
 import './flows/saveLessonToFirestore.flow';
 import './flows/getLessonFromFirestore.flow';
 import './flows/updateLessonProgress.flow';
+import './flows/getUserProgressStats.flow';
