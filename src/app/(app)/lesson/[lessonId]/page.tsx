@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, Suspense, useMemo } from 'react';
+import { useState, useEffect, Suspense, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -41,6 +41,7 @@ import {
   limit,
   orderBy,
   onSnapshot,
+  updateDoc,
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import React from 'react';
@@ -50,6 +51,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { format } from 'date-fns';
+import { generateLesson } from '@/ai/flows/lesson/generate-lesson';
 
 const ResponsiveYoutubeEmbed = React.lazy(
   () => import('@/components/youtube-embed')
@@ -90,6 +92,9 @@ type LessonInfo = {
   isAiGenerated: boolean;
   has_quiz: boolean;
   quiz_ready: boolean;
+  topic: string;
+  phase: string;
+  status: string;
 };
 
 const getYoutubeEmbedId = (url: string): string | null => {
@@ -175,6 +180,44 @@ export default function LessonPage() {
     return () => observer.disconnect();
   }, [lesson]);
 
+  const triggerLessonGeneration = useCallback(async (lessonToGenerate: LessonInfo, lessonRef: any) => {
+    try {
+        toast({
+            title: 'Bắt đầu bài học mới!',
+            description: 'AI đang tạo nội dung chi tiết cho bạn...',
+        });
+
+        const lessonResult = await generateLesson({
+            topic: lessonToGenerate.topic,
+            phase: lessonToGenerate.phase,
+            userId: user!.uid,
+        });
+
+        if (lessonResult && lessonResult.validation.valid) {
+            await updateDoc(lessonRef, {
+                ...lessonResult.lesson,
+                createdAt: lessonResult.created_at,
+                status: 'Learning', // Ensure status is set
+            });
+            toast({
+                title: 'Nội dung đã sẵn sàng!',
+                description: `Nội dung cho "${lessonToGenerate.title}" đã được tạo.`,
+            });
+        } else {
+            throw new Error('Lesson validation failed or returned no result.');
+        }
+    } catch (error) {
+        console.error("Failed to generate lesson content:", error);
+        toast({
+            variant: "destructive",
+            title: "Lỗi tạo nội dung",
+            description: "Đã có lỗi xảy ra khi AI tạo nội dung bài học. Vui lòng thử lại sau.",
+        });
+        // Optionally revert status if generation fails
+        updateDocumentNonBlocking(lessonRef, { status: 'To Learn' });
+    }
+  }, [user, toast]);
+
 
   useEffect(() => {
     if (!firestore || !user || !lessonId) return;
@@ -213,7 +256,6 @@ export default function LessonPage() {
               lessonId
             );
             
-            // Check if lesson exists once before setting up listener
             const initialSnap = await getDoc(lessonRef);
             if (initialSnap.exists()) {
               found = true;
@@ -229,9 +271,7 @@ export default function LessonPage() {
                       lessonData.description,
                     content:
                       lessonData.content ||
-                      lessonData.synthesized_content ||
-                      lessonData.instructions ||
-                      'Nội dung bài học chưa được cập nhật.',
+                      'Nội dung cho bài học này đang được AI tạo. Vui lòng quay lại sau.',
                     sources: lessonData.sources || [],
                     videos: lessonData.videos || [],
                     estimated_time_min: lessonData.estimated_time_min || 15,
@@ -244,25 +284,15 @@ export default function LessonPage() {
                         : lessonData.createdAt
                       : new Date().toISOString(),
                     isAiGenerated: !!(
-                      lessonData.content || lessonData.synthesized_content
+                      lessonData.content && !lessonData.content.startsWith('Nội dung cho bài học')
                     ),
                     has_quiz: lessonData.has_quiz || false,
                     quiz_ready: lessonData.quiz_ready || false,
+                    topic: lessonData.topic,
+                    phase: lessonData.phase,
+                    status: lessonData.status,
                   };
-
-                  if (
-                    lessonData.video_links &&
-                    lessonData.video_links.length > 0 &&
-                    fetchedLesson.videos.length === 0
-                  ) {
-                    fetchedLesson.videos = lessonData.video_links.map(
-                      (link: string) => ({
-                        title: 'Video tham khảo',
-                        url: link,
-                        channel: 'YouTube',
-                      })
-                    );
-                  }
+                  
                   if (lessonData.youtubeLink && fetchedLesson.videos.length === 0) {
                     fetchedLesson.videos.push({
                       title: 'Video tham khảo',
@@ -271,6 +301,13 @@ export default function LessonPage() {
                     });
                   }
                   setLesson(fetchedLesson);
+                  
+                  // Check if content needs generation
+                  const contentNeedsGeneration = !lessonData.content || lessonData.content.startsWith('Nội dung cho bài học này đang được AI tạo');
+                  if (contentNeedsGeneration && fetchedLesson.status === 'Learning') {
+                      triggerLessonGeneration(fetchedLesson, lessonRef);
+                  }
+
                 }
               }, (error) => {
                   console.error('Error in lesson snapshot listener:', error);
@@ -377,7 +414,7 @@ export default function LessonPage() {
     return () => {
       unsubscribe();
     };
-  }, [firestore, user, lessonId, toast]);
+  }, [firestore, user, lessonId, toast, triggerLessonGeneration]);
 
   const handleMarkAsComplete = () => {
     if (!firestore || !lesson) return;
@@ -399,8 +436,6 @@ export default function LessonPage() {
       status: 'Learned',
     });
 
-    // We don't need a try/catch block because the non-blocking function
-    // handles the error emission. The UI can optimistically update.
     toast({
       title: 'Lesson Completed!',
       description: 'Great job! Your progress has been updated.',
@@ -408,6 +443,11 @@ export default function LessonPage() {
 
     setIsCompleting(false);
   };
+
+  const isGeneratingContent = useMemo(() => {
+      if (!lesson) return true;
+      return lesson.content.startsWith('Nội dung cho bài học này đang được AI tạo');
+  }, [lesson]);
 
   if (loading && !lesson) {
     return (
@@ -466,7 +506,7 @@ export default function LessonPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {lesson.content && lesson.content.length < 400 ? (
+              {isGeneratingContent ? (
                 <div className="text-center py-8">
                   <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary mb-4" />
                   <p className="text-muted-foreground">Bài học này đang được AI mở rộng nội dung chi tiết. Vui lòng quay lại sau.</p>
@@ -605,7 +645,7 @@ export default function LessonPage() {
               <Button
                 className="w-full"
                 onClick={handleMarkAsComplete}
-                disabled={isCompleting}
+                disabled={isCompleting || isGeneratingContent}
               >
                 {isCompleting ? (
                   <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
@@ -629,7 +669,7 @@ export default function LessonPage() {
                 <Button
                   className="w-full"
                   asChild
-                  disabled={!lesson.quiz_ready}
+                  disabled={!lesson.quiz_ready || isGeneratingContent}
                 >
                   <Link href={`/quiz/${lessonId}`}>
                     {!lesson.quiz_ready && (
@@ -701,3 +741,5 @@ export default function LessonPage() {
     </motion.div>
   );
 }
+
+    

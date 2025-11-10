@@ -23,11 +23,9 @@ import { CheckCircle, Circle, PlayCircle, Lock, LoaderCircle } from "lucide-reac
 import { Progress } from "@/components/ui/progress";
 import { useCollection, useUser, updateDocumentNonBlocking } from "@/firebase";
 import { useFirestore, useMemoFirebase } from "@/firebase/provider";
-import { collection, query, orderBy, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
+import { collection, query, orderBy, doc, getDoc, getDocs } from "firebase/firestore";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { generateLesson } from "@/ai/flows/lesson/generate-lesson";
-
 
 type Lesson = {
   id: string;
@@ -168,54 +166,16 @@ export default function RoadmapPage() {
     const currentStep = roadmap.find(step => step.lessons.some(l => l.id === lesson.id));
     if (!currentStep) return;
 
-    const lessonRef = doc(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', currentStep.id, 'lessons', lesson.id);
-
-    // If lesson is "To Learn", change it to "Learning" and generate content
+    // If lesson is "To Learn", change it to "Learning" optimistically
     if (lesson.status === 'To Learn') {
+      const lessonRef = doc(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', currentStep.id, 'lessons', lesson.id);
       updateDocumentNonBlocking(lessonRef, { status: 'Learning' });
-      toast({
-        title: 'Bắt đầu bài học mới!',
-        description: 'AI đang tạo nội dung chi tiết cho bạn...',
-      });
-
-      // Check if content needs generation (e.g., placeholder content exists)
-      const contentNeedsGeneration = !lesson.content || lesson.content.startsWith('Nội dung cho bài học này đang được AI tạo');
-      if (contentNeedsGeneration) {
-        try {
-          const lessonResult = await generateLesson({
-            topic: lesson.topic,
-            phase: lesson.phase,
-            userId: user.uid,
-          });
-
-          if (lessonResult && lessonResult.validation.valid) {
-            await updateDoc(lessonRef, {
-              ...lessonResult.lesson,
-              createdAt: lessonResult.created_at,
-            });
-            toast({
-              title: 'Nội dung đã sẵn sàng!',
-              description: `Nội dung cho "${lesson.title}" đã được tạo.`,
-            });
-          } else {
-            throw new Error('Lesson validation failed.');
-          }
-        } catch (error) {
-          console.error("Failed to generate lesson content:", error);
-          toast({
-            variant: "destructive",
-            title: "Lỗi tạo nội dung",
-            description: "Đã có lỗi xảy ra khi AI tạo nội dung bài học. Vui lòng thử lại sau.",
-          });
-          // Revert status if generation fails
-          updateDocumentNonBlocking(lessonRef, { status: 'To Learn' });
-        }
-      }
     }
     
+    // Immediately navigate to the lesson page
     router.push(`/lesson/${lesson.id}`);
 
-  }, [user, firestore, roadmap, topicId, toast, router]);
+  }, [user, firestore, roadmap, topicId, router]);
 
 
   const completedSteps = roadmap.filter(s => s.status === 'Learned').length;
@@ -338,3 +298,5 @@ export default function RoadmapPage() {
     </div>
   );
 }
+
+    
