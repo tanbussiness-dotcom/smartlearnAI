@@ -10,7 +10,7 @@
 
 import { ai } from '../../../genkit.config';
 import { z } from 'zod';
-import { googleAI } from '@genkit-ai/google-genai';
+import { geminiPro } from 'genkit/models';
 import { GenkitError } from 'genkit';
 
 const VertexVerificationOutputSchema = z.object({
@@ -27,21 +27,19 @@ export const vertexVerifyConnection = ai.defineFlow(
   },
   async () => {
     try {
-      // The `ai` object is already configured with the googleAI plugin
+      // The `ai` object is already configured with the vertexAI plugin
       // in genkit.config.ts. We can directly use it.
 
       console.log('✅ Genkit AI client configured successfully.');
 
-      // 1. Run a test generation with Gemini 1.5 Pro
-      const gemini = googleAI.model('gemini-pro');
-
+      // 1. Run a test generation with Gemini Pro
       const prompt = `
       Write a short (100 words) overview of Artificial Intelligence (AI)
       and its application in modern education.
       `;
 
       const { output } = await ai.generate({
-        model: gemini,
+        model: geminiPro,
         prompt: prompt,
       });
 
@@ -57,7 +55,7 @@ export const vertexVerifyConnection = ai.defineFlow(
 
       return {
         success: true,
-        message: 'Successfully connected to Google AI and generated text.',
+        message: 'Successfully connected to Vertex AI and generated text.',
         // Note: Listing models directly isn't a standard Genkit feature,
         // so we confirm connection via a successful generation.
         modelCount: -1, // Placeholder

@@ -10,7 +10,7 @@
 
 import { ai } from '../../../../genkit.config';
 import {z} from 'zod';
-import { googleAI } from '@genkit-ai/google-genai';
+import { geminiPro } from 'genkit/models';
 
 const SearchSourcesInputSchema = z.object({
   topic: z.string().describe('The topic of study (e.g., "React Hooks", "Quantum Physics").'),
@@ -70,7 +70,7 @@ const searchSourcesFlow = ai.defineFlow(
     outputSchema: SearchSourcesOutputSchema,
   },
   async input => {
-    const {output} = await searchPrompt(input, { model: googleAI.model('gemini-pro') });
+    const {output} = await searchPrompt(input, { model: geminiPro });
     if (!output) {
         throw new Error("Failed to get a valid response from the AI model.");
     }

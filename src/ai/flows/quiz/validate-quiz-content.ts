@@ -12,7 +12,7 @@
 
 import { ai } from '../../../../genkit.config';
 import { z } from 'zod';
-import { googleAI } from '@genkit-ai/google-genai';
+import { geminiPro } from 'genkit/models';
 
 // Schema for a single question, consistent with quiz generation flow.
 const QuestionSchema = z.object({
@@ -115,7 +115,7 @@ const validateQuizContentFlow = ai.defineFlow(
     const { output } = await validationPrompt({
         ...input,
         quizQuestionsString: JSON.stringify(input.quiz_questions),
-      }, { model: googleAI.model('gemini-pro') });
+      }, { model: geminiPro });
 
     if (!output) {
       throw new Error('Failed to get a valid validation response from the AI model.');

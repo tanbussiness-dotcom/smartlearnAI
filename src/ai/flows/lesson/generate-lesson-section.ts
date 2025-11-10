@@ -11,7 +11,7 @@
 
 import { ai } from '../../../../genkit.config';
 import { z } from 'zod';
-import { googleAI } from '@genkit-ai/google-genai';
+import { geminiPro } from 'genkit/models';
 
 // Defines the schema for the flow's input.
 const GenerateLessonSectionInputSchema = z.object({
@@ -72,7 +72,7 @@ const generateLessonSectionFlow = ai.defineFlow(
     outputSchema: GenerateLessonSectionOutputSchema,
   },
   async (input) => {
-    const { output } = await generateLessonSectionPrompt(input, { model: googleAI.model('gemini-pro') });
+    const { output } = await generateLessonSectionPrompt(input, { model: geminiPro });
     if (!output) {
       throw new Error('Failed to get a valid response from the AI model.');
     }
