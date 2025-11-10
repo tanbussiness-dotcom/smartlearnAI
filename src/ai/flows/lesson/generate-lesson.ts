@@ -95,6 +95,7 @@ export async function generateLesson(input: z.infer<typeof GenerateLessonInputSc
       ...lessonDraft,
       status: 'Learning',
       isAiGenerated: true,
+      createdBy: userId,
       createdAt: new Date().toISOString(),
     };
     
