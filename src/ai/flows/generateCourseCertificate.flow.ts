@@ -17,9 +17,22 @@ import fetch from 'node-fetch';
 
 // Initialize Firebase Admin SDK if it hasn't been already.
 if (!admin.apps.length) {
-  admin.initializeApp({
+  try {
+    admin.initializeApp({
       credential: admin.credential.applicationDefault(),
-  });
+    });
+  } catch (e) {
+    console.error('Firebase Admin initialization error:', e);
+    // In a serverless environment, you might not need to pass credentials
+    // if the runtime is already authenticated.
+    if (!admin.apps.length) {
+       try {
+        admin.initializeApp();
+       } catch (e2) {
+         console.error('Fallback Firebase Admin initialization error:', e2);
+       }
+    }
+  }
 }
 const db = admin.firestore();
 const storage = admin.storage();
@@ -60,9 +73,14 @@ export type GenerateCourseCertificateOutput = z.infer<
   typeof GenerateCourseCertificateOutputSchema
 >;
 
-export const generateCourseCertificate = ai.defineFlow(
+export async function generateCourseCertificate(input: GenerateCourseCertificateInput): Promise<GenerateCourseCertificateOutput> {
+  return generateCourseCertificateFlow(input);
+}
+
+
+const generateCourseCertificateFlow = ai.defineFlow(
   {
-    name: 'generateCourseCertificate',
+    name: 'generateCourseCertificateFlow',
     inputSchema: GenerateCourseCertificateInputSchema,
     outputSchema: GenerateCourseCertificateOutputSchema,
   },
