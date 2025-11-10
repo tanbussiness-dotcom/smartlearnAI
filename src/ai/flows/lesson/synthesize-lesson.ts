@@ -63,8 +63,16 @@ ${sourcesString}
 Your final output must be a single, valid JSON object that strictly conforms to the provided output schema.
 `;
 
-  const aiText = await generateWithGemini(prompt);
+  let aiText = await generateWithGemini(prompt);
   let output = parseGeminiJson<SynthesizeLessonOutput>(aiText);
+
+  if (output.content.split(' ').length < 800) {
+    console.warn('Content too short, regenerating...');
+    aiText = await generateWithGemini(
+      prompt + '\nViết chi tiết hơn, khoảng 1000 từ.'
+    );
+    output = parseGeminiJson(aiText);
+  }
 
   // Post-processing to ensure video data is consistent, if needed.
   const videoSources = output.sources.filter(s => s.type === 'video');
