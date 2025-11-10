@@ -8,7 +8,7 @@
  * @exports updateLessonProgress - The main function to update lesson progress.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 

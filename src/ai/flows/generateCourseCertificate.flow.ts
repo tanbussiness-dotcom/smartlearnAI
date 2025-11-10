@@ -9,7 +9,7 @@
  * @exports generateCourseCertificate - The main function to generate a certificate.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';

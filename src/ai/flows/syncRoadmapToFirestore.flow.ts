@@ -9,7 +9,7 @@
  * @exports syncRoadmapToFirestore - The main function to save the roadmap.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 
@@ -43,7 +43,7 @@ const SyncRoadmapToFirestoreInputSchema = z.object({
   roadmapData: z.object({
     title: z.string(),
     overview: z.string(),
-    totalDuration: zstring(),
+    totalDuration: z.string(),
     roadmap: z.array(RoadmapPhaseSchema),
   }),
 });

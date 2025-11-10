@@ -8,7 +8,7 @@
  * @exports vertexDynamicSectionGenerator - The main function to generate a lesson section.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 
 // Defines the schema for the flow's input.

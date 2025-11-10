@@ -8,7 +8,7 @@
  * @exports recommendNextLesson - The main function to generate lesson recommendations.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 

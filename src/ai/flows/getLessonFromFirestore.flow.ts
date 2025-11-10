@@ -9,7 +9,7 @@
  * @exports getLessonFromFirestore - The main function to fetch lesson data.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 

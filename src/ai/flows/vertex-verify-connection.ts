@@ -9,13 +9,14 @@
 
 import { ai } from '../../../genkit.config';
 import { z } from 'zod';
-import { VertexAI } from '@google-cloud/vertexai';
+import { googleAI } from '@genkit-ai/google-genai';
+import { GenkitError } from 'genkit';
 
 const VertexVerificationOutputSchema = z.object({
-  projectId: z.string(),
-  location: z.string(),
-  modelCount: z.number(),
-  demoText: z.string(),
+  success: z.boolean(),
+  message: z.string(),
+  modelCount: z.number().optional(),
+  demoText: z.string().optional(),
 });
 
 export const vertexVerifyConnection = ai.defineFlow(
@@ -24,45 +25,51 @@ export const vertexVerifyConnection = ai.defineFlow(
     outputSchema: VertexVerificationOutputSchema,
   },
   async () => {
-    // 1️⃣ Khởi tạo Vertex AI
-    const vertexAI = new VertexAI({
-      project: 'smartlearn-ai', // ⚠️ thay bằng projectId thật của bạn nếu khác
-      location: 'us-central1',
-      googleAuthOptions: { keyFile: './vertex-ai-admin.json' },
-    });
+    try {
+      // The `ai` object is already configured with the googleAI plugin
+      // in genkit.config.ts. We can directly use it.
 
-    console.log('✅ Vertex AI client initialized successfully.');
+      console.log('✅ Genkit AI client configured successfully.');
 
-    // 2️⃣ Lấy danh sách model khả dụng
-    const modelList = await vertexAI.listModels();
-    const availableModels = modelList.map((m: any) => m.name);
-    console.log('📦 Available models:', availableModels);
+      // 1. Run a test generation with Gemini 1.5 Pro
+      const gemini = googleAI.model('gemini-1.5-pro-001');
 
-    // 3️⃣ Gọi thử model Gemini 1.5 Pro
-    const gemini = vertexAI.getGenerativeModel({
-      model: 'gemini-1.5-pro-001',
-    });
+      const prompt = `
+      Write a short (100 words) overview of Artificial Intelligence (AI)
+      and its application in modern education.
+      `;
 
-    const prompt = `
-    Viết một đoạn ngắn (100 từ) giới thiệu tổng quan về trí tuệ nhân tạo (AI)
-    và ứng dụng của nó trong giáo dục hiện đại.
-    `;
+      const { output } = await ai.generate({
+        model: gemini,
+        prompt: prompt,
+      });
 
-    const response = await gemini.generateContent({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    });
+      if (!output) {
+        throw new GenkitError({
+          status: 'UNAVAILABLE',
+          message: 'The model did not return a valid response.',
+        });
+      }
 
-    const demoText =
-      response.response.candidates?.[0]?.content?.parts?.[0]?.text ||
-      'Không có phản hồi từ model.';
+      const demoText = output;
+      console.log('🧠 Gemini 1.5 Pro demo output:', demoText);
 
-    console.log('🧠 Gemini 1.5 Pro demo output:', demoText);
-
-    return {
-      projectId: vertexAI.project,
-      location: vertexAI.location,
-      modelCount: availableModels.length,
-      demoText,
-    };
+      return {
+        success: true,
+        message: 'Successfully connected to Google AI and generated text.',
+        // Note: Listing models directly isn't a standard Genkit feature,
+        // so we confirm connection via a successful generation.
+        modelCount: -1, // Placeholder
+        demoText: demoText,
+      };
+    } catch (error: any) {
+      console.error('❌ Vertex AI connection/generation failed:', error);
+      return {
+        success: false,
+        message:
+          error.message ||
+          'An unknown error occurred during Vertex AI verification.',
+      };
+    }
   }
 );
