@@ -55,7 +55,15 @@ export async function generatePersonalizedLearningRoadmap(
     - Cấp độ người học: {{level}}
     - Đối tượng: {{targetAudience}}
 
-    Lộ trình cần chia thành 3–6 giai đoạn (phases), mỗi giai đoạn có:
+    Kết quả trả về phải là một đối tượng JSON duy nhất có cấu trúc như sau:
+    {
+      "title": "Tiêu đề của toàn bộ lộ trình học",
+      "overview": "Mô tả tổng quan về lộ trình học (khoảng 2-3 câu)",
+      "totalDuration": "Tổng thời gian dự kiến để hoàn thành (dựa trên input duration)",
+      "roadmap": [...]
+    }
+
+    Trong đó, mảng "roadmap" cần chia thành 3–6 giai đoạn (phases), mỗi giai đoạn có:
     - "phaseId": id ngắn gọn (vd: basics, practice, project)
     - "title": tiêu đề giai đoạn
     - "goal": mục tiêu học của giai đoạn
@@ -64,9 +72,9 @@ export async function generatePersonalizedLearningRoadmap(
         - "lessonId"
         - "title"
         - "description"
-        - "difficulty": beginner | intermediate | advanced
+        - "difficulty": "beginner" | "intermediate" | "advanced"
 
-    Trả kết quả duy nhất dưới dạng JSON. Không thêm markdown, không giải thích, chỉ JSON thuần.
+    Lưu ý: Chỉ trả về đối tượng JSON thuần. Không thêm markdown, không giải thích.
     `
     .replace('{{topic}}', input.topic)
     .replace('{{goal}}', input.goal)
