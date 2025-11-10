@@ -10,7 +10,7 @@
 
 import { ai } from '../../../genkit.config';
 import { z } from 'zod';
-import { geminiPro } from 'genkit/models';
+
 import { GenkitError } from 'genkit';
 
 const VertexVerificationOutputSchema = z.object({
@@ -39,7 +39,7 @@ export const vertexVerifyConnection = ai.defineFlow(
       `;
 
       const { output } = await ai.generate({
-        model: geminiPro,
+        model: 'gemini-pro',
         prompt: prompt,
       });
 

@@ -11,7 +11,7 @@
 
 import { ai } from '../../../../genkit.config';
 import {z} from 'zod';
-import { geminiPro } from 'genkit/models';
+
 
 const OutputSourceSchema = z.object({
     title: z.string().describe("The title of the source."),
@@ -93,7 +93,7 @@ const validateLessonFlow = ai.defineFlow(
   async input => {
     const {output} = await validatePrompt({
         lessonDraftString: JSON.stringify(input.lessonDraft),
-      }, { model: geminiPro });
+      }, { model: 'gemini-pro' });
 
     if (!output) {
       throw new Error('Failed to get a valid response from the AI model.');

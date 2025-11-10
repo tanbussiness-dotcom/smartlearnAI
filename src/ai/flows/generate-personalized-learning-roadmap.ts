@@ -9,7 +9,7 @@
 
 import { ai } from '../../../genkit.config';
 import { z } from 'zod';
-import { geminiPro } from 'genkit/models';
+
 
 const GeneratePersonalizedLearningRoadmapInputSchema = z.object({
   topic: z.string().describe('The topic for which to generate a learning roadmap.'),
@@ -86,7 +86,7 @@ const generatePersonalizedLearningRoadmapFlow = ai.defineFlow(
     outputSchema: GeneratePersonalizedLearningRoadmapOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input, { model: geminiPro });
+    const { output } = await prompt(input, { model: 'gemini-pro' });
     if (!output) {
         throw new Error("Failed to get a valid response from the AI model.");
     }

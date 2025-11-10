@@ -12,7 +12,7 @@
 
 import { ai } from '../../../../genkit.config';
 import {z} from 'zod';
-import { geminiPro } from 'genkit/models';
+
 
 // Defines the schema for a single source provided as input.
 const InputSourceSchema = z.object({
@@ -105,7 +105,7 @@ const synthesizeLessonFlow = ai.defineFlow(
     const {output} = await synthesizePrompt({
         ...input,
         sourcesString: JSON.stringify(input.sources),
-      }, { model: geminiPro });
+      }, { model: 'gemini-pro' });
 
     if (!output) {
       throw new Error("Failed to get a valid response from the AI model.");
