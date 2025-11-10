@@ -2,7 +2,13 @@
 'use server';
 
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
-const MODEL = process.env.AI_MODEL_ID || "gemini-pro"; // Fallback model
+
+// Fallback model order. Starts with the most preferred model.
+const MODEL_FALLBACK_ORDER = [
+  process.env.AI_MODEL_ID || "gemini-1.5-flash",
+  "gemini-pro"
+];
+
 const cache = new Map<string, string>();
 
 // --- Throttling variables ---
@@ -39,14 +45,14 @@ const getRandomDelay = (min: number, max: number) => {
 
 
 /**
- * A cached function to generate content with the Gemini API with retry logic.
+ * A cached function to generate content with the Gemini API with retry and model fallback logic.
  * It uses a simple in-memory cache to avoid repeated API calls for the same prompt.
  * It also includes a throttling mechanism to prevent API overload.
  *
  * @param prompt - The prompt to send to the model.
  * @param useCache - Whether to use the cache. Defaults to true.
  * @returns The generated text from the model.
- * @throws An error if the API call fails after all retries.
+ * @throws An error if the API call fails after all retries and fallbacks.
  */
 export async function generateWithGemini(prompt: string, useCache = true): Promise<string> {
   if (!GEMINI_API_KEY) {
@@ -72,37 +78,46 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
   requestTimestamps.push(Date.now());
   // --- End Throttling Logic ---
 
-  const maxRetries = 3;
   let lastError: Error | null = null;
+  const maxRetries = MODEL_FALLBACK_ORDER.length;
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const currentModel = MODEL_FALLBACK_ORDER[attempt];
+    console.log(`[Gemini Attempt ${attempt + 1}/${maxRetries}] Calling model: ${currentModel}`);
+    
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${GEMINI_API_KEY}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: {
+              // Add safety settings to reduce blocking
+              // This is a trade-off, adjust as needed.
+              // "BLOCK_NONE" is very permissive.
+              safetySettings: [
+                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+              ],
+            },
           }),
         }
       );
 
       // Retry on 429 (Too Many Requests), 500 (Internal Server Error), or 503 (Service Unavailable)
-      if (res.status === 429 || res.status === 500 || res.status === 503) {
+      if ([429, 500, 503].includes(res.status)) {
         lastError = new Error(`Gemini API request failed with status ${res.status}: ${await res.text()}`);
-        if (attempt < maxRetries) {
-          let delayTime = 0;
-          if (attempt === 1) {
-            delayTime = getRandomDelay(1000, 2000);
-          } else if (attempt === 2) {
-            delayTime = getRandomDelay(3000, 5000);
-          }
-          
-          console.warn(`[Gemini Retry ${attempt}] Waiting ${delayTime}ms before retry (error: ${res.status}).`);
-          await delay(delayTime);
-          continue;
+        if (attempt < maxRetries - 1) {
+            const nextModel = MODEL_FALLBACK_ORDER[attempt + 1];
+            console.warn(`[Gemini Fallback] Switching model from ${currentModel} → ${nextModel} due to status ${res.status}.`);
+            // Optional: add a small delay before falling back to the next model
+            await delay(500); 
         }
+        continue; // Move to the next model in the fallback list
       }
       
       if (!res.ok) {
@@ -118,36 +133,25 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
 
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-      // Retry if the response text is empty
-      if (!text) {
-        lastError = new Error("Gemini API returned an empty text response.");
-        if (attempt < maxRetries) {
-            const delayTime = 1000 * attempt;
-            console.warn(`[Gemini Retry ${attempt}] Received empty response. Retrying in ${delayTime}ms...`);
-            await delay(delayTime);
-            continue;
-        }
-      }
-
       if (text) {
         if (useCache) {
           cache.set(prompt, text);
         }
+        console.log(`✅ Success with model: ${currentModel}`);
         return text; // Success
       }
+      
+      // If we get here, the response was successful but empty. We'll let it fall through to retry with the next model.
+      lastError = new Error("Gemini API returned an empty text response.");
 
     } catch (error: any) {
       lastError = error;
-      if (attempt < maxRetries) {
-        // For general network errors, use a simpler retry
-        const delayTime = 1000 * attempt;
-        console.warn(`[Gemini Retry ${attempt}] An error occurred: ${error.message}. Retrying in ${delayTime}ms...`);
-        await delay(delayTime);
+      if (attempt < maxRetries - 1) {
+        console.warn(`[Gemini Attempt ${attempt + 1}] An error occurred with model ${currentModel}: ${error.message}. Falling back...`);
       }
     }
   }
   
-  // If the loop finishes without returning, it means all retries failed.
-  throw new Error(`Gemini API Unavailable after ${maxRetries} retries. Last error: ${lastError?.message}`);
+  // If the loop finishes without returning, it means all retries and fallbacks failed.
+  throw new Error(`All Gemini models unavailable after fallback sequence. Last error: ${lastError?.message}`);
 }
-
