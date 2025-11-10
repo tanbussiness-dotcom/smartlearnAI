@@ -11,9 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PopularTopics } from '@/components/popular-topics';
 import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
-import { generatePersonalizedLearningRoadmap } from '@/ai/flows/generate-personalized-learning-roadmap';
+import { vertexDynamicOutline } from '@/ai/flows/vertexDynamicOutline.flow';
 import { useToast } from '@/hooks/use-toast';
-import { LessonGeneratingModal } from '@/components/lesson-generating-modal';
 
 export default function SearchPage() {
   const searchParams = useSearchParams();
@@ -24,7 +23,6 @@ export default function SearchPage() {
 
   const [topic, setTopic] = useState(searchParams.get('topic') || '');
   const [loading, setLoading] = useState(false);
-  const [loadingStep, setLoadingStep] = useState('');
 
   useEffect(() => {
     const topicFromUrl = searchParams.get('topic');
@@ -32,7 +30,7 @@ export default function SearchPage() {
       setTopic(topicFromUrl);
       handleGenerateRoadmap(topicFromUrl);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, user, firestore]);
 
   const handleGenerateRoadmap = async (currentTopic: string) => {
@@ -55,96 +53,63 @@ export default function SearchPage() {
     }
 
     setLoading(true);
-    let topicId: string | undefined = undefined;
+    let lessonId: string | undefined = undefined;
 
     try {
-      // Step 1: Generate Roadmap structure from AI
-      setLoadingStep('sources'); // Corresponds to "Finding resources"
-      const roadmapResult = await generatePersonalizedLearningRoadmap({ topic: currentTopic });
+      // Step 1: Generate Lesson Outline from AI
+      const outlineResult = await vertexDynamicOutline({
+        topic: currentTopic,
+        level: 'beginner',
+        targetAudience: 'self-learner',
+      });
 
-      // Step 2: Create Topic document in Firestore
-      setLoadingStep('synthesize'); // Corresponds to "Synthesizing content"
-      const topicsCollection = collection(firestore, 'users', user.uid, 'topics');
-      const topicRef = await addDocumentNonBlocking(topicsCollection, {
-        title: currentTopic,
+      // Step 2: Create a single Lesson document in Firestore
+      const lessonsCollection = collection(firestore, 'users', user.uid, 'lessons');
+      const lessonRef = doc(lessonsCollection);
+      lessonId = lessonRef.id;
+
+      await addDocumentNonBlocking(lessonsCollection, {
+        id: lessonId,
+        title: outlineResult.title,
+        overview: outlineResult.overview,
+        outline: outlineResult.outline,
+        sections: {}, // Initially empty, will be populated on demand
         createdBy: user.uid,
         createdAt: new Date().toISOString(),
+        status: 'To Learn',
       });
-
-      if (!topicRef) {
-        throw new Error("Failed to create topic reference in Firestore.");
-      }
-      topicId = topicRef.id;
       
-      // Step 3: Write the entire roadmap to Firestore using a batch write
-      setLoadingStep('save');
-      const batch = writeBatch(firestore);
-      const roadmapsCollection = collection(firestore, `users/${user.uid}/topics/${topicId}/roadmaps`);
-      let stepCounter = 1;
-
-      for (const phase of roadmapResult.roadmap) {
-        const roadmapDocRef = doc(roadmapsCollection);
-        batch.set(roadmapDocRef, {
-            stepNumber: stepCounter,
-            stepTitle: phase.title,
-            description: phase.goal,
-            status: stepCounter === 1 ? 'Learning' : 'Locked',
-            createdAt: new Date().toISOString(),
-        });
-
-        const lessonsColRef = collection(roadmapDocRef, 'lessons');
-        for (const lesson of phase.lessons) {
-            // Use specific lessonId from AI if available, otherwise auto-generate
-            const lessonDocRef = doc(lessonsColRef, lesson.lessonId);
-            batch.set(lessonDocRef, {
-                title: lesson.title,
-                description: lesson.description,
-                difficulty: lesson.difficulty,
-                status: 'To Learn',
-                createdAt: new Date().toISOString(),
-                topic: roadmapResult.title,
-                phase: phase.title,
-                content: `Nội dung cho bài học này đang được AI tạo. Vui lòng quay lại sau.`,
-                has_quiz: true, 
-                quiz_ready: false,
-            });
-        }
-        stepCounter++;
-      }
-      await batch.commit();
-
       toast({
-        title: 'Roadmap Generated!',
-        description: `Your roadmap for "${currentTopic}" is ready.`,
+        title: 'Lesson Outline Generated!',
+        description: `Your lesson outline for "${currentTopic}" is ready.`,
       });
 
-      router.push(`/roadmap/${topicId}`);
-
+      router.push(`/lesson/${lessonId}`);
     } catch (error: any) {
-      console.error('Failed to generate and store roadmap:', error);
+      console.error('Failed to generate and store lesson outline:', error);
       toast({
         variant: 'destructive',
         title: 'Generation Failed',
-        description: error.message || 'There was an error generating your learning roadmap. Please try again.',
+        description:
+          error.message ||
+          'There was an error generating your lesson outline. Please try again.',
       });
     } finally {
-        setLoading(false);
-        setLoadingStep('');
+      setLoading(false);
     }
   };
-  
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     handleGenerateRoadmap(topic);
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="flex flex-col items-center justify-center w-full h-full p-4"
     >
-      <LessonGeneratingModal isOpen={loading} currentStepKey={loadingStep} />
       <div className="w-full max-w-2xl text-center">
         <h1 className="text-4xl md:text-5xl font-extrabold font-headline text-center mb-4">
           Bạn muốn học gì hôm nay?
@@ -168,11 +133,7 @@ export default function SearchPage() {
             className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full h-10 w-24"
             disabled={loading}
           >
-            {loading ? (
-              <LoaderCircle className="animate-spin" />
-            ) : (
-              'Tạo'
-            )}
+            {loading ? <LoaderCircle className="animate-spin" /> : 'Tạo'}
           </Button>
         </form>
         <PopularTopics />
