@@ -7,7 +7,8 @@
  */
 
 import { z } from 'zod';
-import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
+import { generateWithGemini } from '@/lib/gemini';
+import { parseGeminiJson } from '@/lib/utils';
 
 // Schema for a single question, consistent with quiz generation flow.
 const QuestionSchema = z.object({

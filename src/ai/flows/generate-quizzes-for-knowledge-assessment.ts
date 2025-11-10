@@ -6,7 +6,8 @@
  */
 
 import { z } from 'zod';
-import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
+import { generateWithGemini } from '@/lib/gemini';
+import { parseGeminiJson } from '@/lib/utils';
 
 const GenerateQuizForLessonInputSchema = z.object({
   lesson_id: z.string().describe('The ID of the lesson to generate a quiz for.'),

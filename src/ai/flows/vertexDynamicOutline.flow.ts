@@ -7,7 +7,8 @@
  */
 
 import { z } from 'zod';
-import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
+import { generateWithGemini } from '@/lib/gemini';
+import { parseGeminiJson } from '@/lib/utils';
 
 // Defines the schema for the flow's input.
 const VertexDynamicOutlineInputSchema = z.object({

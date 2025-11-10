@@ -6,7 +6,8 @@
 
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
-import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
+import { generateWithGemini } from '@/lib/gemini';
+import { parseGeminiJson } from '@/lib/utils';
 
 // Input schema for the flow.
 const RecommendNextLessonInputSchema = z.object({

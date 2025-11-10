@@ -6,7 +6,8 @@
  */
 
 import { z } from 'zod';
-import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
+import { generateWithGemini } from '@/lib/gemini';
+import { parseGeminiJson } from '@/lib/utils';
 
 const GeneratePersonalizedLearningRoadmapInputSchema = z.object({
   topic: z.string().describe('The topic for which to generate a learning roadmap.'),

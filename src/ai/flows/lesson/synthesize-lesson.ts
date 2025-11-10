@@ -7,7 +7,8 @@
  */
 
 import { z } from 'zod';
-import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
+import { generateWithGemini } from '@/lib/gemini';
+import { parseGeminiJson } from '@/lib/utils';
 
 // Defines the schema for a single source provided as input.
 const InputSourceSchema = z.object({

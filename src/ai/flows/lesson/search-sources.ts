@@ -9,7 +9,8 @@
  */
 
 import { z } from 'zod';
-import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
+import { generateWithGemini } from '@/lib/gemini';
+import { parseGeminiJson } from '@/lib/utils';
 
 const SearchSourcesInputSchema = z.object({
   topic: z.string().describe('The topic of study (e.g., "React Hooks", "Quantum Physics").'),
