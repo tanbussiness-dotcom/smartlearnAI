@@ -9,6 +9,7 @@
 import { z } from 'zod';
 import { generateWithGemini } from '@/lib/gemini';
 import { parseGeminiJson } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 
 // Defines the schema for the flow's input.
 const VertexDynamicOutlineInputSchema = z.object({
@@ -55,7 +56,7 @@ export type VertexDynamicOutlineOutput = z.infer<
 
 export async function vertexDynamicOutline(
   input: VertexDynamicOutlineInput
-): Promise<VertexDynamicOutlineOutput> {
+): Promise<VertexDynamicOutlineOutput | null> {
   console.log(`🚀 Generating adaptive outline for topic: ${input.topic}`);
 
   const prompt = `Bạn là chuyên gia thiết kế khóa học. 
@@ -87,9 +88,16 @@ Hãy tạo cấu trúc bài học dễ hiểu nhất cho chủ đề "${input.to
 Không thêm markdown hay \`\`\`json vào đầu hoặc cuối, chỉ trả về JSON thuần.
 `;
   
-  const aiText = await generateWithGemini(prompt);
-  const output = parseGeminiJson<VertexDynamicOutlineOutput>(aiText);
+  try {
+    const aiText = await generateWithGemini(prompt);
+    const output = parseGeminiJson<VertexDynamicOutlineOutput>(aiText);
 
-  console.log(`✅ Adaptive outline created: ${output.title}`);
-  return VertexDynamicOutlineOutputSchema.parse(output);
+    console.log(`✅ Adaptive outline created: ${output.title}`);
+    return VertexDynamicOutlineOutputSchema.parse(output);
+  } catch (error: any) {
+    console.error("Failed to generate lesson outline:", error);
+    // Instead of throwing, return null to indicate failure gracefully.
+    // The calling function can then handle this by showing a toast.
+    return null;
+  }
 }

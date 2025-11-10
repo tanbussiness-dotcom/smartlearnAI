@@ -1,16 +1,16 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search as SearchIcon, LoaderCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { collection, writeBatch, doc } from 'firebase/firestore';
+import { collection, doc, setDoc } from 'firebase/firestore';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PopularTopics } from '@/components/popular-topics';
-import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { vertexDynamicOutline } from '@/ai/flows/vertexDynamicOutline.flow';
 import { useToast } from '@/hooks/use-toast';
 
@@ -23,15 +23,6 @@ export default function SearchPage() {
 
   const [topic, setTopic] = useState(searchParams.get('topic') || '');
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const topicFromUrl = searchParams.get('topic');
-    if (topicFromUrl && !loading) {
-      setTopic(topicFromUrl);
-      handleGenerateRoadmap(topicFromUrl);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, user, firestore]);
 
   const handleGenerateRoadmap = async (currentTopic: string) => {
     if (!currentTopic.trim()) {
@@ -53,7 +44,6 @@ export default function SearchPage() {
     }
 
     setLoading(true);
-    let lessonId: string | undefined = undefined;
 
     try {
       // Step 1: Generate Lesson Outline from AI
@@ -62,13 +52,23 @@ export default function SearchPage() {
         level: 'beginner',
         targetAudience: 'self-learner',
       });
+      
+      if (!outlineResult) {
+        toast({
+          variant: 'destructive',
+          title: 'Generation Failed',
+          description:
+            'The AI is currently busy. Please try again in a few moments.',
+        });
+        setLoading(false);
+        return;
+      }
 
       // Step 2: Create a single Lesson document in Firestore
-      const lessonsCollection = collection(firestore, 'users', user.uid, 'lessons');
-      const lessonRef = doc(lessonsCollection);
-      lessonId = lessonRef.id;
+      const lessonRef = doc(collection(firestore, 'users', user.uid, 'lessons'));
+      const lessonId = lessonRef.id;
 
-      await addDocumentNonBlocking(lessonsCollection, {
+      const lessonData = {
         id: lessonId,
         title: outlineResult.title,
         overview: outlineResult.overview,
@@ -77,7 +77,9 @@ export default function SearchPage() {
         createdBy: user.uid,
         createdAt: new Date().toISOString(),
         status: 'To Learn',
-      });
+      };
+      
+      setDocumentNonBlocking(lessonRef, lessonData);
       
       toast({
         title: 'Lesson Outline Generated!',
@@ -94,8 +96,7 @@ export default function SearchPage() {
           error.message ||
           'There was an error generating your lesson outline. Please try again.',
       });
-    } finally {
-      setLoading(false);
+       setLoading(false);
     }
   };
 
