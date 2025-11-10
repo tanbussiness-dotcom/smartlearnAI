@@ -35,7 +35,8 @@ const VertexDynamicSectionGeneratorOutputSchema = z.object({
   content: z.string().describe('The detailed content for the section.'),
   quiz: z
     .array(QuizQuestionSchema)
-    .describe('An array containing a single quiz question.'),
+    .min(1)
+    .describe('An array containing at least one quiz question.'),
 });
 export type VertexDynamicSectionGeneratorOutput = z.infer<
   typeof VertexDynamicSectionGeneratorOutputSchema
@@ -47,20 +48,48 @@ export async function vertexDynamicSectionGenerator(
   console.log(`🚀 Generating section content: ${input.sectionTitle}`);
 
   const prompt = `
-    Viết nội dung chi tiết cho phần "${input.sectionTitle}" thuộc bài học "${input.topic}".
-    Mục tiêu phần này: "${input.sectionGoal}".
-    Yêu cầu:
-    - Nội dung dễ hiểu, logic, 400–700 từ.
-    - Có ví dụ minh họa nếu cần.
-    - Kết thúc bằng phần tóm tắt ngắn.
-    - Tạo một câu hỏi trắc nghiệm (quiz) với question, options (4 lựa chọn), và correctAnswer.
-    - Trả kết quả dạng JSON.
+    Bạn là chuyên gia viết tài liệu hướng dẫn. Hãy viết nội dung chi tiết cho phần "${input.sectionTitle}" thuộc chủ đề "${input.topic}".
+    Mục tiêu của phần này là: "${input.sectionGoal}".
 
-    Không thêm markdown hay \`\`\`json, chỉ trả về JSON thuần.
+    **Yêu cầu:**
+    1.  **Nội dung ("content"):**
+        - Viết bằng Markdown, có độ dài từ 400 đến 700 từ.
+        - Nội dung phải rõ ràng, logic, dễ hiểu.
+        - Bắt buộc phải có ít nhất một ví dụ thực tế hoặc đoạn code (nếu phù hợp) để minh họa.
+        - Kết thúc bằng một đoạn tóm tắt ngắn các điểm chính.
+    
+    2.  **Câu hỏi trắc nghiệm ("quiz"):**
+        - Tạo một mảng chứa **một** câu hỏi trắc nghiệm (multiple-choice).
+        - Mỗi câu hỏi phải có: "question" (chuỗi), "options" (mảng 4 chuỗi), và "correctAnswer" (chuỗi - một trong các options).
+    
+    3.  **Định dạng JSON:**
+        - Toàn bộ kết quả trả về phải là một đối tượng JSON duy nhất.
+        - Đối tượng JSON phải tuân thủ nghiêm ngặt cấu trúc sau:
+    
+    \`\`\`json
+    {
+      "sectionId": "${input.sectionId}",
+      "title": "Tiêu đề của phần học (giống input)",
+      "content": "Nội dung chi tiết viết bằng Markdown...",
+      "quiz": [
+        {
+          "question": "Nội dung câu hỏi?",
+          "options": ["Lựa chọn A", "Lựa chọn B", "Lựa chọn C", "Lựa chọn D"],
+          "correctAnswer": "Lựa chọn đúng"
+        }
+      ]
+    }
+    \`\`\`
+
+    **Lưu ý quan trọng:** Không thêm ký tự markdown \`\`\`json ở đầu hoặc cuối. Chỉ trả về đối tượng JSON thuần.
     `;
   
   const aiText = await generateWithGemini(prompt);
-  const output = parseGeminiJson<VertexDynamicSectionGeneratorOutput>(aiText);
+  let output = parseGeminiJson<VertexDynamicSectionGeneratorOutput>(aiText);
+
+  // Ensure the sectionId from the input is always present in the output
+  // to prevent AI from omitting it.
+  output.sectionId = input.sectionId;
 
   console.log(`✅ Section generated: ${output.title}`);
   return VertexDynamicSectionGeneratorOutputSchema.parse(output);
