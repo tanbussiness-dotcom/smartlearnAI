@@ -24,7 +24,7 @@ import { Progress } from "@/components/ui/progress";
 import { useCollection, useUser, updateDocumentNonBlocking } from "@/firebase";
 import { useFirestore, useMemoFirebase } from "@/firebase/provider";
 import { collection, query, orderBy, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { generateLesson } from "@/ai/flows/lesson/generate-lesson";
 
