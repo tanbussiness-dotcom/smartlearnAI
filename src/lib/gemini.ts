@@ -5,6 +5,12 @@ const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
 const MODEL = process.env.AI_MODEL_ID || "gemini-pro"; // Fallback model
 const cache = new Map<string, string>();
 
+// --- Throttling variables ---
+const requestTimestamps: number[] = [];
+const THROTTLE_LIMIT = 2; // Max requests
+const THROTTLE_WINDOW_MS = 1000; // per 1 second
+const THROTTLE_DELAY_MS = 2000; // Wait 2 seconds if throttled
+
 type GeminiResponse = {
   candidates?: Array<{
     content?: {
@@ -28,6 +34,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /**
  * A cached function to generate content with the Gemini API with retry logic.
  * It uses a simple in-memory cache to avoid repeated API calls for the same prompt.
+ * It also includes a throttling mechanism to prevent API overload.
  *
  * @param prompt - The prompt to send to the model.
  * @param useCache - Whether to use the cache. Defaults to true.
@@ -42,6 +49,21 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
   if (useCache && cache.has(prompt)) {
     return cache.get(prompt)!;
   }
+
+  // --- Throttling Logic ---
+  const now = Date.now();
+  // Clean up old timestamps
+  while (requestTimestamps.length > 0 && now - requestTimestamps[0] > THROTTLE_WINDOW_MS) {
+    requestTimestamps.shift();
+  }
+  
+  if (requestTimestamps.length >= THROTTLE_LIMIT) {
+    console.log(`[Gemini Throttle] Waiting ${THROTTLE_DELAY_MS}ms to avoid overload.`);
+    await delay(THROTTLE_DELAY_MS);
+  }
+
+  requestTimestamps.push(Date.now());
+  // --- End Throttling Logic ---
 
   const maxRetries = 3;
   let lastError: Error | null = null;
@@ -61,7 +83,7 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
 
       // Retry on 429 (Too Many Requests), 500 (Internal Server Error), or 503 (Service Unavailable)
       if (res.status === 429 || res.status === 500 || res.status === 503) {
-        lastError = new Error(`Gemini API request failed with status ${res.status}`);
+        lastError = new Error(`Gemini API request failed with status ${res.status}: ${await res.text()}`);
         if (attempt < maxRetries) {
           const delayTime = 1000 * attempt;
           console.warn(`[Gemini Retry ${attempt}] API returned status ${res.status}. Retrying in ${delayTime}ms...`);
