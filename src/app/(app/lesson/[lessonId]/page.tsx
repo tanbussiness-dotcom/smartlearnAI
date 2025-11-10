@@ -1,8 +1,9 @@
 
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useMemo, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,6 +11,8 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
+  CardList,
+  CardListItem,
   CardTitle,
 } from '@/components/ui/card';
 import {
@@ -23,17 +26,21 @@ import {
   Bot,
   Youtube,
   Star,
+  Film,
+  Library,
+  List,
 } from 'lucide-react';
 import { useFirestore, useUser, updateDocumentNonBlocking } from '@/firebase';
 import {
   collection,
   doc,
   getDocs,
-  updateDoc,
   getDoc,
   query,
   where,
   limit,
+  orderBy,
+  onSnapshot,
 } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import React from 'react';
@@ -43,6 +50,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { format } from 'date-fns';
+import { generateLesson } from '@/ai/flows/lesson/generate-lesson';
 
 const ResponsiveYoutubeEmbed = React.lazy(
   () => import('@/components/youtube-embed')
@@ -54,26 +62,42 @@ type Source = {
   domain: string;
   type: 'article' | 'doc' | 'video' | 'tutorial';
   short_note: string;
-  relevance?: number; // Kept for compatibility, can be displayed as trust_score
+  relevance?: number;
+};
+
+type Video = {
+  title: string;
+  url: string;
+  channel: string;
+};
+
+type TocEntry = {
+  level: number;
+  id: string;
+  title: string;
 };
 
 type LessonInfo = {
   title: string;
-  description: string; // Used as summary
-  youtubeLink?: string; // Legacy
-  instructions?: string; // Legacy
-  synthesized_content: string;
-  estimated_time_min: number;
+  overview: string;
+  content: string;
   sources: Source[];
-  video_links: string[];
+  videos: Video[];
+  estimated_time_min: number;
   userId: string;
   topicId: string;
   roadmapId: string;
   createdAt: string; // ISO date string
   isAiGenerated: boolean;
+  has_quiz: boolean;
+  quiz_ready: boolean;
+  topic: string;
+  phase: string;
+  status: string;
 };
 
 const getYoutubeEmbedId = (url: string): string | null => {
+  if (!url) return null;
   try {
     const urlObj = new URL(url);
     if (urlObj.hostname === 'youtu.be') {
@@ -86,10 +110,24 @@ const getYoutubeEmbedId = (url: string): string | null => {
       return urlObj.searchParams.get('v');
     }
   } catch (e) {
-    // invalid url, just return it
+    console.error('Invalid YouTube URL:', url);
   }
-  return 'Z1Yd7upQsXY'; // default fallback
+  return null;
 };
+
+const generateSlug = (text: string) => {
+  return text
+    .toLowerCase()
+    .replace(/ /g, '-')
+    .replace(/[^\w-]+/g, '');
+};
+
+const HeadingRenderer = ({ level, children }: { level: any; children: any }) => {
+    const text = React.Children.toArray(children).join('');
+    const slug = generateSlug(text);
+    return React.createElement(`h${level}`, { id: slug }, children);
+};
+
 
 export default function LessonPage() {
   const params = useParams();
@@ -105,11 +143,91 @@ export default function LessonPage() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [activeTocId, setActiveTocId] = useState<string>('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+
+  const tableOfContents = useMemo(() => {
+    if (!lesson?.content) return [];
+    const headings: TocEntry[] = [];
+    const matches = lesson.content.matchAll(/^(##|###) (.*)/gm);
+    for (const match of matches) {
+      const level = match[1].length;
+      const title = match[2];
+      headings.push({
+        level,
+        title,
+        id: generateSlug(title),
+      });
+    }
+    return headings;
+  }, [lesson?.content]);
+  
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActiveTocId(entry.target.id);
+          }
+        });
+      },
+      { rootMargin: '-20% 0px -80% 0px' }
+    );
+  
+    const headings = document.querySelectorAll('.prose h2, .prose h3');
+    headings.forEach((heading) => observer.observe(heading));
+  
+    return () => observer.disconnect();
+  }, [lesson]);
+
+  const triggerLessonGeneration = useCallback(async (lessonToGenerate: LessonInfo) => {
+    if (!user || isGenerating) return;
+
+    setIsGenerating(true);
+    toast({
+        title: 'Bắt đầu bài học mới!',
+        description: 'AI đang tạo nội dung chi tiết cho bạn...',
+    });
+
+    try {
+        await generateLesson({
+            topic: lessonToGenerate.topic,
+            phase: lessonToGenerate.phase,
+            userId: user.uid,
+            topicId: lessonToGenerate.topicId,
+            roadmapId: lessonToGenerate.roadmapId,
+            lessonId: lessonId,
+        });
+
+        // The onSnapshot listener will automatically update the UI.
+        toast({
+            title: 'Nội dung đã sẵn sàng!',
+            description: `Nội dung và bài kiểm tra cho "${lessonToGenerate.title}" đã được tạo.`,
+        });
+
+    } catch (error) {
+        console.error("Failed to generate lesson content:", error);
+        toast({
+            variant: "destructive",
+            title: "Lỗi tạo nội dung",
+            description: "Đã có lỗi xảy ra khi AI tạo nội dung bài học. Vui lòng thử lại sau.",
+        });
+        // Optionally revert status if generation fails
+        const lessonRef = doc(firestore, 'users', user.uid, 'topics', lessonToGenerate.topicId, 'roadmaps', lessonToGenerate.roadmapId, 'lessons', lessonId);
+        updateDocumentNonBlocking(lessonRef, { status: 'To Learn' });
+    } finally {
+        setIsGenerating(false);
+    }
+  }, [user, lessonId, toast, isGenerating, firestore]);
+
 
   useEffect(() => {
     if (!firestore || !user || !lessonId) return;
 
-    const fetchLessonDetails = async () => {
+    let unsubscribe: () => void = () => {};
+
+    const setupLessonListener = async () => {
       setLoading(true);
       try {
         const topicsSnapshot = await getDocs(
@@ -140,37 +258,70 @@ export default function LessonPage() {
               'lessons',
               lessonId
             );
-            const lessonSnap = await getDoc(lessonRef);
+            
+            const initialSnap = await getDoc(lessonRef);
+            if (initialSnap.exists()) {
+              found = true;
+              
+              unsubscribe = onSnapshot(lessonRef, (lessonSnap) => {
+                if (lessonSnap.exists()) {
+                  const lessonData = lessonSnap.data();
+                  const fetchedLesson: LessonInfo = {
+                    title: lessonData.title,
+                    overview:
+                      lessonData.overview ||
+                      lessonData.summary ||
+                      lessonData.description,
+                    content:
+                      lessonData.content ||
+                      'Nội dung cho bài học này đang được AI tạo. Vui lòng quay lại sau.',
+                    sources: lessonData.sources || [],
+                    videos: lessonData.videos || [],
+                    estimated_time_min: lessonData.estimated_time_min || 15,
+                    userId: user.uid,
+                    topicId: topicDoc.id,
+                    roadmapId: roadmapDoc.id,
+                    createdAt: lessonData.createdAt
+                      ? lessonData.createdAt.toDate
+                        ? lessonData.createdAt.toDate().toISOString()
+                        : lessonData.createdAt
+                      : new Date().toISOString(),
+                    isAiGenerated: !!(
+                      lessonData.content && !lessonData.content.startsWith('Nội dung cho bài học')
+                    ),
+                    has_quiz: lessonData.has_quiz || false,
+                    quiz_ready: lessonData.quiz_ready || false,
+                    topic: lessonData.topic,
+                    phase: lessonData.phase,
+                    status: lessonData.status,
+                  };
+                  
+                  if (lessonData.youtubeLink && fetchedLesson.videos.length === 0) {
+                    fetchedLesson.videos.push({
+                      title: 'Video tham khảo',
+                      url: lessonData.youtubeLink,
+                      channel: 'YouTube',
+                    });
+                  }
+                  
+                  const needsGeneration = !fetchedLesson.isAiGenerated;
 
-            if (lessonSnap.exists()) {
-              const lessonData = lessonSnap.data();
-              const fetchedLesson: LessonInfo = {
-                title: lessonData.title,
-                description: lessonData.summary || lessonData.description,
-                synthesized_content:
-                  lessonData.synthesized_content || lessonData.instructions,
-                estimated_time_min: lessonData.estimated_time_min || 15,
-                sources: lessonData.sources || [],
-                video_links: lessonData.video_links || [],
-                userId: user.uid,
-                topicId: topicDoc.id,
-                roadmapId: roadmapDoc.id,
-                createdAt: lessonData.createdAt
-                  ? lessonData.createdAt.toDate().toISOString()
-                  : new Date().toISOString(),
-                isAiGenerated: !!lessonData.synthesized_content, // Simple check
-                youtubeLink: lessonData.youtubeLink,
-              };
+                  // Update state and trigger generation if needed
+                  setLesson(prevLesson => {
+                      if (needsGeneration && fetchedLesson.status === 'Learning' && !isGenerating) {
+                          // Check isGenerating flag to prevent multiple triggers
+                          if (!prevLesson || prevLesson.content !== fetchedLesson.content) {
+                             triggerLessonGeneration(fetchedLesson);
+                          }
+                      }
+                      return fetchedLesson;
+                  });
 
-              // If legacy youtubeLink exists and no video_links, add it.
-              if (
-                fetchedLesson.youtubeLink &&
-                fetchedLesson.video_links.length === 0
-              ) {
-                fetchedLesson.video_links.push(fetchedLesson.youtubeLink);
-              }
-
-              setLesson(fetchedLesson);
+                }
+              }, (error) => {
+                  console.error('Error in lesson snapshot listener:', error);
+                  toast({ variant: 'destructive', title: 'Failed to listen for lesson updates.' });
+              });
 
               // Find next lesson logic...
               const lessonsInStepQuery = query(
@@ -183,7 +334,8 @@ export default function LessonPage() {
                   'roadmaps',
                   roadmapDoc.id,
                   'lessons'
-                )
+                ),
+                orderBy('title')
               );
               const lessonsInStepSnapshot = await getDocs(lessonsInStepQuery);
               const allLessonsInStep = lessonsInStepSnapshot.docs.map((d) => ({
@@ -194,7 +346,10 @@ export default function LessonPage() {
                 (l) => l.id === lessonId
               );
 
-              if (currentIndex < allLessonsInStep.length - 1) {
+              if (
+                currentIndex !== -1 &&
+                currentIndex < allLessonsInStep.length - 1
+              ) {
                 const nextLessonData = allLessonsInStep[currentIndex + 1];
                 const stepSnap = await getDoc(roadmapDoc.ref);
                 setNextLesson({
@@ -226,6 +381,7 @@ export default function LessonPage() {
                     const nextStepDoc = nextStepSnapshot.docs[0];
                     const nextStepLessonsQuery = query(
                       collection(nextStepDoc.ref, 'lessons'),
+                      orderBy('title'),
                       limit(1)
                     );
                     const nextStepLessonsSnapshot = await getDocs(
@@ -244,7 +400,7 @@ export default function LessonPage() {
                 }
               }
 
-              found = true;
+              setLoading(false);
               break;
             }
           }
@@ -253,53 +409,56 @@ export default function LessonPage() {
 
         if (!found) {
           toast({ variant: 'destructive', title: 'Lesson not found.' });
+          setLoading(false);
         }
       } catch (error) {
         console.error('Error fetching lesson:', error);
         toast({ variant: 'destructive', title: 'Failed to load lesson.' });
-      } finally {
         setLoading(false);
       }
     };
 
-    fetchLessonDetails();
-  }, [firestore, user, lessonId, toast]);
+    setupLessonListener();
 
-  const handleMarkAsComplete = async () => {
+    return () => {
+      unsubscribe();
+    };
+  }, [firestore, user, lessonId, toast, triggerLessonGeneration, isGenerating]);
+
+  const handleMarkAsComplete = () => {
     if (!firestore || !lesson) return;
     setIsCompleting(true);
-    try {
-      const lessonRef = doc(
-        firestore,
-        'users',
-        lesson.userId,
-        'topics',
-        lesson.topicId,
-        'roadmaps',
-        lesson.roadmapId,
-        'lessons',
-        lessonId
-      );
-      await updateDoc(lessonRef, {
-        status: 'Learned',
-      });
-      toast({
-        title: 'Lesson Completed!',
-        description: 'Great job! Your progress has been updated.',
-      });
-    } catch (error) {
-      console.error('Error updating lesson status:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Oops!',
-        description: 'Could not update your progress. Please try again.',
-      });
-    } finally {
-      setIsCompleting(false);
-    }
+    
+    const lessonRef = doc(
+      firestore,
+      'users',
+      lesson.userId,
+      'topics',
+      lesson.topicId,
+      'roadmaps',
+      lesson.roadmapId,
+      'lessons',
+      lessonId
+    );
+
+    updateDocumentNonBlocking(lessonRef, {
+      status: 'Learned',
+    });
+
+    toast({
+      title: 'Lesson Completed!',
+      description: 'Great job! Your progress has been updated.',
+    });
+
+    setIsCompleting(false);
   };
 
-  if (loading) {
+  const isGeneratingContent = useMemo(() => {
+      if (!lesson) return true;
+      return !lesson.isAiGenerated;
+  }, [lesson]);
+
+  if (loading && !lesson) {
     return (
       <div className="flex items-center justify-center min-h-full py-12">
         <LoaderCircle className="h-12 w-12 animate-spin text-primary" />
@@ -317,7 +476,7 @@ export default function LessonPage() {
 
   return (
     <motion.div
-      className="container mx-auto max-w-5xl py-8"
+      className="container mx-auto max-w-7xl py-8"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
@@ -326,131 +485,120 @@ export default function LessonPage() {
         <h1 className="text-4xl font-extrabold font-headline tracking-tight">
           {lesson.title}
         </h1>
-        <p className="mt-2 text-lg text-muted-foreground">
-          {lesson.description}
-        </p>
+        <p className="mt-2 text-lg text-muted-foreground">{lesson.overview}</p>
         <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
-            <span>{lesson.estimated_time_min} min read</span>
+            <span>{lesson.estimated_time_min} phút đọc</span>
           </div>
           {lesson.isAiGenerated && (
-            <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="flex items-center gap-2">
               <Bot className="h-4 w-4 text-primary" />
               <span>AI Generated</span>
-            </div>
+            </Badge>
           )}
           <div className="flex items-center gap-2">
             <span>
-              Created on {format(new Date(lesson.createdAt), 'MMM d, yyyy')}
+              Tạo ngày {format(new Date(lesson.createdAt), 'dd/MM/yyyy')}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          {lesson.video_links && lesson.video_links.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 font-headline">
-                  <Youtube className="h-5 w-5 text-red-500" />
-                  Watch & Learn
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {lesson.video_links.map((link, index) => {
-                    const embedId = getYoutubeEmbedId(link);
-                    return embedId ? (
-                      <Suspense
-                        key={index}
-                        fallback={
-                          <div className="aspect-video w-full bg-muted animate-pulse rounded-lg" />
-                        }
-                      >
-                        <div className="overflow-hidden rounded-lg border">
-                          <ResponsiveYoutubeEmbed embedId={embedId} />
-                        </div>
-                      </Suspense>
-                    ) : null;
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
+        <div className="lg:col-span-3 space-y-8">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 font-headline">
                 <BookOpen className="h-5 w-5" />
-                Lesson Content
+                Nội dung bài học
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ReactMarkdown
-                className="prose dark:prose-invert max-w-none"
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw]}
-              >
-                {lesson.synthesized_content}
-              </ReactMarkdown>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="lg:col-span-1 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">Complete Lesson</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Once you've finished the material, mark this lesson as
-                complete.
-              </p>
-              <Button
-                className="w-full"
-                onClick={handleMarkAsComplete}
-                disabled={isCompleting}
-              >
-                {isCompleting ? (
-                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Check className="mr-2 h-4 w-4" />
-                )}
-                Mark as Completed
-              </Button>
+              {isGeneratingContent ? (
+                <div className="text-center py-8">
+                  <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary mb-4" />
+                  <p className="text-muted-foreground">Bài học này đang được AI mở rộng nội dung chi tiết. Vui lòng quay lại sau.</p>
+                </div>
+              ) : (
+                <ReactMarkdown
+                    className="prose dark:prose-invert max-w-none"
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw]}
+                    components={{
+                        h2: ({node, ...props}) => <HeadingRenderer level={2} {...props} />,
+                        h3: ({node, ...props}) => <HeadingRenderer level={3} {...props} />,
+                    }}
+                >
+                    {lesson.content}
+                </ReactMarkdown>
+              )}
             </CardContent>
           </Card>
 
-          <Card className="bg-primary/10 border-primary">
-            <CardHeader>
-              <CardTitle className="font-headline">Take the Quiz</CardTitle>
-              <CardDescription>
-                Test your knowledge and unlock the next lesson.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" asChild>
-                <Link href={`/quiz/${lessonId}`}>
-                  Start Quiz
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {lesson.sources && lesson.sources.length > 0 && (
+          {lesson.videos && lesson.videos.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="font-headline text-lg">
-                  Sources & Further Reading
+                <CardTitle className="flex items-center gap-2 font-headline">
+                  <Film className="h-5 w-5" />
+                  Videos tham khảo
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {lesson.videos.map((video, index) => {
+                  const videoId = getYoutubeEmbedId(video.url);
+                  if (!videoId) return null;
+                  const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+                  return (
+                    <a
+                      key={index}
+                      href={video.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group space-y-2"
+                    >
+                      <div className="relative aspect-video overflow-hidden rounded-lg">
+                        <Image
+                          src={thumbnailUrl}
+                          alt={video.title}
+                          fill
+                          sizes="(max-width: 640px) 100vw, 50vw"
+                          style={{objectFit: 'cover'}}
+                          className="transition-transform duration-300 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Youtube className="h-10 w-10 text-white" />
+                        </div>
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm leading-tight group-hover:text-primary">
+                          {video.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {video.channel}
+                        </p>
+                      </div>
+                    </a>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
+          {lesson.sources && lesson.sources.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-headline text-lg">
+                  <Library className="h-5 w-5" />
+                  Nguồn & Đọc thêm
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 {lesson.sources.map((source, index) => (
-                  <div key={index}>
+                  <div
+                    key={index}
+                    className="p-3 border rounded-md bg-muted/50"
+                  >
                     <a
                       href={source.url}
                       target="_blank"
@@ -459,18 +607,119 @@ export default function LessonPage() {
                     >
                       {source.title}
                     </a>
-                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-4">
-                      <span className="flex items-center gap-1"><LinkIcon className="h-3 w-3"/>{source.domain}</span>
-                      {source.relevance && (
-                         <span className="flex items-center gap-1"><Star className="h-3 w-3"/>Trust: {(source.relevance * 100).toFixed(0)}%</span>
-                      )}
-                    </p>
                     <p className="text-sm text-muted-foreground mt-1 italic">
                       "{source.short_note}"
                     </p>
+                    <div className="text-xs text-muted-foreground mt-2 flex items-center gap-4">
+                      <span className="flex items-center gap-1">
+                        <LinkIcon className="h-3 w-3" />
+                        {source.domain}
+                      </span>
+                      {source.relevance && (
+                        <span className="flex items-center gap-1">
+                          <Star className="h-3 w-3" />
+                          Tin cậy: {(source.relevance * 100).toFixed(0)}%
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </CardContent>
+            </Card>
+          ) : (
+             <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-headline text-lg">
+                  <Library className="h-5 w-5" />
+                  Nguồn & Đọc thêm
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                 <p className="text-sm text-muted-foreground">Chưa có nguồn tham khảo cho bài học này.</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        <div className="lg:col-span-1 space-y-6 lg:sticky lg:top-24 self-start">
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-headline">Hoàn thành bài học</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Khi đã nắm vững kiến thức, hãy đánh dấu bài học này là đã hoàn
+                thành.
+              </p>
+              <Button
+                className="w-full"
+                onClick={handleMarkAsComplete}
+                disabled={isCompleting || isGeneratingContent}
+              >
+                {isCompleting ? (
+                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="mr-2 h-4 w-4" />
+                )}
+                Đánh dấu đã hoàn thành
+              </Button>
+            </CardContent>
+          </Card>
+
+          {lesson.has_quiz && (
+            <Card className="bg-primary/10 border-primary">
+              <CardHeader>
+                <CardTitle className="font-headline">Làm bài kiểm tra</CardTitle>
+                <CardDescription>
+                  Kiểm tra kiến thức của bạn để mở khóa bài học tiếp theo.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full"
+                  asChild
+                  disabled={!lesson.quiz_ready || isGeneratingContent}
+                >
+                  <Link href={`/quiz/${lessonId}`}>
+                    {!lesson.quiz_ready && (
+                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    {lesson.quiz_ready
+                      ? 'Bắt đầu kiểm tra'
+                      : 'Quiz đang được tạo...'}
+                    {lesson.quiz_ready && (
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    )}
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {tableOfContents.length > 0 && (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 font-headline text-lg">
+                        <List className="h-5 w-5"/>
+                        Mục lục
+                    </CardTitle>
+                </CardHeader>
+                <CardList>
+                    {tableOfContents.map((item) => (
+                        <CardListItem key={item.id} className={item.level === 3 ? "pl-4" : ""}>
+                            <a
+                                href={`#${item.id}`}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }}
+                                className={`block text-sm hover:text-primary transition-colors ${activeTocId === item.id ? 'text-primary font-medium' : 'text-muted-foreground'}`}
+                            >
+                                {item.title}
+                            </a>
+                        </CardListItem>
+                    ))}
+                </CardList>
             </Card>
           )}
 
@@ -478,7 +727,7 @@ export default function LessonPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="font-headline text-lg">
-                  Next Lesson
+                  Bài học tiếp theo
                 </CardTitle>
               </CardHeader>
               <CardContent>
