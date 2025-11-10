@@ -27,7 +27,7 @@ export const vertexVerifyConnection = ai.defineFlow(
   },
   async () => {
     try {
-      // The `ai` object is already configured with the vertexAI plugin
+      // The `ai` object is already configured with the googleAI plugin
       // in genkit.config.ts. We can directly use it.
 
       console.log('✅ Genkit AI client configured successfully.');
