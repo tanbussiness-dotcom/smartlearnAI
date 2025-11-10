@@ -13,6 +13,7 @@ async function aiHealthCheck() {
   ];
 
   const results: any[] = [];
+  let hasApiError = false;
 
   for (let i = 0; i < tests.length; i++) {
     const prompt = tests[i];
@@ -28,6 +29,10 @@ async function aiHealthCheck() {
       const elapsed = Date.now() - start;
       console.error(`❌ Error (${elapsed}ms): ${err.message}\n`);
       results.push({ prompt, success: false, error: err.message, time_ms: elapsed });
+      
+      if (err.message && (err.message.includes('503') || err.message.includes('403') || err.message.includes('429'))) {
+        hasApiError = true;
+      }
     }
   }
 
@@ -38,6 +43,10 @@ async function aiHealthCheck() {
   fs.writeFileSync(logPath, JSON.stringify(results, null, 2));
 
   console.log(`🏁 Health check finished.\nResults saved at: ${logPath}`);
+
+  if (hasApiError) {
+    console.log('\x1b[33m%s\x1b[0m', '\n⚠️ Gemini connectivity unstable — please check API quota or model region.');
+  }
 }
 
 aiHealthCheck();
