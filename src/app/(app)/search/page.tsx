@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/card';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useUser, useFirestore, addDocumentNonBlocking, FirestorePermissionError, errorEmitter } from '@/firebase';
+import { collection } from 'firebase/firestore';
 import { generatePersonalizedLearningRoadmap } from '@/ai/flows/generate-personalized-learning-roadmap';
 import { createDailyLearningTasks } from '@/ai/flows/create-daily-learning-tasks';
 import { syncRoadmapToFirestore } from '@/ai/flows/syncRoadmapToFirestore.flow';
