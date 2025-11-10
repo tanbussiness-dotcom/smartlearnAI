@@ -14,27 +14,6 @@ import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 
-// Initialize Firebase Admin SDK if it hasn't been already.
-if (!admin.apps.length) {
-  try {
-    admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-    });
-  } catch (e) {
-    console.error('Firebase Admin initialization error:', e);
-    // In a serverless environment, you might not need to pass credentials
-    // if the runtime is already authenticated.
-    if (!admin.apps.length) {
-       try {
-        admin.initializeApp();
-       } catch (e2) {
-         console.error('Fallback Firebase Admin initialization error:', e2);
-       }
-    }
-  }
-}
-const db = admin.firestore();
-
 // Define the structure for a lesson within a phase.
 const LessonSchema = z.object({
   lessonId: z.string(),
@@ -85,6 +64,25 @@ export const syncRoadmapToFirestore = ai.defineFlow(
     outputSchema: SyncRoadmapToFirestoreOutputSchema,
   },
   async (input) => {
+    // Initialize Firebase Admin SDK if it hasn't been already.
+    if (!admin.apps.length) {
+      try {
+        admin.initializeApp({
+          credential: admin.credential.applicationDefault(),
+        });
+      } catch (e) {
+        console.error('Firebase Admin initialization error:', e);
+        if (!admin.apps.length) {
+          try {
+            admin.initializeApp();
+          } catch (e2) {
+            console.error('Fallback Firebase Admin initialization error:', e2);
+          }
+        }
+      }
+    }
+    const db = admin.firestore();
+
     const { userId, topicId, roadmapData } = input;
     const roadmapsPath = `users/${userId}/topics/${topicId}/roadmaps`;
     const roadmapsCol = db.collection(roadmapsPath);

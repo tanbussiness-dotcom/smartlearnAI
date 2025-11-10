@@ -16,30 +16,8 @@ import * as admin from 'firebase-admin';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import fetch from 'node-fetch';
 
-// Initialize Firebase Admin SDK if it hasn't been already.
-if (!admin.apps.length) {
-  try {
-    admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-    });
-  } catch (e) {
-    console.error('Firebase Admin initialization error:', e);
-    // In a serverless environment, you might not need to pass credentials
-    // if the runtime is already authenticated.
-    if (!admin.apps.length) {
-       try {
-        admin.initializeApp();
-       } catch (e2) {
-         console.error('Fallback Firebase Admin initialization error:', e2);
-       }
-    }
-  }
-}
-const db = admin.firestore();
-const storage = admin.storage();
-
 // Configuration
-const BUCKET_NAME = process.env.STORAGE_BUCKET || 'smartlearn-ai.appspot.com';
+const BUCKET_NAME = process.env.GCLOUD_PROJECT ? `${process.env.GCLOUD_PROJECT}.appspot.com` : process.env.STORAGE_BUCKET;
 const CERT_FOLDER = 'certificates';
 
 // Input schema for the flow.
@@ -86,11 +64,31 @@ const generateCourseCertificateFlow = ai.defineFlow(
     outputSchema: GenerateCourseCertificateOutputSchema,
   },
   async (input) => {
+    // Initialize Firebase Admin SDK if it hasn't been already.
+    if (!admin.apps.length) {
+      try {
+        admin.initializeApp({
+          credential: admin.credential.applicationDefault(),
+        });
+      } catch (e) {
+        console.error('Firebase Admin initialization error:', e);
+        if (!admin.apps.length) {
+          try {
+            admin.initializeApp();
+          } catch (e2) {
+            console.error('Fallback Firebase Admin initialization error:', e2);
+          }
+        }
+      }
+    }
+
+    const db = admin.firestore();
+    const storage = admin.storage();
     const { userId, topicId, roadmapId, forceGenerate, useAIText } = input;
 
     try {
       if (!BUCKET_NAME) {
-        throw new Error('Missing STORAGE_BUCKET environment variable.');
+        throw new Error('Missing STORAGE_BUCKET or GCLOUD_PROJECT environment variable.');
       }
 
       const roadmapPath = `users/${userId}/topics/${topicId}/roadmaps/${roadmapId}`;
