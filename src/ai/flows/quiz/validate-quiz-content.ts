@@ -12,7 +12,7 @@
 
 import { ai } from '../../../../genkit.config';
 import { z } from 'zod';
-import { vertexAI } from '@genkit-ai/vertexai';
+import { googleAI } from '@genkit-ai/google-genai';
 
 
 // Schema for a single question, consistent with quiz generation flow.
@@ -116,7 +116,7 @@ const validateQuizContentFlow = ai.defineFlow(
     const { output } = await validationPrompt({
         ...input,
         quizQuestionsString: JSON.stringify(input.quiz_questions),
-      }, { model: vertexAI('gemini-pro') });
+      }, { model: googleAI.model('gemini-pro') });
 
     if (!output) {
       throw new Error('Failed to get a valid validation response from the AI model.');

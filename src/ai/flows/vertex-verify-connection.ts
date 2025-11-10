@@ -10,7 +10,7 @@
 
 import { ai } from '../../../genkit.config';
 import { z } from 'zod';
-import { vertexAI } from '@genkit-ai/vertexai';
+import { googleAI } from '@genkit-ai/google-genai';
 import { GenkitError } from 'genkit';
 
 const VertexVerificationOutputSchema = z.object({
@@ -39,7 +39,7 @@ export const vertexVerifyConnection = ai.defineFlow(
       `;
 
       const { output } = await ai.generate({
-        model: vertexAI('gemini-pro'),
+        model: googleAI.model('gemini-pro'),
         prompt: prompt,
       });
 
