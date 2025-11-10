@@ -22,11 +22,16 @@ import {
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useUser, useFirestore, addDocumentNonBlocking, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { generatePersonalizedLearningRoadmap } from '@/ai/flows/generate-personalized-learning-roadmap';
-import { generateLesson } from '@/ai/flows/lesson/generate-lesson';
 import { createDailyLearningTasks } from '@/ai/flows/create-daily-learning-tasks';
 import { useToast } from '@/hooks/use-toast';
 import { LessonGeneratingModal } from '@/components/lesson-generating-modal';
 
+// Placeholder lesson titles for initial creation
+const placeholderLessons = [
+    { title: "Introduction to the Topic", overview: "Get a basic understanding of the core concepts." },
+    { title: "Core Concepts", overview: "Dive deeper into the main principles and theories." },
+    { title: "Practical Application", overview: "Learn how to apply your knowledge in real-world scenarios." },
+];
 
 export default function SearchPage() {
   const popularTopics = [
@@ -98,12 +103,12 @@ export default function SearchPage() {
     let topicId: string | undefined = undefined;
 
     try {
-      // 1. Generate Roadmap
-      setLoadingStep('sources');
+      // 1. Generate Roadmap structure
+      setLoadingStep('sources'); // Corresponds to "Finding resources"
       const roadmapResult = await generatePersonalizedLearningRoadmap({ topic: currentTopic });
 
       // 2. Create Topic in Firestore
-      setLoadingStep('synthesize');
+      setLoadingStep('synthesize'); // Corresponds to "Synthesizing content"
       const topicsCollection = collection(firestore, 'users', user.uid, 'topics');
       const topicRef = await addDocumentNonBlocking(topicsCollection, {
         title: currentTopic,
@@ -116,51 +121,43 @@ export default function SearchPage() {
       topicId = topicRef.id;
       
       const allLessonsForTopic: { lessonId: string, title: string, description: string }[] = [];
-      
-      // 3. Generate and store lessons for each roadmap step
-      setLoadingStep('validate');
+      const batch = writeBatch(firestore);
+
+      // 3. Create placeholder lessons for each roadmap step
+      setLoadingStep('validate'); // Corresponds to "Validating lessons"
       for (const step of roadmapResult.roadmap) {
-        const roadmapStepsCollection = collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps');
-        const roadmapStepDoc = await addDocumentNonBlocking(roadmapStepsCollection, {
+        const roadmapStepRef = doc(collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps'));
+        batch.set(roadmapStepRef, {
             ...step,
             status: step.stepNumber === 1 ? 'Learning' : 'Locked',
         });
         
-        if (!roadmapStepDoc) {
-          toast({ variant: 'destructive', title: `Failed to create roadmap step ${step.stepNumber}`});
-          continue;
-        }
-        const roadmapStepId = roadmapStepDoc.id;
-
-        // Generate a lesson for the step
-        const lessonResult = await generateLesson({
-          topic: step.stepTitle,
-          phase: 'Cơ bản', // Or determine phase based on step
-          userId: user.uid,
-        });
-
-        if (lessonResult && lessonResult.validation.valid) {
-          const lessonsCollection = collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapStepId, 'lessons');
-          const lessonDocRef = await addDocumentNonBlocking(lessonsCollection, {
-              ...lessonResult.lesson,
+        // Create a few placeholder lessons for each step
+        for(let i=0; i < placeholderLessons.length; i++) {
+            const lesson = placeholderLessons[i];
+            const lessonRef = doc(collection(roadmapStepRef, 'lessons'));
+            batch.set(lessonRef, {
+              title: `${lesson.title}: ${step.skills[i] || step.stepTitle}`,
+              overview: lesson.overview,
+              content: `Nội dung cho bài học này đang được AI tạo. Vui lòng quay lại sau.`, // Placeholder content
               status: 'To Learn',
               has_quiz: true,
               quiz_ready: false,
-              createdAt: lessonResult.created_at,
+              createdAt: new Date().toISOString(),
               userId: user.uid,
-          });
-
-          if (lessonDocRef) {
-            allLessonsForTopic.push({
-                lessonId: lessonDocRef.id,
-                title: lessonResult.lesson.title,
-                description: lessonResult.lesson.overview
+              topic: step.stepTitle, // Store the step topic for generation later
+              phase: "Cơ bản" // default phase
             });
-          }
-        } else {
-          console.warn(`Skipping lesson for step "${step.stepTitle}" due to validation failure.`);
+
+             allLessonsForTopic.push({
+                lessonId: lessonRef.id,
+                title: lesson.title,
+                description: lesson.overview
+            });
         }
       }
+      await batch.commit();
+
       
       // 4. Create daily tasks from all lessons
       if(allLessonsForTopic.length > 0) {
@@ -173,23 +170,22 @@ export default function SearchPage() {
         });
 
         const dailyTasksCollection = collection(firestore, 'users', user.uid, 'dailyTasks');
-        const batch = writeBatch(firestore);
+        const taskBatch = writeBatch(firestore);
         const firstTaskData = dailyTasksResult[0];
 
         for(const task of dailyTasksResult) {
             const taskRef = doc(dailyTasksCollection);
-            batch.set(taskRef, { ...task, status: 'To Learn'});
+            taskBatch.set(taskRef, { ...task, status: 'To Learn'});
         }
         
-        // This is the critical change: ensure batch.commit() is properly handled.
-        await batch.commit().catch(serverError => {
+        await taskBatch.commit().catch(serverError => {
             const permissionError = new FirestorePermissionError({
               path: dailyTasksCollection.path,
               operation: 'create',
-              requestResourceData: firstTaskData, // Send first task as representative data
+              requestResourceData: firstTaskData, 
             });
             errorEmitter.emit('permission-error', permissionError);
-            throw serverError; // Re-throw to be caught by outer catch block
+            throw serverError;
         });
       }
 
@@ -203,7 +199,6 @@ export default function SearchPage() {
     } catch (error) {
       console.error('Failed to generate and store roadmap:', error);
       
-      // Check if the error message indicates a server-side permission error
       if (error instanceof Error && error.message.includes('server-side Firestore permission error')) {
         toast({
           variant: 'destructive',
@@ -211,14 +206,12 @@ export default function SearchPage() {
           description: "A permission error occurred on the server while generating the lesson. Please check server logs and Firestore rules.",
         });
       } else if (!(error instanceof FirestorePermissionError)) {
-        // Generic catch-all for other errors
         toast({
           variant: 'destructive',
           title: 'Generation Failed',
           description: 'There was an error generating your learning roadmap. Please try again.',
         });
       }
-      // If it IS a FirestorePermissionError, the global listener will handle it.
       setLoading(false);
     } 
   };

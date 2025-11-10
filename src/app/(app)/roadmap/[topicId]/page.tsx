@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -21,15 +21,21 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CheckCircle, Circle, PlayCircle, Lock, LoaderCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { useCollection, useUser } from "@/firebase";
+import { useCollection, useUser, updateDocumentNonBlocking } from "@/firebase";
 import { useFirestore, useMemoFirebase } from "@/firebase/provider";
-import { collection, query, orderBy, doc, getDoc, getDocs } from "firebase/firestore";
+import { collection, query, orderBy, doc, getDoc, getDocs, updateDoc } from "firebase/firestore";
 import { useParams } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
+import { generateLesson } from "@/ai/flows/lesson/generate-lesson";
+
 
 type Lesson = {
   id: string;
   title: string;
   status: "Learned" | "Learning" | "To Learn";
+  content?: string;
+  topic: string;
+  phase: string;
 };
 
 type Step = {
@@ -73,18 +79,18 @@ const lessonItemVariants = {
     visible: { opacity: 1, y: 0 }
 };
 
-const LessonList = ({ lessons, userId, topicId, roadmapId }: { lessons: Lesson[], userId: string, topicId: string, roadmapId: string }) => (
+const LessonList = ({ lessons, onLessonClick }: { lessons: Lesson[], onLessonClick: (lesson: Lesson) => void }) => (
     <motion.ul className="space-y-3 pt-2" variants={lessonListVariants} initial="hidden" animate="visible">
         {lessons.length > 0 ? lessons.map(lesson => (
             <motion.li key={lesson.id} className="flex items-center" variants={lessonItemVariants}>
-                <Link href={`/lesson/${lesson.id}`} className="flex-1">
+                <button onClick={() => onLessonClick(lesson)} className="flex-1 text-left">
                     <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted transition-colors">
                         {getLessonIcon(lesson.status)}
                         <span className={`flex-1 ${lesson.status === 'Learned' ? 'line-through text-muted-foreground' : ''}`}>
                             {lesson.title}
                         </span>
                     </div>
-                </Link>
+                </button>
             </motion.li>
         )) : (
             <motion.p className="text-sm text-muted-foreground text-center py-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>No lessons in this category.</motion.p>
@@ -98,6 +104,8 @@ export default function RoadmapPage() {
   const topicId = params.topicId as string;
   const firestore = useFirestore();
   const { user } = useUser();
+  const { toast } = useToast();
+  const router = useRouter();
   
   const [topicTitle, setTopicTitle] = useState('');
   const [roadmap, setRoadmap] = useState<Step[]>([]);
@@ -154,6 +162,62 @@ export default function RoadmapPage() {
     fetchAllLessons();
   }, [roadmapsData, firestore, user, topicId]);
 
+  const handleLessonClick = useCallback(async (lesson: Lesson) => {
+    if (!user || !firestore) return;
+
+    const currentStep = roadmap.find(step => step.lessons.some(l => l.id === lesson.id));
+    if (!currentStep) return;
+
+    const lessonRef = doc(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', currentStep.id, 'lessons', lesson.id);
+
+    // If lesson is "To Learn", change it to "Learning" and generate content
+    if (lesson.status === 'To Learn') {
+      updateDocumentNonBlocking(lessonRef, { status: 'Learning' });
+      toast({
+        title: 'Bắt đầu bài học mới!',
+        description: 'AI đang tạo nội dung chi tiết cho bạn...',
+      });
+
+      // Check if content needs generation (e.g., placeholder content exists)
+      const contentNeedsGeneration = !lesson.content || lesson.content.startsWith('Nội dung cho bài học này đang được AI tạo');
+      if (contentNeedsGeneration) {
+        try {
+          const lessonResult = await generateLesson({
+            topic: lesson.topic,
+            phase: lesson.phase,
+            userId: user.uid,
+          });
+
+          if (lessonResult && lessonResult.validation.valid) {
+            await updateDoc(lessonRef, {
+              ...lessonResult.lesson,
+              createdAt: lessonResult.created_at,
+            });
+            toast({
+              title: 'Nội dung đã sẵn sàng!',
+              description: `Nội dung cho "${lesson.title}" đã được tạo.`,
+            });
+          } else {
+            throw new Error('Lesson validation failed.');
+          }
+        } catch (error) {
+          console.error("Failed to generate lesson content:", error);
+          toast({
+            variant: "destructive",
+            title: "Lỗi tạo nội dung",
+            description: "Đã có lỗi xảy ra khi AI tạo nội dung bài học. Vui lòng thử lại sau.",
+          });
+          // Revert status if generation fails
+          updateDocumentNonBlocking(lessonRef, { status: 'To Learn' });
+        }
+      }
+    }
+    
+    router.push(`/lesson/${lesson.id}`);
+
+  }, [user, firestore, roadmap, topicId, toast, router]);
+
+
   const completedSteps = roadmap.filter(s => s.status === 'Learned').length;
   const progress = roadmap.length > 0 ? (completedSteps / roadmap.length) * 100 : 0;
   
@@ -166,7 +230,6 @@ export default function RoadmapPage() {
     if (learningStep) {
         setActiveStep(learningStep.id);
     } else if (roadmap.length > 0 && !activeStep) {
-        // If no step is 'Learning', default to the first unlearned step or the first step
         const firstUnlearned = roadmap.find(s => s.status !== 'Learned');
         setActiveStep(firstUnlearned ? firstUnlearned.id : roadmap[0].id);
     }
@@ -250,16 +313,16 @@ export default function RoadmapPage() {
                                     exit={{ opacity: 0, y: -10 }}
                                   >
                                     <TabsContent value="all">
-                                      <LessonList lessons={step.lessons} userId={user.uid} topicId={topicId} roadmapId={step.id} />
+                                      <LessonList lessons={step.lessons} onLessonClick={handleLessonClick} />
                                     </TabsContent>
                                     <TabsContent value="To Learn">
-                                      <LessonList lessons={step.lessons.filter(l => l.status === 'To Learn')} userId={user.uid} topicId={topicId} roadmapId={step.id} />
+                                      <LessonList lessons={step.lessons.filter(l => l.status === 'To Learn')} onLessonClick={handleLessonClick} />
                                     </TabsContent>
                                     <TabsContent value="Learning">
-                                      <LessonList lessons={step.lessons.filter(l => l.status === 'Learning')} userId={user.uid} topicId={topicId} roadmapId={step.id} />
+                                      <LessonList lessons={step.lessons.filter(l => l.status === 'Learning')} onLessonClick={handleLessonClick} />
                                     </TabsContent>
                                     <TabsContent value="Learned">
-                                      <LessonList lessons={step.lessons.filter(l => l.status === 'Learned')} userId={user.uid} topicId={topicId} roadmapId={step.id} />
+                                      <LessonList lessons={step.lessons.filter(l => l.status === 'Learned')} onLessonClick={handleLessonClick} />
                                     </TabsContent>
                                   </motion.div>
                                 </AnimatePresence>
