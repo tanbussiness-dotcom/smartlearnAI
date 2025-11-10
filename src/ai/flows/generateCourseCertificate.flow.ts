@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import * as admin from 'firebase-admin';
+import { initializeFirebaseAdmin } from '@/firebase/admin';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { generateWithGemini } from '@/lib/gemini';
 import fetch from 'node-fetch';
@@ -53,26 +53,7 @@ export type GenerateCourseCertificateOutput = z.infer<
 >;
 
 export async function generateCourseCertificate(input: GenerateCourseCertificateInput): Promise<GenerateCourseCertificateOutput> {
-  // Initialize Firebase Admin SDK if it hasn't been already.
-  if (!admin.apps.length) {
-    try {
-      admin.initializeApp({
-        credential: admin.credential.applicationDefault(),
-      });
-    } catch (e) {
-      console.error('Firebase Admin initialization error:', e);
-      if (!admin.apps.length) {
-        try {
-          admin.initializeApp();
-        } catch (e2) {
-          console.error('Fallback Firebase Admin initialization error:', e2);
-        }
-      }
-    }
-  }
-
-  const db = admin.firestore();
-  const storage = admin.storage();
+  const { db, storage, admin } = initializeFirebaseAdmin();
   const { userId, topicId, roadmapId, forceGenerate, useAIText } = input;
 
   try {

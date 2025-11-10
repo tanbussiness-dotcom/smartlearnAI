@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import * as admin from 'firebase-admin';
+import { initializeFirebaseAdmin } from '@/firebase/admin';
 
 // Defines the schema for the flow's input.
 const GetUserProgressStatsInputSchema = z.object({
@@ -81,24 +81,7 @@ function calculateLearningStreak(dates: (string | Date)[]): number {
 
 
 export async function getUserProgressStats(input: GetUserProgressStatsInput): Promise<GetUserProgressStatsOutput> {
-    // Initialize Firebase Admin SDK if it hasn't been already.
-    if (!admin.apps.length) {
-      try {
-        admin.initializeApp({
-          credential: admin.credential.applicationDefault(),
-        });
-      } catch (e) {
-        console.error('Firebase Admin initialization error:', e);
-        if (!admin.apps.length) {
-          try {
-            admin.initializeApp();
-          } catch (e2) {
-            console.error('Fallback Firebase Admin initialization error:', e2);
-          }
-        }
-      }
-    }
-    const db = admin.firestore();
+    const { db } = initializeFirebaseAdmin();
 
     const { userId } = input;
     const topicsPath = `users/${userId}/topics`;

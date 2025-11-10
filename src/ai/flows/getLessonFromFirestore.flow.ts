@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import * as admin from 'firebase-admin';
+import { initializeFirebaseAdmin } from '@/firebase/admin';
 
 // Input schema for the flow.
 const GetLessonFromFirestoreInputSchema = z.object({
@@ -45,24 +45,7 @@ export type GetLessonFromFirestoreOutput = z.infer<
 >;
 
 export async function getLessonFromFirestore(input: GetLessonFromFirestoreInput): Promise<GetLessonFromFirestoreOutput> {
-  // Initialize Firebase Admin SDK if it hasn't been already.
-  if (!admin.apps.length) {
-    try {
-      admin.initializeApp({
-        credential: admin.credential.applicationDefault(),
-      });
-    } catch (e) {
-      console.error('Firebase Admin initialization error:', e);
-      if (!admin.apps.length) {
-        try {
-          admin.initializeApp();
-        } catch (e2) {
-          console.error('Fallback Firebase Admin initialization error:', e2);
-        }
-      }
-    }
-  }
-  const db = admin.firestore();
+  const { db } = initializeFirebaseAdmin();
 
   const { userId, topicId, lessonId } = input;
   const basePath = `users/${userId}/topics/${topicId}/lessons/${lessonId}`;

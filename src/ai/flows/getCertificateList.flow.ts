@@ -10,7 +10,7 @@
  */
 
 import { z } from 'zod';
-import * as admin from 'firebase-admin';
+import { initializeFirebaseAdmin } from '@/firebase/admin';
 
 // Input schema for the flow.
 const GetCertificateListInputSchema = z.object({
@@ -39,24 +39,7 @@ export type GetCertificateListOutput = z.infer<
 >;
 
 export async function getCertificateList(input: GetCertificateListInput): Promise<GetCertificateListOutput> {
-  // Initialize Firebase Admin SDK if it hasn't been already.
-  if (!admin.apps.length) {
-    try {
-      admin.initializeApp({
-        credential: admin.credential.applicationDefault(),
-      });
-    } catch (e) {
-      console.error('Firebase Admin initialization error:', e);
-      if (!admin.apps.length) {
-        try {
-          admin.initializeApp();
-        } catch (e2) {
-          console.error('Fallback Firebase Admin initialization error:', e2);
-        }
-      }
-    }
-  }
-  const db = admin.firestore();
+  const { db } = initializeFirebaseAdmin();
 
   const { userId } = input;
   const result: z.infer<typeof CertificateSchema>[] = [];
