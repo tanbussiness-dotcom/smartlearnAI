@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Defines the Genkit flow for synchronizing an AI-generated roadmap to Firestore.
@@ -9,15 +10,28 @@
  * @exports syncRoadmapToFirestore - The main function to save the roadmap.
  */
 
-import { ai } from '../../../genkit.config';
+import { ai } from '@/genkit.config';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin SDK if it hasn't been already.
 if (!admin.apps.length) {
+  try {
     admin.initializeApp({
-        credential: admin.credential.applicationDefault(),
+      credential: admin.credential.applicationDefault(),
     });
+  } catch (e) {
+    console.error('Firebase Admin initialization error:', e);
+    // In a serverless environment, you might not need to pass credentials
+    // if the runtime is already authenticated.
+    if (!admin.apps.length) {
+       try {
+        admin.initializeApp();
+       } catch (e2) {
+         console.error('Fallback Firebase Admin initialization error:', e2);
+       }
+    }
+  }
 }
 const db = admin.firestore();
 
