@@ -1,3 +1,4 @@
+
 'use server';
 
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
@@ -58,8 +59,8 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
         }
       );
 
-      // Retry on 429 (Too Many Requests) or 500 (Internal Server Error)
-      if (res.status === 429 || res.status === 500) {
+      // Retry on 429 (Too Many Requests), 500 (Internal Server Error), or 503 (Service Unavailable)
+      if (res.status === 429 || res.status === 500 || res.status === 503) {
         lastError = new Error(`Gemini API request failed with status ${res.status}`);
         if (attempt < maxRetries) {
           const delayTime = 1000 * attempt;
