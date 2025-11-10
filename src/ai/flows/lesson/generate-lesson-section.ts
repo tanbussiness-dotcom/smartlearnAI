@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Defines the Genkit flow for generating content for a specific section of a lesson.
@@ -8,7 +9,7 @@
  * @exports generateLessonSection - The main function to generate a lesson section.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 
 // Defines the schema for the flow's input.
@@ -29,6 +30,7 @@ const GenerateLessonSectionOutputSchema = z.object({
     .describe('The title of the generated section, matching the input.'),
   section_content: z
     .string()
+
     .describe(
       'The detailed content for the section, in Markdown format, between 300 and 400 words.'
     ),

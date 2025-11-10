@@ -10,7 +10,7 @@
  * @exports syncRoadmapToFirestore - The main function to save the roadmap.
  */
 
-import { ai } from '@/genkit.config';
+import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 

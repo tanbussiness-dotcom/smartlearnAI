@@ -9,7 +9,7 @@
  * @exports getCertificateList - The main function to fetch the certificate list.
  */
 
-import { ai } from '@/genkit.config';
+import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 
