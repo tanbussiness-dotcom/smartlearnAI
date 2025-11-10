@@ -64,14 +64,13 @@ service cloud.firestore {
           /**
            * @description Allows a user to manage their own lessons within a roadmap.
            * AI workers are also allowed to create/update/delete lessons.
-           * The 'list' operation is handled by the global collection group rule.
+           * This rule now only handles read, create, update, delete, as 'list' is handled globally.
            * @path /users/{userId}/topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}
            */
           match /lessons/{lessonId} {
-            allow read: if isSignedIn() && isOwner(userId);
+            allow read, create, update, delete: if (isSignedIn() && isOwner(userId)) || isServiceAccount() || isAIWorker();
             // 'list' is intentionally omitted here to allow the global collection group rule to apply.
-            allow create, update, delete: if (isSignedIn() && isOwner(userId)) || isServiceAccount() || isAIWorker();
-
+            
             /**
              * @description Allows a user to manage their own tests within a lesson.
              * @path /users/{userId}/topics/{topicId}/roadmaps/{roadmapId}/lessons/{lessonId}/tests/{testId}
@@ -82,6 +81,15 @@ service cloud.firestore {
             }
           }
         }
+      }
+      
+      /**
+       * @description Allows a user to manage their own lessons directly under their profile.
+       * This supports the dynamic, on-demand lesson generation model.
+       * @path /users/{userId}/lessons/{lessonId}
+       */
+      match /lessons/{lessonId} {
+        allow read, list, create, update, delete: if isSignedIn() && isOwner(userId);
       }
 
       /**
