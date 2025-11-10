@@ -7,7 +7,7 @@
  */
 
 import { ai } from '../../../genkit.config';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const GenerateQuizForLessonInputSchema = z.object({
   lesson_id: z.string().describe('The ID of the lesson to generate a quiz for.'),
@@ -33,7 +33,7 @@ export async function generateQuizForLesson(input: GenerateQuizForLessonInput): 
   return generateQuizForLessonFlow(input);
 }
 
-const prompt = ai.prompt({
+const prompt = ai.definePrompt({
   name: 'generateQuizForLessonPrompt',
   input: {schema: GenerateQuizForLessonInputSchema},
   output: {schema: GenerateQuizForLessonOutputSchema},
@@ -61,7 +61,7 @@ const prompt = ai.prompt({
 `,
 });
 
-const generateQuizForLessonFlow = ai.flow(
+const generateQuizForLessonFlow = ai.defineFlow(
   {
     name: 'generateQuizForLessonFlow',
     inputSchema: GenerateQuizForLessonInputSchema,

@@ -13,7 +13,7 @@
  */
 
 import { ai } from '../../../../genkit.config';
-import {z} from 'genkit';
+import {z} from 'zod';
 import { getFirestore, collectionGroup, query, where, limit, getDocs } from 'firebase/firestore';
 import { initializeApp, getApps } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
@@ -84,7 +84,7 @@ export async function generateLesson(input: z.infer<typeof GenerateLessonInputSc
   return generateLessonFlow(input);
 }
 
-const generateLessonFlow = ai.flow(
+const generateLessonFlow = ai.defineFlow(
   {
     name: 'generateLessonFlow',
     inputSchema: GenerateLessonInputSchema,

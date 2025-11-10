@@ -9,7 +9,7 @@
  */
 
 import { ai } from '../../../../genkit.config';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const OutputSourceSchema = z.object({
     title: z.string().describe("The title of the source."),
@@ -54,7 +54,7 @@ export async function validateLesson(input: ValidateLessonInput): Promise<Valida
   return validateLessonFlow(input);
 }
 
-const validatePrompt = ai.prompt({
+const validatePrompt = ai.definePrompt({
   name: 'validateLessonPrompt',
   input: {schema: z.object({ lessonDraftString: z.string() })},
   output: {schema: ValidateLessonOutputSchema},
@@ -82,7 +82,7 @@ Your final output must be a single, valid JSON object that strictly conforms to 
 `,
 });
 
-const validateLessonFlow = ai.flow(
+const validateLessonFlow = ai.defineFlow(
   {
     name: 'validateLessonFlow',
     inputSchema: ValidateLessonInputSchema,

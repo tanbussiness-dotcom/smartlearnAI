@@ -76,7 +76,7 @@ export async function validateQuizContent(
   return validateQuizContentFlow(input);
 }
 
-const validationPrompt = ai.prompt({
+const validationPrompt = ai.definePrompt({
   name: 'validateQuizContentPrompt',
   input: { schema: ValidateQuizContentInputSchema.extend({ quizQuestionsString: z.string() }) },
   output: { schema: ValidateQuizContentOutputSchema },
@@ -103,7 +103,7 @@ const validationPrompt = ai.prompt({
 Your final output must be a single, valid JSON object conforming to the specified output schema.`,
 });
 
-const validateQuizContentFlow = ai.flow(
+const validateQuizContentFlow = ai.defineFlow(
   {
     name: 'validateQuizContentFlow',
     inputSchema: ValidateQuizContentInputSchema,

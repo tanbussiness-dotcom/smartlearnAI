@@ -8,7 +8,7 @@
  */
 
 import { ai } from '../../../../genkit.config';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const SearchSourcesInputSchema = z.object({
   topic: z.string().describe('The topic of study (e.g., "React Hooks", "Quantum Physics").'),
@@ -34,7 +34,7 @@ export async function searchSources(input: SearchSourcesInput): Promise<SearchSo
   return searchSourcesFlow(input);
 }
 
-const searchPrompt = ai.prompt({
+const searchPrompt = ai.definePrompt({
   name: 'searchSourcesPrompt',
   input: {schema: SearchSourcesInputSchema},
   output: {schema: SearchSourcesOutputSchema},
@@ -61,7 +61,7 @@ const searchPrompt = ai.prompt({
   `,
 });
 
-const searchSourcesFlow = ai.flow(
+const searchSourcesFlow = ai.defineFlow(
   {
     name: 'searchSourcesFlow',
     inputSchema: SearchSourcesInputSchema,
