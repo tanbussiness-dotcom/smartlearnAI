@@ -41,6 +41,7 @@ Learning Phase: ${input.phase}
 3.  **Output Format:**
     - The output must be a single, valid JSON object containing only a "sources" array.
     - Each object in the "sources" array must have the following keys: "title", "url", "domain", "type", and "relevance".
+    - The "type" field MUST be one of the following exact string values: "article", "doc", "video", or "tutorial".
     - If no high-quality results are found, return an empty array.
 
 **Example of a valid JSON object:**
