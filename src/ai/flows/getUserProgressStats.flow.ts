@@ -1,17 +1,14 @@
-
 'use server';
 /**
- * @fileOverview Defines the server action for compiling comprehensive user progress statistics.
+ * @fileOverview Defines a server action stub for compiling user progress statistics.
  *
- * This flow aggregates data across a user's topics and lessons to calculate key
- * performance indicators such as total topics, completed lessons, average progress,
- * and the current learning streak (consecutive days of learning).
+ * This flow is now a stub. The logic should be implemented on the client-side
+ * using Firestore queries to avoid server-side Admin SDK usage.
  *
  * @exports getUserProgressStats - The main function to fetch user progress statistics.
  */
 
 import { z } from 'zod';
-import { initializeFirebaseAdmin } from '@/firebase/admin';
 
 // Defines the schema for the flow's input.
 const GetUserProgressStatsInputSchema = z.object({
@@ -34,116 +31,14 @@ export type GetUserProgressStatsOutput = z.infer<
   typeof GetUserProgressStatsOutputSchema
 >;
 
-/**
- * Calculates the learning streak (number of consecutive days of learning).
- * @param dates - An array of ISO date strings or Date objects.
- * @returns The number of consecutive days in the streak.
- */
-function calculateLearningStreak(dates: (string | Date)[]): number {
-    if (!dates || dates.length === 0) return 0;
-
-    // Create a Set of unique dates (YYYY-MM-DD) to handle multiple lessons on the same day.
-    const uniqueDays = new Set(
-        dates.map(d => new Date(d).toISOString().split('T')[0])
-    );
-    
-    if (uniqueDays.size === 0) return 0;
-
-    // Convert Set to an array of timestamps and sort descending.
-    const sortedTimestamps = Array.from(uniqueDays)
-        .map(day => new Date(day).getTime())
-        .sort((a, b) => b - a);
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayTimestamp = today.getTime();
-
-    // Check if the most recent learning day is today or yesterday.
-    const mostRecentDay = sortedTimestamps[0];
-    const diffFromToday = (todayTimestamp - mostRecentDay) / (1000 * 60 * 60 * 24);
-
-    if (diffFromToday > 1) {
-        return 0; // Streak is broken if the last session was more than one day ago.
-    }
-
-    let streak = 1;
-    for (let i = 0; i < sortedTimestamps.length - 1; i++) {
-        const diffDays = Math.round((sortedTimestamps[i] - sortedTimestamps[i + 1]) / (1000 * 60 * 60 * 24));
-        if (diffDays === 1) {
-            streak++;
-        } else {
-            // Break the loop as soon as a gap is found.
-            break;
-        }
-    }
-    return streak;
-}
-
-
 export async function getUserProgressStats(input: GetUserProgressStatsInput): Promise<GetUserProgressStatsOutput> {
-    const { db } = initializeFirebaseAdmin();
-
-    const { userId } = input;
-    const topicsPath = `users/${userId}/topics`;
-
-    console.log(`📊 Fetching progress stats for user: ${userId}`);
-
-    try {
-      const topicsSnapshot = await db.collection(topicsPath).get();
-      let totalTopics = 0;
-      let totalLessons = 0;
-      let completedLessons = 0;
-      let lessonDates: string[] = [];
-
-      for (const topicDoc of topicsSnapshot.docs) {
-        totalTopics++;
-        const roadmapsSnapshot = await db.collection(`${topicsPath}/${topicDoc.id}/roadmaps`).get();
-        for (const roadmapDoc of roadmapsSnapshot.docs) {
-            const lessonsSnapshot = await db.collection(roadmapDoc.ref.path + '/lessons').get();
-            lessonsSnapshot.forEach(lessonDoc => {
-                totalLessons++;
-                const data = lessonDoc.data();
-                if (data.status === 'Learned') {
-                    completedLessons++;
-                }
-                // Use lastUpdated or a similar field that marks activity.
-                if (data.updatedAt) {
-                    lessonDates.push(data.updatedAt);
-                } else if (data.createdAt) {
-                    lessonDates.push(data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt);
-                }
-            });
-        }
-      }
-
-      // Calculate average progress based on completion.
-      const averageProgress =
-        totalLessons > 0
-          ? Math.round((completedLessons / totalLessons) * 100)
-          : 0;
-
-      // Calculate learning streak.
-      const learningStreak = calculateLearningStreak(lessonDates);
-
-      console.log('✅ User progress calculated successfully');
-      return {
-        totalTopics,
-        totalLessons,
-        completedLessons,
-        averageProgress,
-        learningStreak,
-        lastUpdated: new Date().toISOString(),
-      };
-    } catch (error: any) {
-      console.error('❌ Failed to calculate user progress:', error);
-      // Return a default error state.
-      return {
+    console.warn("`getUserProgressStats` is a stub. This logic should be handled client-side.");
+    return {
         totalTopics: 0,
         totalLessons: 0,
         completedLessons: 0,
         averageProgress: 0,
         learningStreak: 0,
         lastUpdated: new Date().toISOString(),
-      };
-    }
+    };
 }

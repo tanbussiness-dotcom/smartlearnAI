@@ -1,23 +1,26 @@
-
 'use server';
 /**
- * @fileOverview Defines the server action for recommending the next lesson to a user using Gemini API.
+ * @fileOverview Defines a server action stub for recommending the next lesson.
+ *
+ * The original logic required the Firebase Admin SDK to fetch user data. This has
+ * been removed. The AI prompt generation part is kept, but the data fetching part
+ * needs to be handled by the client. The client should fetch the data and pass it
+ * to a new, client-callable AI flow.
  */
 
 import { z } from 'zod';
-import { initializeFirebaseAdmin } from '@/firebase/admin';
 import { generateWithGemini } from '@/lib/gemini';
 import { parseGeminiJson } from '@/lib/utils';
 
-// Input schema for the flow.
+// Input schema now expects the learning context to be provided by the client.
 const RecommendNextLessonInputSchema = z.object({
-  userId: z.string().describe("The ID of the user for whom to generate recommendations."),
+  userId: z.string().describe("The ID of the user."),
+  learningContext: z.string().describe("A summary of the user's recent learning progress."),
 });
 export type RecommendNextLessonInput = z.infer<
   typeof RecommendNextLessonInputSchema
 >;
 
-// Schema for a single recommendation.
 const RecommendationSchema = z.object({
   title: z.string().describe("The title of the recommended lesson."),
   description: z.string().describe("A brief (1-2 sentence) description of the lesson."),
@@ -25,7 +28,6 @@ const RecommendationSchema = z.object({
   difficulty: z.enum(["beginner", "intermediate", "advanced"]).describe("The difficulty level of the lesson."),
 });
 
-// Output schema for the flow.
 const RecommendNextLessonOutputSchema = z.object({
   recommendations: z
     .array(RecommendationSchema)
@@ -36,61 +38,34 @@ export type RecommendNextLessonOutput = z.infer<
 >;
 
 export async function recommendNextLesson(input: RecommendNextLessonInput): Promise<RecommendNextLessonOutput> {
-  const { db } = initializeFirebaseAdmin();
-
-  const { userId } = input;
-  const userTopicsPath = `users/${userId}/topics`;
-
-  console.log(`🧠 Generating next lesson recommendations for user: ${userId}`);
+  console.log(`🧠 Generating next lesson recommendations for user: ${input.userId}`);
 
   try {
-    const topicsSnapshot = await db.collection(userTopicsPath).get();
-    let lessonsSummary: any[] = [];
-
-    for (const topicDoc of topicsSnapshot.docs) {
-      const roadmapsSnapshot = await db.collection(`${userTopicsPath}/${topicDoc.id}/roadmaps`).get();
-      for (const roadmapDoc of roadmapsSnapshot.docs) {
-          const lessonsSnapshot = await db.collection(roadmapDoc.ref.path + '/lessons').get();
-          lessonsSnapshot.forEach(lessonDoc => {
-              const lessonData = lessonDoc.data();
-              lessonsSummary.push({
-                  topic: topicDoc.data().title || topicDoc.id,
-                  title: lessonData.title || "Untitled",
-                  status: lessonData.status || 'To Learn',
-              });
-          });
-      }
+    if (!input.learningContext) {
+        console.warn("⚠️ No learning context provided. Suggesting beginner topics.");
+        return {
+            recommendations: [
+            {
+                title: "Introduction to Artificial Intelligence",
+                description: "Start with the fundamental concepts of AI and its applications in daily life.",
+                reason: "User has no learning data, so starting with the basics is recommended.",
+                difficulty: "beginner"
+            },
+            {
+                title: "How Computers Learn from Data",
+                description: "Explore the principles of Machine Learning through easy-to-understand examples.",
+                reason: "Helps build a foundation before tackling more advanced topics.",
+                difficulty: "beginner"
+            }
+            ]
+        };
     }
-
-    if (lessonsSummary.length === 0) {
-      console.warn("⚠️ No lessons found for this user. Suggesting beginner topics.");
-      return {
-        recommendations: [
-          {
-            title: "Introduction to Artificial Intelligence",
-            description: "Start with the fundamental concepts of AI and its applications in daily life.",
-            reason: "User has no learning data, so starting with the basics is recommended.",
-            difficulty: "beginner"
-          },
-          {
-            title: "How Computers Learn from Data",
-            description: "Explore the principles of Machine Learning through easy-to-understand examples.",
-            reason: "Helps build a foundation before tackling more advanced topics.",
-            difficulty: "beginner"
-          }
-        ]
-      };
-    }
-
-    const learningContext = lessonsSummary
-      .map(l => `• Topic: ${l.topic}, Lesson: ${l.title} (Status: ${l.status})`)
-      .join("\n");
       
     const prompt = `
     You are an intelligent AI Tutor. Based on the user's recent learning progress provided below, your task is to recommend the 3 most suitable next lessons.
 
     User's recent lessons:
-    ${learningContext}
+    ${input.learningContext}
 
     For each recommendation, provide:
     {

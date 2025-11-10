@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview This file defines the orchestrator flow for generating a complete lesson.
@@ -13,7 +12,7 @@
  */
 
 import { z } from 'zod';
-import { searchSources, SearchSourcesOutputSchema } from './search-sources';
+import { searchSources } from './search-sources';
 import { synthesizeLesson, SynthesizeLessonOutputSchema } from './synthesize-lesson';
 import { validateLesson, ValidateLessonOutputSchema } from './validate-lesson';
 

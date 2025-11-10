@@ -1,16 +1,14 @@
-
 'use server';
 /**
- * @fileOverview Defines the server action for updating lesson progress.
+ * @fileOverview Defines a server action stub for updating lesson progress.
  *
- * This flow updates the status of a specific section within a lesson's outline
- * and recalculates the overall completion percentage for the lesson.
+ * This flow is now a stub. The logic should be implemented on the client-side
+ * using Firestore SDK to avoid server-side Admin SDK usage.
  *
  * @exports updateLessonProgress - The main function to update lesson progress.
  */
 
 import { z } from 'zod';
-import { initializeFirebaseAdmin } from '@/firebase/admin';
 
 // Defines the schema for the flow's input.
 const UpdateLessonProgressInputSchema = z.object({
@@ -39,63 +37,10 @@ export type UpdateLessonProgressOutput = z.infer<
 >;
 
 export async function updateLessonProgress(input: UpdateLessonProgressInput): Promise<UpdateLessonProgressOutput> {
-  const { db, admin } = initializeFirebaseAdmin();
-
-  const { userId, topicId, lessonId, sectionId, newStatus } = input;
-  const lessonRef = db.doc(
-    `users/${userId}/topics/${topicId}/lessons/${lessonId}`
-  );
-
-  console.log(
-    `📘 Updating section ${sectionId} in lesson ${lessonId} to status: ${newStatus}`
-  );
-
-  try {
-    const lessonDoc = await lessonRef.get();
-    if (!lessonDoc.exists) {
-      throw new Error('Lesson not found in Firestore');
-    }
-
-    const lessonData = lessonDoc.data();
-    let outline = lessonData?.outline || [];
-
-    // 1. Update the status of the specific section in the outline array.
-    let sectionFound = false;
-    const newOutline = outline.map((section: any) => {
-      if (section.sectionId === sectionId) {
-        sectionFound = true;
-        return { ...section, status: newStatus };
-      }
-      return section;
-    });
-
-    if (!sectionFound) {
-      throw new Error(`Section with ID ${sectionId} not found in the outline.`);
-    }
-
-    // 2. Calculate the new completion percentage.
-    const total = newOutline.length;
-    const learnedCount = newOutline.filter(
-      (s: any) => s.status === 'learned'
-    ).length;
-    const progressPercent = total > 0 ? Math.round((learnedCount / total) * 100) : 0;
-
-    // 3. Update the document in Firestore.
-    await lessonRef.update({
-      outline: newOutline,
-      'meta.updatedAt': new Date().toISOString(),
-      'meta.progressPercent': progressPercent,
-      lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    console.log(`✅ Progress updated: ${progressPercent}% completed`);
-    return {
-      success: true,
-      message: `Progress updated for section ${sectionId}`,
-      progressPercent,
-    };
-  } catch (error: any) {
-    console.error('❌ Failed to update progress:', error);
-    return { success: false, message: error.message, progressPercent: 0 };
-  }
+  console.warn("`updateLessonProgress` is a stub. This logic should be handled client-side.");
+  return {
+    success: false,
+    message: 'Progress update is not implemented on the server. This should be a client-side action.',
+    progressPercent: 0,
+  };
 }

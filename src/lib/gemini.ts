@@ -1,7 +1,7 @@
 'use server';
 
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
-const MODEL = "gemini-2.5-flash";
+const MODEL = process.env.AI_MODEL_ID || "gemini-2.5-flash"; // Changed to a supported model
 const cache = new Map<string, string>();
 
 type GeminiResponse = {
@@ -59,7 +59,7 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
 
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-  if (useCache) {
+  if (useCache && text) {
     cache.set(prompt, text);
   }
 

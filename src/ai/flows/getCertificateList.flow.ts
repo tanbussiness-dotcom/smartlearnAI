@@ -1,16 +1,14 @@
-
 'use server';
 /**
- * @fileOverview Defines the server action for retrieving a list of all certificates for a user.
+ * @fileOverview Defines a server action stub for retrieving a certificate list.
  *
- * This flow queries all of a user's topics and roadmaps to find entries
- * that have a valid certificate URL, compiling them into a single list.
+ * This flow is now a stub. The logic should be implemented on the client-side
+ * using Firestore queries to avoid server-side Admin SDK usage.
  *
  * @exports getCertificateList - The main function to fetch the certificate list.
  */
 
 import { z } from 'zod';
-import { initializeFirebaseAdmin } from '@/firebase/admin';
 
 // Input schema for the flow.
 const GetCertificateListInputSchema = z.object({
@@ -39,51 +37,10 @@ export type GetCertificateListOutput = z.infer<
 >;
 
 export async function getCertificateList(input: GetCertificateListInput): Promise<GetCertificateListOutput> {
-  const { db } = initializeFirebaseAdmin();
-
-  const { userId } = input;
-  const result: z.infer<typeof CertificateSchema>[] = [];
-
-  console.log(`🔍 Fetching certificates for user: ${userId}`);
-
-  try {
-    const topicsSnap = await db.collection(`users/${userId}/topics`).get();
-    for (const topicDoc of topicsSnap.docs) {
-      const topicId = topicDoc.id;
-      const roadmapsSnap = await db
-        .collection(`users/${userId}/topics/${topicId}/roadmaps`)
-        .get();
-
-      for (const roadmapDoc of roadmapsSnap.docs) {
-        const data = roadmapDoc.data();
-        // Check if the certificate object and its url property exist.
-        if (data.certificate && data.certificate.url) {
-          result.push({
-            roadmapId: roadmapDoc.id,
-            topicId: topicId,
-            title: data.stepTitle || 'Untitled Roadmap', // Use stepTitle as per our structure
-            certificateUrl: data.certificate.url,
-            // Handle both Timestamp and string formats for createdAt
-            createdAt: data.certificate.createdAt?.toDate
-              ? data.certificate.createdAt.toDate().toISOString()
-              : data.certificate.createdAt || new Date().toISOString(),
-          });
-        }
-      }
-    }
-
-    console.log(`✅ Found ${result.length} certificates for ${userId}`);
-    return {
-      success: true,
-      message: `Found ${result.length} certificates.`,
-      certificates: result,
-    };
-  } catch (error: any) {
-    console.error('❌ Error fetching certificates:', error);
-    return {
-      success: false,
-      message: error.message,
-      certificates: [],
-    };
-  }
+  console.warn("`getCertificateList` is a stub. This logic should be handled client-side.");
+  return {
+    success: false,
+    message: 'Certificate fetching is not implemented on the server. This should be a client-side action.',
+    certificates: [],
+  };
 }

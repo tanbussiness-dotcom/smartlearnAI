@@ -1,17 +1,14 @@
-
 'use server';
 /**
- * @fileOverview Defines the server action for retrieving a complete lesson from Firestore.
+ * @fileOverview Defines a server action stub for retrieving a lesson from Firestore.
  *
- * This flow fetches all data related to a single lesson, including its metadata,
- * the overall outline, and the content of all its individual sections from the
- * /sections subcollection.
+ * This flow is now a stub. The logic has been migrated to the client-side
+ * to remove the dependency on the Firebase Admin SDK.
  *
  * @exports getLessonFromFirestore - The main function to fetch lesson data.
  */
 
 import { z } from 'zod';
-import { initializeFirebaseAdmin } from '@/firebase/admin';
 
 // Input schema for the flow.
 const GetLessonFromFirestoreInputSchema = z.object({
@@ -45,42 +42,11 @@ export type GetLessonFromFirestoreOutput = z.infer<
 >;
 
 export async function getLessonFromFirestore(input: GetLessonFromFirestoreInput): Promise<GetLessonFromFirestoreOutput> {
-  const { db } = initializeFirebaseAdmin();
-
-  const { userId, topicId, lessonId } = input;
-  const basePath = `users/${userId}/topics/${topicId}/lessons/${lessonId}`;
-
-  console.log(`📖 Fetching lesson from Firestore: ${basePath}`);
-
-  try {
-    // 1. Get lesson metadata and outline
-    const lessonDoc = await db.doc(basePath).get();
-    if (!lessonDoc.exists) {
-      throw new Error('Lesson not found in Firestore.');
-    }
-    const lessonData = lessonDoc.data();
-
-    // 2. Get all documents from the /sections subcollection
-    const sectionsSnapshot = await db.collection(`${basePath}/sections`).get();
-    const sections: Record<string, any> = {};
-    sectionsSnapshot.forEach(doc => {
-      sections[doc.id] = doc.data();
-    });
-
-    console.log(`✅ Lesson fetched successfully: ${lessonData?.meta?.title}`);
-
-    return {
-      meta: lessonData?.meta || {},
-      outline: lessonData?.outline || [],
-      sections,
-    };
-  } catch (error: any) {
-    console.error('❌ Failed to fetch lesson from Firestore:', error);
-    return {
-      meta: {},
-      outline: [],
-      sections: {},
-      error: error.message,
-    };
-  }
+  console.warn("`getLessonFromFirestore` is a stub. This logic should be handled client-side.");
+  return {
+    meta: {},
+    outline: [],
+    sections: {},
+    error: 'Lesson fetching is not implemented on the server. This should be a client-side action.',
+  };
 }
