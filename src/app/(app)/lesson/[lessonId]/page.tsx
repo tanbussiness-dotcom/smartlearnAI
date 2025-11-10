@@ -103,7 +103,7 @@ export default function LessonPage() {
     );
 
     return () => unsubscribe();
-  }, [lessonRef, toast]);
+  }, [lessonRef, toast, activeSections]);
 
   const handleGenerateSection = useCallback(
     async (section: OutlineSection) => {
@@ -148,7 +148,7 @@ export default function LessonPage() {
         toast({
           variant: 'destructive',
           title: 'Generation Failed',
-          description: `Could not generate content for "${section.title}". Please try again.`,
+          description: `Could not generate content for "${section.title}". The AI may be busy. Please try again.`,
         });
       } finally {
         setGeneratingSections((prev) =>
@@ -274,5 +274,3 @@ export default function LessonPage() {
     </motion.div>
   );
 }
-
-    
