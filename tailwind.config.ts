@@ -1,3 +1,4 @@
+
 import type {Config} from 'tailwindcss';
 
 export default {
@@ -24,16 +25,7 @@ export default {
       typography: (theme: (arg0: string) => any) => ({
         DEFAULT: {
           css: {
-            h1: {
-              fontWeight: '700',
-            },
-            h2: {
-              fontWeight: '600',
-            },
-            h3: {
-              fontWeight: '600',
-            },
-            '--tw-prose-body': theme('colors.foreground'),
+            '--tw-prose-body': theme('colors.foreground / 0.8'),
             '--tw-prose-headings': theme('colors.foreground'),
             '--tw-prose-lead': theme('colors.muted.foreground'),
             '--tw-prose-links': theme('colors.primary.DEFAULT'),
@@ -49,6 +41,29 @@ export default {
             '--tw-prose-pre-bg': theme('colors.secondary.DEFAULT'),
             '--tw-prose-th-borders': theme('colors.border'),
             '--tw-prose-td-borders': theme('colors.border'),
+            '--tw-prose-invert-body': theme('colors.muted.foreground'),
+            '--tw-prose-invert-headings': theme('colors.foreground'),
+            '--tw-prose-invert-lead': theme('colors.muted.foreground'),
+            '--tw-prose-invert-links': theme('colors.primary.DEFAULT'),
+            '--tw-prose-invert-bold': theme('colors.foreground'),
+            '--tw-prose-invert-counters': theme('colors.muted.foreground'),
+            '--tw-prose-invert-bullets': theme('colors.border'),
+            '--tw-prose-invert-hr': theme('colors.border'),
+            '--tw-prose-invert-quotes': theme('colors.foreground'),
+            '--tw-prose-invert-quote-borders': theme('colors.border'),
+            '--tw-prose-invert-captions': theme('colors.muted.foreground'),
+            '--tw-prose-invert-code': theme('colors.primary.DEFAULT'),
+            '--tw-prose-invert-pre-code': theme('colors.primary.foreground'),
+            '--tw-prose-invert-pre-bg': theme('colors.secondary.DEFAULT'),
+            '--tw-prose-invert-th-borders': theme('colors.border'),
+            '--tw-prose-invert-td-borders': theme('colors.border'),
+            pre: {
+              backgroundColor: theme('colors.gray.900'),
+              color: theme('colors.white'),
+              borderRadius: theme('borderRadius.lg'),
+              overflowX: 'auto',
+              padding: theme('spacing.4'),
+            },
           },
         },
       }),
@@ -135,3 +150,5 @@ export default {
   },
   plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography')],
 } satisfies Config;
+
+    

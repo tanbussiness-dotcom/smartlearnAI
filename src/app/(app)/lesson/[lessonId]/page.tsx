@@ -70,7 +70,9 @@ export default function LessonPage() {
 
   const lessonRef = useMemo(() => {
     if (!firestore || !user) return null;
-    return doc(firestore, 'users', user.uid, 'lessons', lessonId);
+    // This path is just an example, adjust it to your actual Firestore structure
+    const path = `users/${user.uid}/lessons/${lessonId}`;
+    return doc(firestore, path);
   }, [firestore, user, lessonId]);
 
   useEffect(() => {
@@ -101,7 +103,7 @@ export default function LessonPage() {
     );
 
     return () => unsubscribe();
-  }, [lessonRef, toast, activeSections]);
+  }, [lessonRef, toast]);
 
   const handleGenerateSection = useCallback(
     async (section: OutlineSection) => {
@@ -272,3 +274,5 @@ export default function LessonPage() {
     </motion.div>
   );
 }
+
+    
