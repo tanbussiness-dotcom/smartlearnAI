@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BookOpen, Home, LayoutDashboard, Search, Settings } from 'lucide-react';
+import { BookOpen, Home, LayoutDashboard, Search, Settings, LoaderCircle } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -32,14 +32,6 @@ export default function AppLayout({
       router.push(`/login?redirect=${pathname}`);
     }
   }, [user, isUserLoading, router, pathname]);
-
-  if (isUserLoading || !user) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
@@ -132,15 +124,21 @@ export default function AppLayout({
         </header>
         <main className="flex flex-1 flex-col gap-4 bg-background p-4 lg:gap-6 lg:p-6">
           <AnimatePresence mode="wait">
-            <motion.div
-              key={pathname}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-            >
-              {children}
-            </motion.div>
+            {isUserLoading || !user ? (
+                <div className="flex h-full items-center justify-center">
+                    <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                </div>
+            ) : (
+                <motion.div
+                    key={pathname}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.2 }}
+                >
+                    {children}
+                </motion.div>
+            )}
           </AnimatePresence>
         </main>
       </div>
