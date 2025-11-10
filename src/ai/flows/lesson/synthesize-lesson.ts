@@ -102,17 +102,11 @@ const synthesizeLessonFlow = ai.defineFlow(
     outputSchema: SynthesizeLessonOutputSchema,
   },
   async input => {
-    const {output} = await ai.generate({
-      prompt: synthesizePrompt.prompt,
-      model: googleAI.model('gemini-1.5-pro-001'),
-      input: {
+    const {output} = await synthesizePrompt({
         ...input,
         sourcesString: JSON.stringify(input.sources),
-      },
-      output: {
-        schema: SynthesizeLessonOutputSchema,
-      },
-    });
+      }, { model: googleAI.model('gemini-1.5-pro-001') });
+
     if (!output) {
       throw new Error("Failed to get a valid response from the AI model.");
     }

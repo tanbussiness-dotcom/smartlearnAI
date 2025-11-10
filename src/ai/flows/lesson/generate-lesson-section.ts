@@ -72,14 +72,7 @@ const generateLessonSectionFlow = ai.defineFlow(
     outputSchema: GenerateLessonSectionOutputSchema,
   },
   async (input) => {
-    const { output } = await ai.generate({
-      prompt: generateLessonSectionPrompt.prompt,
-      model: googleAI.model('gemini-1.5-pro-001'),
-      input: input,
-      output: {
-        schema: GenerateLessonSectionOutputSchema,
-      },
-    });
+    const { output } = await generateLessonSectionPrompt(input, { model: googleAI.model('gemini-1.5-pro-001') });
     if (!output) {
       throw new Error('Failed to get a valid response from the AI model.');
     }

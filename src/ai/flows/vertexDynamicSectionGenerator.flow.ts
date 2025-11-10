@@ -70,14 +70,7 @@ export const vertexDynamicSectionGenerator = ai.defineFlow(
   async (input) => {
     console.log(`🚀 Generating section content: ${input.sectionTitle}`);
 
-    const { output } = await ai.generate({
-      prompt: prompt.prompt,
-      model: googleAI.model('gemini-1.5-pro-001'),
-      input: input,
-      output: {
-        schema: VertexDynamicSectionGeneratorOutputSchema,
-      },
-    });
+    const { output } = await prompt(input, { model: googleAI.model('gemini-1.5-pro-001') });
     if (!output) {
       throw new Error('Failed to get a valid response from the AI model.');
     }

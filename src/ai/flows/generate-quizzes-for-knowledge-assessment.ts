@@ -70,14 +70,7 @@ const generateQuizForLessonFlow = ai.defineFlow(
     outputSchema: GenerateQuizForLessonOutputSchema,
   },
   async input => {
-    const {output} = await ai.generate({
-      prompt: prompt.prompt,
-      model: googleAI.model('gemini-1.5-pro-001'),
-      input: input,
-      output: {
-        schema: GenerateQuizForLessonOutputSchema,
-      },
-    });
+    const {output} = await prompt(input, { model: googleAI.model('gemini-1.5-pro-001') });
     if (!output) {
       throw new Error("Failed to generate quiz from the AI model.");
     }
