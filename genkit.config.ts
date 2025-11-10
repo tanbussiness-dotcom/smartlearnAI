@@ -6,7 +6,7 @@ export const ai = genkit({
   plugins: [
     googleAI({ 
       keyFile: 'vertex-ai-admin.json',
-      apiVersion: 'v1',
+      apiVersion: 'v1beta',
      }),
   ],
   logLevel: 'debug',
