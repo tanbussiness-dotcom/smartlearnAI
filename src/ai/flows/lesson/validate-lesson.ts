@@ -9,24 +9,13 @@
 import { z } from 'zod';
 import { generateWithGemini } from '@/lib/gemini';
 import { parseGeminiJson } from '@/lib/utils';
-import { SynthesizeLessonOutputSchema } from './synthesize-lesson';
+import { SynthesizeLessonOutputSchema, ValidateLessonOutputSchema } from './types';
 
 
 const ValidateLessonInputSchema = z.object({
   lessonDraft: SynthesizeLessonOutputSchema.describe('The lesson object to be validated.'),
 });
 type ValidateLessonInput = z.infer<typeof ValidateLessonInputSchema>;
-
-export const ValidateLessonOutputSchema = z.object({
-  valid: z.boolean().describe('A boolean indicating if the lesson is considered valid and ready for use.'),
-  confidence_score: z.number().min(0).max(1).describe('A score from 0.0 to 1.0 representing the confidence in the lesson\'s quality.'),
-  issues: z.array(
-    z.object({
-      type: z.string().describe('The type of issue found (e.g., "Factual Error", "Plagiarism Concern", "Clarity").'),
-      detail: z.string().describe('A detailed description of the specific issue.'),
-    })
-  ).describe('A list of issues found in the lesson draft. Empty if the lesson is valid.'),
-});
 type ValidateLessonOutput = z.infer<typeof ValidateLessonOutputSchema>;
 
 export async function validateLesson(input: ValidateLessonInput): Promise<ValidateLessonOutput> {

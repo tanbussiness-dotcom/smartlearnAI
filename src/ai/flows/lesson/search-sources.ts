@@ -11,24 +11,13 @@
 import { z } from 'zod';
 import { generateWithGemini } from '@/lib/gemini';
 import { parseGeminiJson } from '@/lib/utils';
+import { SearchSourcesOutputSchema } from './types';
 
 const SearchSourcesInputSchema = z.object({
   topic: z.string().describe('The topic of study (e.g., "React Hooks", "Quantum Physics").'),
   phase: z.string().describe('The learning phase (e.g., "Beginner", "Intermediate", "Advanced").'),
 });
 type SearchSourcesInput = z.infer<typeof SearchSourcesInputSchema>;
-
-const SourceSchema = z.object({
-  title: z.string().describe('The descriptive title of the source.'),
-  url: z.string().url().describe('The full URL of the source.'),
-  domain: z.string().describe('The domain name of the source (e.g., "react.dev", "youtube.com").'),
-  type: z.enum(['article', 'doc', 'video', 'tutorial']).describe('The type of content.'),
-  relevance: z.number().min(0.0).max(1.0).describe('A score from 0.0 to 1.0 indicating relevance to the topic and phase.'),
-});
-
-export const SearchSourcesOutputSchema = z.object({
-  sources: z.array(SourceSchema).describe('An array of 10-15 reputable information sources.'),
-});
 type SearchSourcesOutput = z.infer<typeof SearchSourcesOutputSchema>;
 
 export async function searchSources(input: SearchSourcesInput): Promise<SearchSourcesOutput> {

@@ -9,6 +9,7 @@
 import { z } from 'zod';
 import { generateWithGemini } from '@/lib/gemini';
 import { parseGeminiJson } from '@/lib/utils';
+import { SynthesizeLessonOutputSchema } from './types';
 
 // Defines the schema for a single source provided as input.
 const InputSourceSchema = z.object({
@@ -26,32 +27,6 @@ const SynthesizeLessonInputSchema = z.object({
   sources: z.array(InputSourceSchema).describe('An array of source materials to use for synthesis.'),
 });
 type SynthesizeLessonInput = z.infer<typeof SynthesizeLessonInputSchema>;
-
-// Defines the schema for a single source to be included in the output.
-const OutputSourceSchema = z.object({
-    title: z.string().describe("The title of the source."),
-    url: z.string().url().describe("The URL of the source."),
-    domain: z.string().describe("The domain of the source."),
-    type: z.enum(['article', 'doc', 'tutorial', 'video']).describe("The type of content."),
-    short_note: z.string().describe("A brief note on why this source is relevant or useful (1-2 sentences)."),
-});
-
-// Defines the schema for a video to be included in the output.
-const VideoSchema = z.object({
-    title: z.string().describe("The title of the video."),
-    url: z.string().url().describe("The original YouTube watch URL (not an embed link)."),
-    channel: z.string().describe("The name of the YouTube channel, if available."),
-});
-
-// Defines the schema for the flow's final output.
-export const SynthesizeLessonOutputSchema = z.object({
-  title: z.string().describe('A clear and concise title for the lesson.'),
-  overview: z.string().describe('A short introductory paragraph that summarizes the main content of the lesson.'),
-  content: z.string().describe('The full lesson content in Markdown or HTML format, between 800 and 1200 words, with clear sections and practical examples.'),
-  sources: z.array(OutputSourceSchema).describe('A curated list of the most reliable sources used for synthesis.'),
-  videos: z.array(VideoSchema).describe('A list of relevant videos found in the sources.'),
-  estimated_time_min: z.number().describe('Estimated time in minutes to complete the lesson.'),
-});
 type SynthesizeLessonOutput = z.infer<typeof SynthesizeLessonOutputSchema>;
 
 export async function synthesizeLesson(input: SynthesizeLessonInput): Promise<SynthesizeLessonOutput> {

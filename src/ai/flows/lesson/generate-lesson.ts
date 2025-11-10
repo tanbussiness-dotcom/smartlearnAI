@@ -13,8 +13,9 @@
 
 import { z } from 'zod';
 import { searchSources } from './search-sources';
-import { synthesizeLesson, SynthesizeLessonOutputSchema } from './synthesize-lesson';
-import { validateLesson, ValidateLessonOutputSchema } from './validate-lesson';
+import { synthesizeLesson } from './synthesize-lesson';
+import { validateLesson } from './validate-lesson';
+import { SynthesizeLessonOutputSchema, ValidateLessonOutputSchema } from './types';
 
 const GenerateLessonInputSchema = z.object({
   topic: z.string().describe('The topic of study (e.g., "React Hooks", "Quantum Physics").'),
