@@ -2,7 +2,7 @@
 'use server';
 
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
-const MODEL = process.env.AI_MODEL_ID || "gemini-1.5-pro-latest";
+const MODEL = process.env.AI_MODEL_ID || "gemini-pro";
 const cache = new Map<string, string>();
 
 type GeminiResponse = {
