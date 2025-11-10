@@ -11,6 +11,7 @@
 
 import { ai } from '../../../../genkit.config';
 import {z} from 'zod';
+import { googleAI } from '@genkit-ai/google-genai';
 
 
 const OutputSourceSchema = z.object({
@@ -93,7 +94,7 @@ const validateLessonFlow = ai.defineFlow(
   async input => {
     const {output} = await validatePrompt({
         lessonDraftString: JSON.stringify(input.lessonDraft),
-      }, { model: 'gemini-pro' });
+      }, { model: googleAI.model('gemini-pro') });
 
     if (!output) {
       throw new Error('Failed to get a valid response from the AI model.');

@@ -1,10 +1,12 @@
 
-import { genkit } from 'genkit';
-import { vertexAI } from '@google-cloud/vertexai';
+import { genkit, configureGenkit } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 export const ai = genkit({
   plugins: [
-    vertexAI(),
+    googleAI({
+      apiVersion: 'v1beta',
+    }),
   ],
   logLevel: 'debug',
   enableTracingAndMetrics: true,

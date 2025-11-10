@@ -11,6 +11,7 @@
 
 import { ai } from '../../../genkit.config';
 import { z } from 'zod';
+import { googleAI } from '@genkit-ai/google-genai';
 
 
 // Defines the schema for the flow's input.
@@ -70,7 +71,7 @@ export const vertexDynamicSectionGenerator = ai.defineFlow(
   async (input) => {
     console.log(`🚀 Generating section content: ${input.sectionTitle}`);
 
-    const { output } = await prompt(input, { model: 'gemini-pro' });
+    const { output } = await prompt(input, { model: googleAI.model('gemini-pro') });
     if (!output) {
       throw new Error('Failed to get a valid response from the AI model.');
     }
