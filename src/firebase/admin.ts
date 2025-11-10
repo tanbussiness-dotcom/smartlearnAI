@@ -1,8 +1,6 @@
 
-'use server';
-
 import * as admin from 'firebase-admin';
-import serviceAccount from '../../../vertex-ai-admin.json';
+import serviceAccount from '../../vertex-ai-admin.json';
 
 // Define a type for the service account credentials for better type safety
 interface ServiceAccount {
