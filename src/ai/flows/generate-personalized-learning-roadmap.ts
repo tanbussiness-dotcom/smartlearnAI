@@ -42,7 +42,7 @@ const prompt = ai.definePrompt({
   name: 'generatePersonalizedLearningRoadmapPrompt',
   input: {schema: GeneratePersonalizedLearningRoadmapInputSchema},
   output: {schema: GeneratePersonalizedLearningRoadmapOutputSchema},
-  model: 'gemini-1.5-flash',
+  model: 'googleai/gemini-1.5-flash',
   prompt: `You are an expert in curriculum design. Generate a personalized, step-by-step learning roadmap from basic to advanced levels for the topic: {{{topic}}}. The roadmap should clearly outline the skills the user will acquire in each step.
 
 Output the roadmap in JSON format. Each step should include a stepNumber, stepTitle, description, and an array of skills.
