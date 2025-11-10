@@ -4,7 +4,7 @@ import { googleAI } from '@genkit-ai/google-genai';
 
 export const ai = genkit({
   plugins: [
-    googleAI(),
+    googleAI({ client: 'vertex' }),
   ],
   logLevel: 'debug',
   enableTracingAndMetrics: true,
