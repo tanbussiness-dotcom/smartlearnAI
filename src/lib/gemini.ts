@@ -113,5 +113,5 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
   }
   
   // If the loop finishes without returning, it means all retries failed.
-  throw new Error(`Failed to generate content from Gemini after ${maxRetries} attempts. Last error: ${lastError?.message}`);
+  throw new Error(`Gemini API Unavailable after ${maxRetries} retries. Last error: ${lastError?.message}`);
 }
