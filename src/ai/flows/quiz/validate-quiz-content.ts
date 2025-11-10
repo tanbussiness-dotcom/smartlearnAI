@@ -9,7 +9,7 @@
  * @exports validateQuizContent - The main function to validate a quiz.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '../../../../genkit.config';
 import { z } from 'zod';
 
 // Schema for a single question, consistent with quiz generation flow.
@@ -76,9 +76,9 @@ export async function validateQuizContent(
   return validateQuizContentFlow(input);
 }
 
-const validationPrompt = ai.definePrompt({
+const validationPrompt = ai.prompt({
   name: 'validateQuizContentPrompt',
-  input: { schema: ValidateQuizContentInputSchema },
+  input: { schema: ValidateQuizContentInputSchema.extend({ quizQuestionsString: z.string() }) },
   output: { schema: ValidateQuizContentOutputSchema },
   prompt: `You are an expert at Quality Assurance for educational content. Your task is to analyze a given lesson and a set of quiz questions to determine if the questions can be answered *solely* based on the provided lesson content.
 
@@ -97,20 +97,23 @@ const validationPrompt = ai.definePrompt({
 
 **Quiz Questions to Validate:**
 \`\`\`json
-{{{jsonStringify quiz_questions}}}
+{{{quizQuestionsString}}}
 \`\`\`
 
 Your final output must be a single, valid JSON object conforming to the specified output schema.`,
 });
 
-const validateQuizContentFlow = ai.defineFlow(
+const validateQuizContentFlow = ai.flow(
   {
     name: 'validateQuizContentFlow',
     inputSchema: ValidateQuizContentInputSchema,
     outputSchema: ValidateQuizContentOutputSchema,
   },
   async input => {
-    const { output } = await validationPrompt(input);
+    const { output } = await validationPrompt({
+        ...input,
+        quizQuestionsString: JSON.stringify(input.quiz_questions),
+    });
     if (!output) {
       throw new Error('Failed to get a valid validation response from the AI model.');
     }

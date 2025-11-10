@@ -8,7 +8,7 @@
  * @exports validateLesson - The main function to validate a lesson draft.
  */
 
-import {ai} from '@/ai/genkit';
+import { ai } from '../../../../genkit.config';
 import {z} from 'genkit';
 
 const OutputSourceSchema = z.object({
@@ -54,7 +54,7 @@ export async function validateLesson(input: ValidateLessonInput): Promise<Valida
   return validateLessonFlow(input);
 }
 
-const validatePrompt = ai.definePrompt({
+const validatePrompt = ai.prompt({
   name: 'validateLessonPrompt',
   input: {schema: z.object({ lessonDraftString: z.string() })},
   output: {schema: ValidateLessonOutputSchema},
@@ -82,7 +82,7 @@ Your final output must be a single, valid JSON object that strictly conforms to 
 `,
 });
 
-const validateLessonFlow = ai.defineFlow(
+const validateLessonFlow = ai.flow(
   {
     name: 'validateLessonFlow',
     inputSchema: ValidateLessonInputSchema,

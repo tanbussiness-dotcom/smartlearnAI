@@ -6,7 +6,7 @@
  * - generatePersonalizedLearningRoadmap - A function that generates a learning roadmap.
  */
 
-import {ai} from '@/ai/genkit';
+import { ai } from '../../../genkit.config';
 import {z} from 'genkit';
 
 const GeneratePersonalizedLearningRoadmapInputSchema = z.object({
@@ -38,7 +38,7 @@ export async function generatePersonalizedLearningRoadmap(
   return generatePersonalizedLearningRoadmapFlow(input);
 }
 
-const prompt = ai.definePrompt({
+const prompt = ai.prompt({
   name: 'generatePersonalizedLearningRoadmapPrompt',
   input: {schema: GeneratePersonalizedLearningRoadmapInputSchema},
   output: {schema: GeneratePersonalizedLearningRoadmapOutputSchema},
@@ -66,7 +66,7 @@ Example:
 }`,
 });
 
-const generatePersonalizedLearningRoadmapFlow = ai.defineFlow(
+const generatePersonalizedLearningRoadmapFlow = ai.flow(
   {
     name: 'generatePersonalizedLearningRoadmapFlow',
     inputSchema: GeneratePersonalizedLearningRoadmapInputSchema,

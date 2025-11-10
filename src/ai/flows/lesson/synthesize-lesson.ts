@@ -9,7 +9,7 @@
  * @exports synthesizeLesson - The main function to synthesize a lesson.
  */
 
-import {ai} from '@/ai/genkit';
+import { ai } from '../../../../genkit.config';
 import {z} from 'genkit';
 
 // Defines the schema for a single source provided as input.
@@ -42,7 +42,7 @@ const OutputSourceSchema = z.object({
 // Defines the schema for a video to be included in the output.
 const VideoSchema = z.object({
     title: z.string().describe("The title of the video."),
-    url: z.string().url().describe("The original YouTube watch URL (not an embed link)."),
+    url: zstring().url().describe("The original YouTube watch URL (not an embed link)."),
     channel: z.string().describe("The name of the YouTube channel, if available."),
 });
 
@@ -60,7 +60,7 @@ export async function synthesizeLesson(input: SynthesizeLessonInput): Promise<Sy
   return synthesizeLessonFlow(input);
 }
 
-const synthesizePrompt = ai.definePrompt({
+const synthesizePrompt = ai.prompt({
   name: 'synthesizeLessonPrompt',
   input: {schema: SynthesizeLessonInputSchema.extend({ sourcesString: z.string() })},
   output: {schema: SynthesizeLessonOutputSchema},
@@ -93,7 +93,7 @@ Sources:
 Your final output must be a single, valid JSON object that strictly conforms to the provided output schema.`,
 });
 
-const synthesizeLessonFlow = ai.defineFlow(
+const synthesizeLessonFlow = ai.flow(
   {
     name: 'synthesizeLessonFlow',
     inputSchema: SynthesizeLessonInputSchema,

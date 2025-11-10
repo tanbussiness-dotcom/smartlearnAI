@@ -6,7 +6,7 @@
  * - generateQuizForLesson - A function that handles the quiz generation process.
  */
 
-import {ai} from '@/ai/genkit';
+import { ai } from '../../../genkit.config';
 import {z} from 'genkit';
 
 const GenerateQuizForLessonInputSchema = z.object({
@@ -33,7 +33,7 @@ export async function generateQuizForLesson(input: GenerateQuizForLessonInput): 
   return generateQuizForLessonFlow(input);
 }
 
-const prompt = ai.definePrompt({
+const prompt = ai.prompt({
   name: 'generateQuizForLessonPrompt',
   input: {schema: GenerateQuizForLessonInputSchema},
   output: {schema: GenerateQuizForLessonOutputSchema},
@@ -61,7 +61,7 @@ const prompt = ai.definePrompt({
 `,
 });
 
-const generateQuizForLessonFlow = ai.defineFlow(
+const generateQuizForLessonFlow = ai.flow(
   {
     name: 'generateQuizForLessonFlow',
     inputSchema: GenerateQuizForLessonInputSchema,

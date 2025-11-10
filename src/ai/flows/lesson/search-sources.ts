@@ -7,7 +7,7 @@
  * @exports searchSources - The main function to find learning sources for a given topic and phase.
  */
 
-import {ai} from '@/ai/genkit';
+import { ai } from '../../../../genkit.config';
 import {z} from 'genkit';
 
 const SearchSourcesInputSchema = z.object({
@@ -34,7 +34,7 @@ export async function searchSources(input: SearchSourcesInput): Promise<SearchSo
   return searchSourcesFlow(input);
 }
 
-const searchPrompt = ai.definePrompt({
+const searchPrompt = ai.prompt({
   name: 'searchSourcesPrompt',
   input: {schema: SearchSourcesInputSchema},
   output: {schema: SearchSourcesOutputSchema},
@@ -61,7 +61,7 @@ const searchPrompt = ai.definePrompt({
   `,
 });
 
-const searchSourcesFlow = ai.defineFlow(
+const searchSourcesFlow = ai.flow(
   {
     name: 'searchSourcesFlow',
     inputSchema: SearchSourcesInputSchema,

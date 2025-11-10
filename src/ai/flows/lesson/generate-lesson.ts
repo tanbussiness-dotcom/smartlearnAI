@@ -12,7 +12,7 @@
  * @exports generateLesson - The main orchestrator function.
  */
 
-import {ai} from '@/ai/genkit';
+import { ai } from '../../../../genkit.config';
 import {z} from 'genkit';
 import { getFirestore, collectionGroup, query, where, limit, getDocs } from 'firebase/firestore';
 import { initializeApp, getApps } from 'firebase/app';
@@ -84,7 +84,7 @@ export async function generateLesson(input: z.infer<typeof GenerateLessonInputSc
   return generateLessonFlow(input);
 }
 
-const generateLessonFlow = ai.defineFlow(
+const generateLessonFlow = ai.flow(
   {
     name: 'generateLessonFlow',
     inputSchema: GenerateLessonInputSchema,

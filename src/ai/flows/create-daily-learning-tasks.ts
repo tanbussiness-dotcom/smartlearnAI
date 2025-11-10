@@ -7,7 +7,7 @@
  * It exports the `createDailyLearningTasks` function.
  */
 
-import {ai} from '@/ai/genkit';
+import { ai } from '../../../genkit.config';
 import {z} from 'genkit';
 
 const CreateDailyLearningTasksInputSchema = z.object({
@@ -38,7 +38,7 @@ export async function createDailyLearningTasks(input: CreateDailyLearningTasksIn
   return createDailyLearningTasksFlow(input);
 }
 
-const createDailyLearningTasksFlow = ai.defineFlow(
+const createDailyLearningTasksFlow = ai.flow(
   {
     name: 'createDailyLearningTasksFlow',
     inputSchema: CreateDailyLearningTasksInputSchema,

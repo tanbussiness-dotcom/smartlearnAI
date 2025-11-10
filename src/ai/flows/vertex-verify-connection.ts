@@ -7,7 +7,7 @@
  * to confirm that the connection and authentication are working correctly.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 import { VertexAI } from '@google-cloud/vertexai';
 

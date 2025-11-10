@@ -1,12 +1,11 @@
-import { config } from 'dotenv';
-config();
-
-import '@/ai/flows/generate-personalized-learning-roadmap.ts';
-import '@/ai/flows/create-daily-learning-tasks.ts';
-import '@/ai/flows/generate-quizzes-for-knowledge-assessment.ts';
-import '@/ai/flows/lesson/search-sources.ts';
-import '@/ai/flows/lesson/synthesize-lesson.ts';
-import '@/ai/flows/lesson/validate-lesson.ts';
-import '@/ai/flows/lesson/generate-lesson.ts';
-import '@/ai/flows/quiz/validate-quiz-content.ts';
-import '@/ai/flows/vertex-verify-connection.ts';
+'use server';
+import './flows/generate-personalized-learning-roadmap';
+import './flows/create-daily-learning-tasks';
+import './flows/generate-quizzes-for-knowledge-assessment';
+import './flows/lesson/search-sources';
+import './flows/lesson/synthesize-lesson';
+import './flows/lesson/validate-lesson';
+import './flows/lesson/generate-lesson';
+import './flows/quiz/validate-quiz-content';
+import './flows/vertex-verify-connection';
+import './flows/vertexDynamicOutline.flow';
