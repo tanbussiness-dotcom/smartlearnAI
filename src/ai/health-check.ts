@@ -1,3 +1,4 @@
+
 import 'dotenv/config';
 import fs from "fs";
 import path from "path";
@@ -36,13 +37,29 @@ async function aiHealthCheck() {
     }
   }
 
+  // --- Statistics Calculation ---
+  const successfulTests = results.filter(r => r.success);
+  const totalTests = results.length;
+  const successRate = (successfulTests.length / totalTests) * 100;
+  
+  const totalResponseTime = successfulTests.reduce((acc, r) => acc + r.time_ms, 0);
+  const averageResponseTime = successfulTests.length > 0 ? totalResponseTime / successfulTests.length : 0;
+
   const logDir = path.join(process.cwd(), "logs");
   if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
 
   const logPath = path.join(logDir, `aiHealthCheck_${new Date().toISOString()}.json`);
   fs.writeFileSync(logPath, JSON.stringify(results, null, 2));
 
-  console.log(`🏁 Health check finished.\nResults saved at: ${logPath}`);
+  console.log(`🏁 Health check finished.`);
+  console.log("--------------------");
+  console.log("📊 Stats:");
+  console.log(`- Success Rate: ${successRate.toFixed(2)}% (${successfulTests.length}/${totalTests})`);
+  if (successfulTests.length > 0) {
+    console.log(`- Avg. Response Time: ${averageResponseTime.toFixed(0)}ms`);
+  }
+  console.log("--------------------");
+  console.log(`Results saved at: ${logPath}`);
 
   if (hasApiError) {
     console.log('\x1b[33m%s\x1b[0m', '\n⚠️ Gemini connectivity unstable — please check API quota or model region.');
