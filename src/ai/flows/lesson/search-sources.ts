@@ -3,7 +3,7 @@
 /**
  * @fileOverview This file defines the function for searching for reputable learning sources using Gemini API.
  *
- * It takes a topic and a learning phase as input and returns a list of 10-15 relevant web sources.
+ * It takes a topic and a learning phase as input and returns a list of up to 10 relevant web sources.
  *
  * @exports searchSources - The main function to find learning sources.
  */
@@ -23,7 +23,7 @@ type SearchSourcesOutput = z.infer<typeof SearchSourcesOutputSchema>;
 export async function searchSources(input: SearchSourcesInput): Promise<SearchSourcesOutput> {
   const prompt = `You are an expert at finding high-quality, reputable educational resources on the web.
 
-Your task is to find 10-15 diverse and reliable sources for the given topic and learning phase.
+Your task is to find a maximum of 10 diverse and reliable sources for the given topic and learning phase.
 
 Topic: ${input.topic}
 Learning Phase: ${input.phase}
