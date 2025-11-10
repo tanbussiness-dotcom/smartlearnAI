@@ -33,7 +33,7 @@ export const vertexVerifyConnection = ai.defineFlow(
       console.log('✅ Genkit AI client configured successfully.');
 
       // 1. Run a test generation with Gemini 1.5 Pro
-      const gemini = googleAI.model('gemini-1.5-pro-001');
+      const gemini = googleAI.model('gemini-pro');
 
       const prompt = `
       Write a short (100 words) overview of Artificial Intelligence (AI)
@@ -53,7 +53,7 @@ export const vertexVerifyConnection = ai.defineFlow(
       }
 
       const demoText = output;
-      console.log('🧠 Gemini 1.5 Pro demo output:', demoText);
+      console.log('🧠 Gemini Pro demo output:', demoText);
 
       return {
         success: true,

@@ -137,7 +137,7 @@ export const recommendNextLesson = ai.defineFlow(
         .map(l => `• Topic: ${l.topic}, Lesson: ${l.title} (Status: ${l.status})`)
         .join("\n");
 
-      const { output } = await recommendationPrompt({ learningContext }, { model: googleAI.model('gemini-1.5-pro-001') });
+      const { output } = await recommendationPrompt({ learningContext }, { model: googleAI.model('gemini-pro') });
 
       if (!output) {
         throw new Error('Failed to get a valid response from the AI model.');

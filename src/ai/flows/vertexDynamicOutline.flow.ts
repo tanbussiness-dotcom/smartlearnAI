@@ -81,7 +81,7 @@ export const vertexDynamicOutline = ai.defineFlow(
   async (input) => {
     console.log(`🚀 Generating adaptive outline for topic: ${input.topic}`);
     
-    const { output } = await prompt(input, { model: googleAI.model('gemini-1.5-pro-001') });
+    const { output } = await prompt(input, { model: googleAI.model('gemini-pro') });
     if (!output) {
         throw new Error("Failed to get a valid response from the AI model.");
     }

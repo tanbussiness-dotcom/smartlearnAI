@@ -70,7 +70,7 @@ const searchSourcesFlow = ai.defineFlow(
     outputSchema: SearchSourcesOutputSchema,
   },
   async input => {
-    const {output} = await searchPrompt(input, { model: googleAI.model('gemini-1.5-pro-001') });
+    const {output} = await searchPrompt(input, { model: googleAI.model('gemini-pro') });
     if (!output) {
         throw new Error("Failed to get a valid response from the AI model.");
     }
