@@ -1,19 +1,4 @@
+
 'use server';
-import './flows/generate-personalized-learning-roadmap';
-import './flows/create-daily-learning-tasks';
-import './flows/generate-quizzes-for-knowledge-assessment';
-import './flows/lesson/search-sources';
-import './flows/lesson/synthesize-lesson';
-import './flows/lesson/validate-lesson';
-import './flows/lesson/generate-lesson';
-import './flows/quiz/validate-quiz-content';
-import './flows/vertex-verify-connection';
-import './flows/vertexDynamicOutline.flow';
-import './flows/vertexDynamicSectionGenerator.flow';
-import './flows/syncRoadmapToFirestore.flow';
-import './flows/getLessonFromFirestore.flow';
-import './flows/updateLessonProgress.flow';
-import './flows/getUserProgressStats.flow';
-import './flows/recommendNextLesson.flow';
-import './flows/generateCourseCertificate.flow';
-import './flows/getCertificateList.flow';
+// This file is intentionally left blank as Genkit flows are no longer used.
+// The AI logic has been migrated to direct Gemini API calls in `src/lib/gemini.ts`.

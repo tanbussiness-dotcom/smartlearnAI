@@ -1,19 +1,13 @@
 
 'use server';
 /**
- * @fileOverview This file defines the Genkit flow for synthesizing a structured lesson from a curated list of sources.
- *
- * The flow takes a topic, a learning phase, and an array of source materials as input. It then leverages an
- * AI model to generate a comprehensive lesson, including a title, overview, structured content,
- * a curated list of sources, and a list of relevant videos.
+ * @fileOverview This file defines the function for synthesizing a structured lesson from a curated list of sources using Gemini API.
  *
  * @exports synthesizeLesson - The main function to synthesize a lesson.
  */
 
-import { ai } from '../../../../genkit.config';
-import {z} from 'zod';
-import { googleAI } from '@genkit-ai/google-genai';
-
+import { z } from 'zod';
+import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
 
 // Defines the schema for a single source provided as input.
 const InputSourceSchema = z.object({
@@ -32,7 +26,6 @@ const SynthesizeLessonInputSchema = z.object({
 });
 type SynthesizeLessonInput = z.infer<typeof SynthesizeLessonInputSchema>;
 
-
 // Defines the schema for a single source to be included in the output.
 const OutputSourceSchema = z.object({
     title: z.string().describe("The title of the source."),
@@ -50,29 +43,25 @@ const VideoSchema = z.object({
 });
 
 // Defines the schema for the flow's final output.
-const SynthesizeLessonOutputSchema = z.object({
+export const SynthesizeLessonOutputSchema = z.object({
   title: z.string().describe('A clear and concise title for the lesson.'),
   overview: z.string().describe('A short introductory paragraph that summarizes the main content of the lesson.'),
   content: z.string().describe('The full lesson content in Markdown or HTML format, between 800 and 1200 words, with clear sections and practical examples.'),
   sources: z.array(OutputSourceSchema).describe('A curated list of the most reliable sources used for synthesis.'),
   videos: z.array(VideoSchema).describe('A list of relevant videos found in the sources.'),
+  estimated_time_min: z.number().describe('Estimated time in minutes to complete the lesson.'),
 });
 type SynthesizeLessonOutput = z.infer<typeof SynthesizeLessonOutputSchema>;
 
 export async function synthesizeLesson(input: SynthesizeLessonInput): Promise<SynthesizeLessonOutput> {
-  return synthesizeLessonFlow(input);
-}
+  const sourcesString = JSON.stringify(input.sources, null, 2);
 
-const synthesizePrompt = ai.definePrompt({
-  name: 'synthesizeLessonPrompt',
-  input: {schema: SynthesizeLessonInputSchema.extend({ sourcesString: z.string() })},
-  output: {schema: SynthesizeLessonOutputSchema},
-  prompt: `You are an expert instructional designer and technical writer. Your task is to synthesize a high-quality, comprehensive, and structured learning lesson from the provided sources about the given topic and phase.
+  const prompt = `You are an expert instructional designer and technical writer. Your task is to synthesize a high-quality, comprehensive, and structured learning lesson from the provided sources about the given topic and phase.
 
-Topic: {{{topic}}}
-Phase: {{{phase}}}
+Topic: ${input.topic}
+Phase: ${input.phase}
 Sources:
-{{{sourcesString}}}
+${sourcesString}
 
 **Your response MUST follow these instructions:**
 
@@ -83,58 +72,42 @@ Sources:
         *   If applicable, include formulas, tables, or visual descriptions.
     *   **Conclusion:** Summarize the key takeaways and provide specific, actionable practice suggestions or exercises for the learner.
 
-2.  **Write Original, Engaging, and Self-Contained Content:** Do NOT copy content directly from the sources. Synthesize the information in your own words to create a clear, practical, and easy-to-apply lesson. The content must be comprehensive enough for a learner to understand the topic without needing external resources. The tone should be encouraging and accessible but technically accurate.
+2.  **Estimate Time:** Based on the content length and complexity, provide an 'estimated_time_min' to read and understand the material.
 
-3.  **Title and Overview:**
+3.  **Write Original, Engaging, and Self-Contained Content:** Do NOT copy content directly from the sources. Synthesize the information in your own words to create a clear, practical, and easy-to-apply lesson. The content must be comprehensive enough for a learner to understand the topic without needing external resources. The tone should be encouraging and accessible but technically accurate.
+
+4.  **Title and Overview:**
     *   Create a concise, descriptive 'title' for the lesson.
     *   Write a short introductory 'overview' (around 50 words) that summarizes the lesson's main points.
 
-4.  **Curate Sources and Videos:**
+5.  **Curate Sources and Videos:**
     *   From the input 'sources' list, select the most relevant and high-quality ones to include in the output 'sources' array. For each, add a 'short_note' explaining its value. Ensure all links are functional.
     *   If any of the sources are videos (especially from YouTube), extract their information and add them to the 'videos' array, including the 'title', original watch 'url', and 'channel' name if possible.
 
-Your final output must be a single, valid JSON object that strictly conforms to the provided output schema.`,
-});
+Your final output must be a single, valid JSON object that strictly conforms to the provided output schema.
+`;
 
-const synthesizeLessonFlow = ai.defineFlow(
-  {
-    name: 'synthesizeLessonFlow',
-    inputSchema: SynthesizeLessonInputSchema,
-    outputSchema: SynthesizeLessonOutputSchema,
-  },
-  async input => {
-    const {output} = await synthesizePrompt({
-        ...input,
-        sourcesString: JSON.stringify(input.sources),
-      }, { model: googleAI.model('gemini-pro') });
+  const aiText = await generateWithGemini(prompt);
+  let output = parseGeminiJson<SynthesizeLessonOutput>(aiText);
 
-    if (!output) {
-      throw new Error("Failed to get a valid response from the AI model.");
-    }
+  // Post-processing to ensure video data is consistent, if needed.
+  const videoSources = output.sources.filter(s => s.type === 'video');
+  const existingVideoUrls = new Set(output.videos.map(v => v.url));
 
-    // Post-processing to ensure video data is consistent, if needed.
-    // For example, if AI puts a video in 'sources', we can move it to 'videos'.
-    const videoSources = output.sources.filter(s => s.type === 'video');
-    const existingVideoUrls = new Set(output.videos.map(v => v.url));
-
-    for (const videoSource of videoSources) {
-        if (!existingVideoUrls.has(videoSource.url)) {
-            output.videos.push({
-                title: videoSource.title,
-                url: videoSource.url,
-                channel: videoSource.domain === 'youtube.com' ? 'YouTube' : videoSource.domain,
-            });
-            existingVideoUrls.add(videoSource.url);
-        }
-    }
-    
-    // Ensure content has a minimum length. While the prompt asks for it, this is a fallback.
-    // A retry mechanism would be more robust but is more complex to implement here.
-    if (output.content.length < 600) {
-        console.warn(`[synthesizeLesson] Warning: Generated content is shorter than expected (${output.content.length} words).`);
-        // In a real scenario, you might want to throw an error or trigger a retry.
-    }
-    
-    return output;
+  for (const videoSource of videoSources) {
+      if (!existingVideoUrls.has(videoSource.url)) {
+          output.videos.push({
+              title: videoSource.title,
+              url: videoSource.url,
+              channel: videoSource.domain === 'youtube.com' ? 'YouTube' : videoSource.domain,
+          });
+          existingVideoUrls.add(videoSource.url);
+      }
   }
-);
+  
+  if (output.content.length < 600) {
+      console.warn(`[synthesizeLesson] Warning: Generated content is shorter than expected (${output.content.length} words).`);
+  }
+  
+  return SynthesizeLessonOutputSchema.parse(output);
+}

@@ -1,17 +1,15 @@
 
 'use server';
 /**
- * @fileOverview This file defines the Genkit flow for searching for reputable learning sources.
+ * @fileOverview This file defines the function for searching for reputable learning sources using Gemini API.
  *
- * The flow takes a topic and a learning phase as input and returns a list of 10-15 relevant web sources.
+ * It takes a topic and a learning phase as input and returns a list of 10-15 relevant web sources.
  *
- * @exports searchSources - The main function to find learning sources for a given topic and phase.
+ * @exports searchSources - The main function to find learning sources.
  */
 
-import { ai } from '../../../../genkit.config';
-import {z} from 'zod';
-import { googleAI } from '@genkit-ai/google-genai';
-
+import { z } from 'zod';
+import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
 
 const SearchSourcesInputSchema = z.object({
   topic: z.string().describe('The topic of study (e.g., "React Hooks", "Quantum Physics").'),
@@ -27,26 +25,18 @@ const SourceSchema = z.object({
   relevance: z.number().min(0.0).max(1.0).describe('A score from 0.0 to 1.0 indicating relevance to the topic and phase.'),
 });
 
-const SearchSourcesOutputSchema = z.object({
+export const SearchSourcesOutputSchema = z.object({
   sources: z.array(SourceSchema).describe('An array of 10-15 reputable information sources.'),
 });
 type SearchSourcesOutput = z.infer<typeof SearchSourcesOutputSchema>;
 
-
 export async function searchSources(input: SearchSourcesInput): Promise<SearchSourcesOutput> {
-  return searchSourcesFlow(input);
-}
-
-const searchPrompt = ai.definePrompt({
-  name: 'searchSourcesPrompt',
-  input: {schema: SearchSourcesInputSchema},
-  output: {schema: SearchSourcesOutputSchema},
-  prompt: `You are an expert at finding high-quality, reputable educational resources on the web.
+  const prompt = `You are an expert at finding high-quality, reputable educational resources on the web.
 
   Your task is to find 10-15 diverse and reliable sources for the given topic and learning phase.
 
-  Topic: {{{topic}}}
-  Learning Phase: {{{phase}}}
+  Topic: ${input.topic}
+  Learning Phase: ${input.phase}
 
   Prioritize the following types of domains:
   - Official documentation sites (e.g., *.dev, *.org)
@@ -61,20 +51,9 @@ const searchPrompt = ai.definePrompt({
 
   For each source, provide the title, full URL, domain, content type, and a relevance score.
   The output must be a valid JSON object containing a "sources" array. If no high-quality results are found, return an empty array.
-  `,
-});
+  `;
 
-const searchSourcesFlow = ai.defineFlow(
-  {
-    name: 'searchSourcesFlow',
-    inputSchema: SearchSourcesInputSchema,
-    outputSchema: SearchSourcesOutputSchema,
-  },
-  async input => {
-    const {output} = await searchPrompt(input, { model: googleAI.model('gemini-pro') });
-    if (!output) {
-        throw new Error("Failed to get a valid response from the AI model.");
-    }
-    return output;
-  }
-);
+  const aiText = await generateWithGemini(prompt);
+  const result = parseGeminiJson<SearchSourcesOutput>(aiText);
+  return SearchSourcesOutputSchema.parse(result);
+}

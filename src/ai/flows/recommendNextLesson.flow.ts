@@ -1,19 +1,12 @@
 
 'use server';
 /**
- * @fileOverview Defines the Genkit flow for recommending the next lesson to a user.
- *
- * This flow analyzes a user's learning history and progress to generate personalized
- * recommendations for what they should learn next.
- *
- * @exports recommendNextLesson - The main function to generate lesson recommendations.
+ * @fileOverview Defines the server action for recommending the next lesson to a user using Gemini API.
  */
 
-import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
-import { googleAI } from '@genkit-ai/google-genai';
-
+import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
 
 // Input schema for the flow.
 const RecommendNextLessonInputSchema = z.object({
@@ -41,15 +34,79 @@ export type RecommendNextLessonOutput = z.infer<
   typeof RecommendNextLessonOutputSchema
 >;
 
-const recommendationPrompt = ai.definePrompt({
-    name: 'recommendNextLessonPrompt',
-    input: { schema: z.object({ learningContext: z.string() }) },
-    output: { schema: RecommendNextLessonOutputSchema },
-    prompt: `
+export async function recommendNextLesson(input: RecommendNextLessonInput): Promise<RecommendNextLessonOutput> {
+  // Initialize Firebase Admin SDK if it hasn't been already.
+  if (!admin.apps.length) {
+    try {
+      admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+      });
+    } catch (e) {
+      console.error('Firebase Admin initialization error:', e);
+      if (!admin.apps.length) {
+        try {
+          admin.initializeApp();
+        } catch (e2) {
+          console.error('Fallback Firebase Admin initialization error:', e2);
+        }
+      }
+    }
+  }
+  const db = admin.firestore();
+
+  const { userId } = input;
+  const userTopicsPath = `users/${userId}/topics`;
+
+  console.log(`🧠 Generating next lesson recommendations for user: ${userId}`);
+
+  try {
+    const topicsSnapshot = await db.collection(userTopicsPath).get();
+    let lessonsSummary: any[] = [];
+
+    for (const topicDoc of topicsSnapshot.docs) {
+      const roadmapsSnapshot = await db.collection(`${userTopicsPath}/${topicDoc.id}/roadmaps`).get();
+      for (const roadmapDoc of roadmapsSnapshot.docs) {
+          const lessonsSnapshot = await db.collection(roadmapDoc.ref.path + '/lessons').get();
+          lessonsSnapshot.forEach(lessonDoc => {
+              const lessonData = lessonDoc.data();
+              lessonsSummary.push({
+                  topic: topicDoc.data().title || topicDoc.id,
+                  title: lessonData.title || "Untitled",
+                  status: lessonData.status || 'To Learn',
+              });
+          });
+      }
+    }
+
+    if (lessonsSummary.length === 0) {
+      console.warn("⚠️ No lessons found for this user. Suggesting beginner topics.");
+      return {
+        recommendations: [
+          {
+            title: "Introduction to Artificial Intelligence",
+            description: "Start with the fundamental concepts of AI and its applications in daily life.",
+            reason: "User has no learning data, so starting with the basics is recommended.",
+            difficulty: "beginner"
+          },
+          {
+            title: "How Computers Learn from Data",
+            description: "Explore the principles of Machine Learning through easy-to-understand examples.",
+            reason: "Helps build a foundation before tackling more advanced topics.",
+            difficulty: "beginner"
+          }
+        ]
+      };
+    }
+
+    const learningContext = lessonsSummary
+      .map(l => `• Topic: ${l.topic}, Lesson: ${l.title} (Status: ${l.status})`)
+      .join("\n");
+      
+    const prompt = `
     You are an intelligent AI Tutor. Based on the user's recent learning progress provided below, your task is to recommend the 3 most suitable next lessons.
 
     User's recent lessons:
-    {{learningContext}}
+    ${learningContext}
 
     For each recommendation, provide:
     {
@@ -60,105 +117,25 @@ const recommendationPrompt = ai.definePrompt({
     }
 
     Return the result as a pure JSON object, with no additional markdown or explanations.
-    `,
-});
+    `;
 
+    const aiText = await generateWithGemini(prompt);
+    const output = parseGeminiJson<RecommendNextLessonOutput>(aiText);
 
-export const recommendNextLesson = ai.defineFlow(
-  {
-    name: 'recommendNextLesson',
-    inputSchema: RecommendNextLessonInputSchema,
-    outputSchema: RecommendNextLessonOutputSchema,
-  },
-  async (input) => {
-    // Initialize Firebase Admin SDK if it hasn't been already.
-    if (!admin.apps.length) {
-      try {
-        admin.initializeApp({
-          credential: admin.credential.applicationDefault(),
-        });
-      } catch (e) {
-        console.error('Firebase Admin initialization error:', e);
-        if (!admin.apps.length) {
-          try {
-            admin.initializeApp();
-          } catch (e2) {
-            console.error('Fallback Firebase Admin initialization error:', e2);
-          }
+    console.log("✅ Recommendations generated successfully");
+    return RecommendNextLessonOutputSchema.parse(output);
+
+  } catch (error: any) {
+    console.error("❌ Failed to generate recommendations:", error);
+    return {
+      recommendations: [
+        {
+          title: "Could Not Generate Suggestions",
+          description: "The system is busy, please try again later.",
+          reason: error.message,
+          difficulty: "beginner"
         }
-      }
-    }
-    const db = admin.firestore();
-
-    const { userId } = input;
-    const userTopicsPath = `users/${userId}/topics`;
-
-    console.log(`🧠 Generating next lesson recommendations for user: ${userId}`);
-
-    try {
-      const topicsSnapshot = await db.collection(userTopicsPath).get();
-      let lessonsSummary: any[] = [];
-
-      for (const topicDoc of topicsSnapshot.docs) {
-        const roadmapsSnapshot = await db.collection(`${userTopicsPath}/${topicDoc.id}/roadmaps`).get();
-        for (const roadmapDoc of roadmapsSnapshot.docs) {
-            const lessonsSnapshot = await db.collection(roadmapDoc.ref.path + '/lessons').get();
-            lessonsSnapshot.forEach(lessonDoc => {
-                const lessonData = lessonDoc.data();
-                lessonsSummary.push({
-                    topic: topicDoc.data().title || topicDoc.id,
-                    title: lessonData.title || "Untitled",
-                    status: lessonData.status || 'To Learn',
-                });
-            });
-        }
-      }
-
-      if (lessonsSummary.length === 0) {
-        console.warn("⚠️ No lessons found for this user. Suggesting beginner topics.");
-        return {
-          recommendations: [
-            {
-              title: "Introduction to Artificial Intelligence",
-              description: "Start with the fundamental concepts of AI and its applications in daily life.",
-              reason: "User has no learning data, so starting with the basics is recommended.",
-              difficulty: "beginner"
-            },
-            {
-              title: "How Computers Learn from Data",
-              description: "Explore the principles of Machine Learning through easy-to-understand examples.",
-              reason: "Helps build a foundation before tackling more advanced topics.",
-              difficulty: "beginner"
-            }
-          ]
-        };
-      }
-
-      const learningContext = lessonsSummary
-        .map(l => `• Topic: ${l.topic}, Lesson: ${l.title} (Status: ${l.status})`)
-        .join("\n");
-
-      const { output } = await recommendationPrompt({ learningContext }, { model: googleAI.model('gemini-pro') });
-
-      if (!output) {
-        throw new Error('Failed to get a valid response from the AI model.');
-      }
-
-      console.log("✅ Recommendations generated successfully");
-      return output;
-
-    } catch (error: any) {
-      console.error("❌ Failed to generate recommendations:", error);
-      return {
-        recommendations: [
-          {
-            title: "Could Not Generate Suggestions",
-            description: "The system is busy, please try again later.",
-            reason: error.message,
-            difficulty: "beginner"
-          }
-        ]
-      };
-    }
+      ]
+    };
   }
-);
+}

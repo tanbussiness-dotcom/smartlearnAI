@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Defines the Genkit flow for compiling comprehensive user progress statistics.
+ * @fileOverview Defines the server action for compiling comprehensive user progress statistics.
  *
  * This flow aggregates data across a user's topics and lessons to calculate key
  * performance indicators such as total topics, completed lessons, average progress,
@@ -10,7 +10,6 @@
  * @exports getUserProgressStats - The main function to fetch user progress statistics.
  */
 
-import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 
@@ -81,13 +80,7 @@ function calculateLearningStreak(dates: (string | Date)[]): number {
 }
 
 
-export const getUserProgressStats = ai.defineFlow(
-  {
-    name: 'getUserProgressStats',
-    inputSchema: GetUserProgressStatsInputSchema,
-    outputSchema: GetUserProgressStatsOutputSchema,
-  },
-  async (input) => {
+export async function getUserProgressStats(input: GetUserProgressStatsInput): Promise<GetUserProgressStatsOutput> {
     // Initialize Firebase Admin SDK if it hasn't been already.
     if (!admin.apps.length) {
       try {
@@ -170,5 +163,4 @@ export const getUserProgressStats = ai.defineFlow(
         lastUpdated: new Date().toISOString(),
       };
     }
-  }
-);
+}

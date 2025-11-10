@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Defines the Genkit flow for retrieving a list of all certificates for a user.
+ * @fileOverview Defines the server action for retrieving a list of all certificates for a user.
  *
  * This flow queries all of a user's topics and roadmaps to find entries
  * that have a valid certificate URL, compiling them into a single list.
@@ -9,7 +9,6 @@
  * @exports getCertificateList - The main function to fetch the certificate list.
  */
 
-import { ai } from '../../../genkit.config';
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 
@@ -39,76 +38,69 @@ export type GetCertificateListOutput = z.infer<
   typeof GetCertificateListOutputSchema
 >;
 
-export const getCertificateList = ai.defineFlow(
-  {
-    name: 'getCertificateList',
-    inputSchema: GetCertificateListInputSchema,
-    outputSchema: GetCertificateListOutputSchema,
-  },
-  async (input) => {
-    // Initialize Firebase Admin SDK if it hasn't been already.
-    if (!admin.apps.length) {
-      try {
-        admin.initializeApp({
-          credential: admin.credential.applicationDefault(),
-        });
-      } catch (e) {
-        console.error('Firebase Admin initialization error:', e);
-        if (!admin.apps.length) {
-          try {
-            admin.initializeApp();
-          } catch (e2) {
-            console.error('Fallback Firebase Admin initialization error:', e2);
-          }
-        }
-      }
-    }
-    const db = admin.firestore();
-
-    const { userId } = input;
-    const result: z.infer<typeof CertificateSchema>[] = [];
-
-    console.log(`🔍 Fetching certificates for user: ${userId}`);
-
+export async function getCertificateList(input: GetCertificateListInput): Promise<GetCertificateListOutput> {
+  // Initialize Firebase Admin SDK if it hasn't been already.
+  if (!admin.apps.length) {
     try {
-      const topicsSnap = await db.collection(`users/${userId}/topics`).get();
-      for (const topicDoc of topicsSnap.docs) {
-        const topicId = topicDoc.id;
-        const roadmapsSnap = await db
-          .collection(`users/${userId}/topics/${topicId}/roadmaps`)
-          .get();
-
-        for (const roadmapDoc of roadmapsSnap.docs) {
-          const data = roadmapDoc.data();
-          // Check if the certificate object and its url property exist.
-          if (data.certificate && data.certificate.url) {
-            result.push({
-              roadmapId: roadmapDoc.id,
-              topicId: topicId,
-              title: data.stepTitle || 'Untitled Roadmap', // Use stepTitle as per our structure
-              certificateUrl: data.certificate.url,
-              // Handle both Timestamp and string formats for createdAt
-              createdAt: data.certificate.createdAt?.toDate
-                ? data.certificate.createdAt.toDate().toISOString()
-                : data.certificate.createdAt || new Date().toISOString(),
-            });
-          }
+      admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+      });
+    } catch (e) {
+      console.error('Firebase Admin initialization error:', e);
+      if (!admin.apps.length) {
+        try {
+          admin.initializeApp();
+        } catch (e2) {
+          console.error('Fallback Firebase Admin initialization error:', e2);
         }
       }
-
-      console.log(`✅ Found ${result.length} certificates for ${userId}`);
-      return {
-        success: true,
-        message: `Found ${result.length} certificates.`,
-        certificates: result,
-      };
-    } catch (error: any) {
-      console.error('❌ Error fetching certificates:', error);
-      return {
-        success: false,
-        message: error.message,
-        certificates: [],
-      };
     }
   }
-);
+  const db = admin.firestore();
+
+  const { userId } = input;
+  const result: z.infer<typeof CertificateSchema>[] = [];
+
+  console.log(`🔍 Fetching certificates for user: ${userId}`);
+
+  try {
+    const topicsSnap = await db.collection(`users/${userId}/topics`).get();
+    for (const topicDoc of topicsSnap.docs) {
+      const topicId = topicDoc.id;
+      const roadmapsSnap = await db
+        .collection(`users/${userId}/topics/${topicId}/roadmaps`)
+        .get();
+
+      for (const roadmapDoc of roadmapsSnap.docs) {
+        const data = roadmapDoc.data();
+        // Check if the certificate object and its url property exist.
+        if (data.certificate && data.certificate.url) {
+          result.push({
+            roadmapId: roadmapDoc.id,
+            topicId: topicId,
+            title: data.stepTitle || 'Untitled Roadmap', // Use stepTitle as per our structure
+            certificateUrl: data.certificate.url,
+            // Handle both Timestamp and string formats for createdAt
+            createdAt: data.certificate.createdAt?.toDate
+              ? data.certificate.createdAt.toDate().toISOString()
+              : data.certificate.createdAt || new Date().toISOString(),
+          });
+        }
+      }
+    }
+
+    console.log(`✅ Found ${result.length} certificates for ${userId}`);
+    return {
+      success: true,
+      message: `Found ${result.length} certificates.`,
+      certificates: result,
+    };
+  } catch (error: any) {
+    console.error('❌ Error fetching certificates:', error);
+    return {
+      success: false,
+      message: error.message,
+      certificates: [],
+    };
+  }
+}

@@ -2,15 +2,11 @@
 'use server';
 
 /**
- * @fileOverview Generates a personalized learning roadmap for a given topic.
- *
- * - generatePersonalizedLearningRoadmap - A function that generates a learning roadmap.
+ * @fileOverview Generates a personalized learning roadmap for a given topic using the Gemini API.
  */
 
-import { ai } from '../../../genkit.config';
 import { z } from 'zod';
-import { googleAI } from '@genkit-ai/google-genai';
-
+import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
 
 const GeneratePersonalizedLearningRoadmapInputSchema = z.object({
   topic: z.string().describe('The topic for which to generate a learning roadmap.'),
@@ -51,14 +47,7 @@ export type GeneratePersonalizedLearningRoadmapOutput = z.infer<
 export async function generatePersonalizedLearningRoadmap(
   input: GeneratePersonalizedLearningRoadmapInput
 ): Promise<GeneratePersonalizedLearningRoadmapOutput> {
-  return generatePersonalizedLearningRoadmapFlow(input);
-}
-
-const prompt = ai.definePrompt({
-  name: 'generatePersonalizedLearningRoadmapPrompt',
-  input: { schema: GeneratePersonalizedLearningRoadmapInputSchema },
-  output: { schema: GeneratePersonalizedLearningRoadmapOutputSchema },
-  prompt: `Bạn là chuyên gia đào tạo và cố vấn học tập AI.
+  const prompt = `Bạn là chuyên gia đào tạo và cố vấn học tập AI.
     Hãy thiết kế một lộ trình học tập toàn diện cho lĩnh vực "{{topic}}".
     - Mục tiêu chính: {{goal}}
     - Thời lượng tổng: {{duration}}
@@ -77,20 +66,16 @@ const prompt = ai.definePrompt({
         - "difficulty": beginner | intermediate | advanced
 
     Trả kết quả duy nhất dưới dạng JSON. Không thêm markdown, không giải thích, chỉ JSON thuần.
-    `,
-});
+    `
+    .replace('{{topic}}', input.topic)
+    .replace('{{goal}}', input.goal)
+    .replace('{{duration}}', input.duration)
+    .replace('{{level}}', input.level)
+    .replace('{{targetAudience}}', input.targetAudience);
 
-const generatePersonalizedLearningRoadmapFlow = ai.defineFlow(
-  {
-    name: 'generatePersonalizedLearningRoadmapFlow',
-    inputSchema: GeneratePersonalizedLearningRoadmapInputSchema,
-    outputSchema: GeneratePersonalizedLearningRoadmapOutputSchema,
-  },
-  async (input) => {
-    const { output } = await prompt(input, { model: googleAI.model('gemini-pro') });
-    if (!output) {
-        throw new Error("Failed to get a valid response from the AI model.");
-    }
-    return output;
-  }
-);
+  const aiText = await generateWithGemini(prompt);
+  const result = parseGeminiJson<GeneratePersonalizedLearningRoadmapOutput>(aiText);
+  
+  // Validate with Zod before returning
+  return GeneratePersonalizedLearningRoadmapOutputSchema.parse(result);
+}

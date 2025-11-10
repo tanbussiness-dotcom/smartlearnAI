@@ -1,18 +1,13 @@
 
 'use server';
 /**
- * @fileOverview Defines the Genkit flow for dynamically generating lesson section content.
- *
- * This flow takes a topic and section details to generate detailed content
- * and a simple quiz question for a specific part of a lesson.
+ * @fileOverview Defines the server action for dynamically generating lesson section content using Gemini API.
  *
  * @exports vertexDynamicSectionGenerator - The main function to generate a lesson section.
  */
 
-import { ai } from '../../../genkit.config';
 import { z } from 'zod';
-import { googleAI } from '@genkit-ai/google-genai';
-
+import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
 
 // Defines the schema for the flow's input.
 const VertexDynamicSectionGeneratorInputSchema = z.object({
@@ -45,38 +40,27 @@ export type VertexDynamicSectionGeneratorOutput = z.infer<
   typeof VertexDynamicSectionGeneratorOutputSchema
 >;
 
-const prompt = ai.definePrompt({
-  name: 'vertexDynamicSectionGeneratorPrompt',
-  input: { schema: VertexDynamicSectionGeneratorInputSchema },
-  output: { schema: VertexDynamicSectionGeneratorOutputSchema },
-  prompt: `
-    Viết nội dung chi tiết cho phần "{{sectionTitle}}" thuộc bài học "{{topic}}".
-    Mục tiêu phần này: "{{sectionGoal}}".
+export async function vertexDynamicSectionGenerator(
+  input: VertexDynamicSectionGeneratorInput
+): Promise<VertexDynamicSectionGeneratorOutput> {
+  console.log(`🚀 Generating section content: ${input.sectionTitle}`);
+
+  const prompt = `
+    Viết nội dung chi tiết cho phần "${input.sectionTitle}" thuộc bài học "${input.topic}".
+    Mục tiêu phần này: "${input.sectionGoal}".
     Yêu cầu:
     - Nội dung dễ hiểu, logic, 400–700 từ.
     - Có ví dụ minh họa nếu cần.
     - Kết thúc bằng phần tóm tắt ngắn.
+    - Tạo một câu hỏi trắc nghiệm (quiz) với question, options (4 lựa chọn), và correctAnswer.
     - Trả kết quả dạng JSON.
 
     Không thêm markdown hay \`\`\`json, chỉ trả về JSON thuần.
-    `,
-});
+    `;
+  
+  const aiText = await generateWithGemini(prompt);
+  const output = parseGeminiJson<VertexDynamicSectionGeneratorOutput>(aiText);
 
-export const vertexDynamicSectionGenerator = ai.defineFlow(
-  {
-    name: 'vertexDynamicSectionGenerator',
-    inputSchema: VertexDynamicSectionGeneratorInputSchema,
-    outputSchema: VertexDynamicSectionGeneratorOutputSchema,
-  },
-  async (input) => {
-    console.log(`🚀 Generating section content: ${input.sectionTitle}`);
-
-    const { output } = await prompt(input, { model: googleAI.model('gemini-pro') });
-    if (!output) {
-      throw new Error('Failed to get a valid response from the AI model.');
-    }
-
-    console.log(`✅ Section generated: ${output.title}`);
-    return output;
-  }
-);
+  console.log(`✅ Section generated: ${output.title}`);
+  return VertexDynamicSectionGeneratorOutputSchema.parse(output);
+}

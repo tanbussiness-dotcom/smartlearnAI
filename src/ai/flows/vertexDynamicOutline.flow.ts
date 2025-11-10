@@ -1,18 +1,13 @@
 
 'use server';
 /**
- * @fileOverview Defines the Genkit flow for creating a dynamic lesson outline.
- *
- * This flow takes a topic, level, and target audience to generate a structured
- * outline for a new lesson, including a title, overview, and section details.
+ * @fileOverview Defines the server action for creating a dynamic lesson outline using Gemini API.
  *
  * @exports vertexDynamicOutline - The main function to generate a lesson outline.
  */
 
-import { ai } from '../../../genkit.config';
 import { z } from 'zod';
-import { googleAI } from '@genkit-ai/google-genai';
-
+import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
 
 // Defines the schema for the flow's input.
 const VertexDynamicOutlineInputSchema = z.object({
@@ -57,37 +52,25 @@ export type VertexDynamicOutlineOutput = z.infer<
   typeof VertexDynamicOutlineOutputSchema
 >;
 
-const prompt = ai.definePrompt({
-  name: 'vertexDynamicOutlinePrompt',
-  input: { schema: VertexDynamicOutlineInputSchema },
-  output: { schema: VertexDynamicOutlineOutputSchema },
-  prompt: `Bạn là chuyên gia thiết kế khóa học. 
-Hãy tạo cấu trúc bài học dễ hiểu nhất cho chủ đề "{{topic}}".
-- Cấp độ: {{level}}
-- Đối tượng học: {{targetAudience}}
+export async function vertexDynamicOutline(
+  input: VertexDynamicOutlineInput
+): Promise<VertexDynamicOutlineOutput> {
+  console.log(`🚀 Generating adaptive outline for topic: ${input.topic}`);
+
+  const prompt = `Bạn là chuyên gia thiết kế khóa học. 
+Hãy tạo cấu trúc bài học dễ hiểu nhất cho chủ đề "${input.topic}".
+- Cấp độ: ${input.level}
+- Đối tượng học: ${input.targetAudience}
 - Hãy tự quyết định số phần hợp lý (từ 3 đến 8 phần).
 - Mỗi phần có: sectionId (slug ngắn gọn), title (tên phần), goal (mục tiêu học tập), status ("not_started").
 - Trả kết quả dạng JSON.
 
 Không thêm markdown hay \`\`\`json, chỉ trả về JSON thuần.
-`,
-});
+`;
+  
+  const aiText = await generateWithGemini(prompt);
+  const output = parseGeminiJson<VertexDynamicOutlineOutput>(aiText);
 
-export const vertexDynamicOutline = ai.defineFlow(
-  {
-    name: 'vertexDynamicOutline',
-    inputSchema: VertexDynamicOutlineInputSchema,
-    outputSchema: VertexDynamicOutlineOutputSchema,
-  },
-  async (input) => {
-    console.log(`🚀 Generating adaptive outline for topic: ${input.topic}`);
-    
-    const { output } = await prompt(input, { model: googleAI.model('gemini-pro') });
-    if (!output) {
-        throw new Error("Failed to get a valid response from the AI model.");
-    }
-
-    console.log(`✅ Adaptive outline created: ${output.title}`);
-    return output;
-  }
-);
+  console.log(`✅ Adaptive outline created: ${output.title}`);
+  return VertexDynamicOutlineOutputSchema.parse(output);
+}

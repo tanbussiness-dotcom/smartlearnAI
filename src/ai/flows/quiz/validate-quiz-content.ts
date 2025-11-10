@@ -1,19 +1,13 @@
 
 'use server';
 /**
- * @fileOverview Defines the Genkit flow for validating the relevance of quiz questions against lesson content.
- *
- * This flow takes the lesson content and a set of quiz questions as input, then uses an AI model
- * to assess whether the questions can be answered solely based on the provided content.
- * It returns a validation score and identifies any questions that are deemed irrelevant.
+ * @fileOverview Defines the function for validating the relevance of quiz questions against lesson content using Gemini API.
  *
  * @exports validateQuizContent - The main function to validate a quiz.
  */
 
-import { ai } from '../../../../genkit.config';
 import { z } from 'zod';
-import { googleAI } from '@genkit-ai/google-genai';
-
+import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
 
 // Schema for a single question, consistent with quiz generation flow.
 const QuestionSchema = z.object({
@@ -76,14 +70,10 @@ type ValidateQuizContentOutput = z.infer<
 export async function validateQuizContent(
   input: ValidateQuizContentInput
 ): Promise<ValidateQuizContentOutput> {
-  return validateQuizContentFlow(input);
-}
 
-const validationPrompt = ai.definePrompt({
-  name: 'validateQuizContentPrompt',
-  input: { schema: ValidateQuizContentInputSchema.extend({ quizQuestionsString: z.string() }) },
-  output: { schema: ValidateQuizContentOutputSchema },
-  prompt: `You are an expert at Quality Assurance for educational content. Your task is to analyze a given lesson and a set of quiz questions to determine if the questions can be answered *solely* based on the provided lesson content.
+  const quizQuestionsString = JSON.stringify(input.quiz_questions, null, 2);
+
+  const prompt = `You are an expert at Quality Assurance for educational content. Your task is to analyze a given lesson and a set of quiz questions to determine if the questions can be answered *solely* based on the provided lesson content.
 
 **Instructions:**
 1.  Carefully read the entire \`lesson_content\`.
@@ -95,45 +85,30 @@ const validationPrompt = ai.definePrompt({
 
 **Lesson Content:**
 \`\`\`
-{{{lesson_content}}}
+${input.lesson_content}
 \`\`\`
 
 **Quiz Questions to Validate:**
 \`\`\`json
-{{{quizQuestionsString}}}
+${quizQuestionsString}
 \`\`\`
 
-Your final output must be a single, valid JSON object conforming to the specified output schema.`,
-});
+Your final output must be a single, valid JSON object conforming to the specified output schema.`;
+  
+  const aiText = await generateWithGemini(prompt, false);
+  let output = parseGeminiJson<ValidateQuizContentOutput>(aiText);
 
-const validateQuizContentFlow = ai.defineFlow(
-  {
-    name: 'validateQuizContentFlow',
-    inputSchema: ValidateQuizContentInputSchema,
-    outputSchema: ValidateQuizContentOutputSchema,
-  },
-  async input => {
-    const { output } = await validationPrompt({
-        ...input,
-        quizQuestionsString: JSON.stringify(input.quiz_questions),
-      }, { model: googleAI.model('gemini-pro') });
+  // Business logic enforcement
+  const isValid = output.relevance_score >= 0.8;
+  output.valid = isValid;
+  output.review_required = !isValid;
 
-    if (!output) {
-      throw new Error('Failed to get a valid validation response from the AI model.');
-    }
-
-    // Business logic enforcement
-    const isValid = output.relevance_score >= 0.8;
-    output.valid = isValid;
-    output.review_required = !isValid;
-
-    if (!isValid && output.invalid_questions.length === 0) {
-      output.invalid_questions.push({
-        index: -1,
-        reason: `The relevance score is below 0.8, but the AI did not specify which questions were invalid. Manual review is recommended.`,
-      });
-    }
-
-    return output;
+  if (!isValid && output.invalid_questions.length === 0) {
+    output.invalid_questions.push({
+      index: -1,
+      reason: `The relevance score is below 0.8, but the AI did not specify which questions were invalid. Manual review is recommended.`,
+    });
   }
-);
+
+  return ValidateQuizContentOutputSchema.parse(output);
+}

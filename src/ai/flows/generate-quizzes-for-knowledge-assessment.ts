@@ -2,15 +2,11 @@
 'use server';
 
 /**
- * @fileOverview Generates quizzes for knowledge assessment based on detailed lesson content.
- *
- * - generateQuizForLesson - A function that handles the quiz generation process.
+ * @fileOverview Generates quizzes for knowledge assessment based on detailed lesson content using Gemini API.
  */
 
-import { ai } from '../../../genkit.config';
-import {z} from 'zod';
-import { googleAI } from '@genkit-ai/google-genai';
-
+import { z } from 'zod';
+import { generateWithGemini, parseGeminiJson } from '@/lib/gemini';
 
 const GenerateQuizForLessonInputSchema = z.object({
   lesson_id: z.string().describe('The ID of the lesson to generate a quiz for.'),
@@ -33,14 +29,7 @@ const GenerateQuizForLessonOutputSchema = z.object({
 export type GenerateQuizForLessonOutput = z.infer<typeof GenerateQuizForLessonOutputSchema>;
 
 export async function generateQuizForLesson(input: GenerateQuizForLessonInput): Promise<GenerateQuizForLessonOutput> {
-  return generateQuizForLessonFlow(input);
-}
-
-const prompt = ai.definePrompt({
-  name: 'generateQuizForLessonPrompt',
-  input: {schema: GenerateQuizForLessonInputSchema},
-  output: {schema: GenerateQuizForLessonOutputSchema},
-  prompt: `You are an expert quiz creator for educational material. Your task is to generate a 10-question multiple-choice quiz based *only* on the provided lesson content.
+  const prompt = `You are an expert quiz creator for educational material. Your task is to generate a 10-question multiple-choice quiz based *only* on the provided lesson content.
 
 **Instructions:**
 1.  Read the entire 'lesson_content' provided below.
@@ -59,27 +48,19 @@ const prompt = ai.definePrompt({
 
 **Lesson Content:**
 '''
-{{{lesson_content}}}
+${input.lesson_content}
 '''
-`,
-});
+`;
 
-const generateQuizForLessonFlow = ai.defineFlow(
-  {
-    name: 'generateQuizForLessonFlow',
-    inputSchema: GenerateQuizForLessonInputSchema,
-    outputSchema: GenerateQuizForLessonOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input, { model: googleAI.model('gemini-pro') });
-    if (!output) {
-      throw new Error("Failed to generate quiz from the AI model.");
-    }
-    // Ensure the lesson_id is correctly passed through and pass_score is set
-    return {
-        ...output,
-        lesson_id: input.lesson_id,
-        pass_score: 70,
-    };
-  }
-);
+  const aiText = await generateWithGemini(prompt, false); // Don't cache quizzes
+  const result = parseGeminiJson<GenerateQuizForLessonOutput>(aiText);
+  
+  // Ensure the lesson_id is correctly passed through and pass_score is set
+  const finalOutput = {
+      ...result,
+      lesson_id: input.lesson_id,
+      pass_score: 70,
+  };
+
+  return GenerateQuizForLessonOutputSchema.parse(finalOutput);
+}
