@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search as SearchIcon, LoaderCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { collection, writeBatch } from 'firebase/firestore';
+import { collection, writeBatch, doc } from 'firebase/firestore';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -78,11 +79,11 @@ export default function SearchPage() {
       // Step 3: Write the entire roadmap to Firestore using a batch write
       setLoadingStep('save');
       const batch = writeBatch(firestore);
-      const roadmapsPath = `users/${user.uid}/topics/${topicId}/roadmaps`;
+      const roadmapsCollection = collection(firestore, `users/${user.uid}/topics/${topicId}/roadmaps`);
       let stepCounter = 1;
 
       for (const phase of roadmapResult.roadmap) {
-        const roadmapDocRef = collection(firestore, roadmapsPath).doc();
+        const roadmapDocRef = doc(roadmapsCollection);
         batch.set(roadmapDocRef, {
             stepNumber: stepCounter,
             stepTitle: phase.title,
@@ -93,7 +94,8 @@ export default function SearchPage() {
 
         const lessonsColRef = collection(roadmapDocRef, 'lessons');
         for (const lesson of phase.lessons) {
-            const lessonDocRef = lessonsColRef.doc(lesson.lessonId);
+            // Use specific lessonId from AI if available, otherwise auto-generate
+            const lessonDocRef = doc(lessonsColRef, lesson.lessonId);
             batch.set(lessonDocRef, {
                 title: lesson.title,
                 description: lesson.description,
