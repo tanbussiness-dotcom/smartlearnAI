@@ -1,15 +1,18 @@
-'use server';
 import 'dotenv/config';
+import fs from "fs";
+import path from "path";
 import { generateWithGemini } from "@/lib/gemini";
 
 async function aiHealthCheck() {
   console.log("🧠 Checking Gemini API connectivity...\n");
 
   const tests = [
-    "Hello Gemini! Just say hi.",
-    "Give me a random fact about AI in one sentence.",
+    "Say hello!",
+    "Give one fact about AI.",
     "What year was Google founded?"
   ];
+
+  const results: any[] = [];
 
   for (let i = 0; i < tests.length; i++) {
     const prompt = tests[i];
@@ -19,14 +22,22 @@ async function aiHealthCheck() {
     try {
       const response = await generateWithGemini(prompt, false);
       const elapsed = Date.now() - start;
-      console.log(`✅ Success (${elapsed}ms): ${response.slice(0, 60)}...\n`);
+      console.log(`✅ Success (${elapsed}ms): ${response.slice(0, 80)}...\n`);
+      results.push({ prompt, success: true, response: response.slice(0, 100), time_ms: elapsed });
     } catch (err: any) {
       const elapsed = Date.now() - start;
       console.error(`❌ Error (${elapsed}ms): ${err.message}\n`);
+      results.push({ prompt, success: false, error: err.message, time_ms: elapsed });
     }
   }
 
-  console.log("🏁 Health check finished.\n");
+  const logDir = path.join(process.cwd(), "logs");
+  if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
+
+  const logPath = path.join(logDir, `aiHealthCheck_${new Date().toISOString()}.json`);
+  fs.writeFileSync(logPath, JSON.stringify(results, null, 2));
+
+  console.log(`🏁 Health check finished.\nResults saved at: ${logPath}`);
 }
 
 aiHealthCheck();
