@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  GoogleAuthProvider,
-  signOut,
-  signInWithPopup,
-  OAuthProvider,
-} from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser } from '@/firebase';
@@ -33,7 +28,7 @@ export function UserNav() {
   };
 
   if (isUserLoading) {
-    return null; // Or a loading spinner
+    return null; // Don't render anything until auth state is known
   }
 
   if (!user) {
