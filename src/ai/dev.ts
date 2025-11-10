@@ -10,7 +10,7 @@ import './flows/quiz/validate-quiz-content';
 import './flows/vertex-verify-connection';
 import './flows/vertexDynamicOutline.flow';
 import './flows/vertexDynamicSectionGenerator.flow';
-import './flows/saveLessonToFirestore.flow';
+import './flows/syncRoadmapToFirestore.flow';
 import './flows/getLessonFromFirestore.flow';
 import './flows/updateLessonProgress.flow';
 import './flows/getUserProgressStats.flow';

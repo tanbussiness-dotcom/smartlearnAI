@@ -6,7 +6,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search as SearchIcon, ArrowRight, LoaderCircle } from 'lucide-react';
-import { collection, doc, writeBatch } from 'firebase/firestore';
 import { motion } from 'framer-motion';
 
 import { Input } from '@/components/ui/input';
@@ -23,15 +22,9 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useUser, useFirestore, addDocumentNonBlocking, FirestorePermissionError, errorEmitter } from '@/firebase';
 import { generatePersonalizedLearningRoadmap } from '@/ai/flows/generate-personalized-learning-roadmap';
 import { createDailyLearningTasks } from '@/ai/flows/create-daily-learning-tasks';
+import { syncRoadmapToFirestore } from '@/ai/flows/syncRoadmapToFirestore.flow';
 import { useToast } from '@/hooks/use-toast';
 import { LessonGeneratingModal } from '@/components/lesson-generating-modal';
-
-// Placeholder lesson titles for initial creation
-const placeholderLessons = [
-    { title: "Introduction to the Topic", overview: "Get a basic understanding of the core concepts." },
-    { title: "Core Concepts", overview: "Dive deeper into the main principles and theories." },
-    { title: "Practical Application", overview: "Learn how to apply your knowledge in real-world scenarios." },
-];
 
 export default function SearchPage() {
   const popularTopics = [
@@ -103,90 +96,56 @@ export default function SearchPage() {
     let topicId: string | undefined = undefined;
 
     try {
-      // 1. Generate Roadmap structure
+      // Step 1: Generate Roadmap structure from AI
       setLoadingStep('sources'); // Corresponds to "Finding resources"
       const roadmapResult = await generatePersonalizedLearningRoadmap({ topic: currentTopic });
 
-      // 2. Create Topic in Firestore
+      // Step 2: Create Topic document in Firestore
       setLoadingStep('synthesize'); // Corresponds to "Synthesizing content"
       const topicsCollection = collection(firestore, 'users', user.uid, 'topics');
       const topicRef = await addDocumentNonBlocking(topicsCollection, {
         title: currentTopic,
         createdBy: user.uid,
+        createdAt: new Date().toISOString(),
       });
 
       if (!topicRef) {
-        throw new Error("Failed to create topic reference.");
+        throw new Error("Failed to create topic reference in Firestore.");
       }
       topicId = topicRef.id;
       
-      const allLessonsForTopic: { lessonId: string, title: string, description: string }[] = [];
-      const batch = writeBatch(firestore);
-
-      // 3. Create placeholder lessons for each roadmap step
+      // Step 3: Use the new flow to sync the entire roadmap to Firestore
       setLoadingStep('validate'); // Corresponds to "Validating lessons"
-      for (const step of roadmapResult.roadmap) {
-        const roadmapStepRef = doc(collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps'));
-        batch.set(roadmapStepRef, {
-            ...step,
-            status: step.stepNumber === 1 ? 'Learning' : 'Locked',
-        });
-        
-        // Create a few placeholder lessons for each step
-        for(let i=0; i < placeholderLessons.length; i++) {
-            const lesson = placeholderLessons[i];
-            const lessonRef = doc(collection(roadmapStepRef, 'lessons'));
-            batch.set(lessonRef, {
-              title: `${lesson.title}: ${step.skills[i] || step.stepTitle}`,
-              overview: lesson.overview,
-              content: `Nội dung cho bài học này đang được AI tạo. Vui lòng quay lại sau.`, // Placeholder content
-              status: 'To Learn',
-              has_quiz: true,
-              quiz_ready: false,
-              createdAt: new Date().toISOString(),
-              userId: user.uid,
-              topic: step.stepTitle, // Store the step topic for generation later
-              phase: "Cơ bản" // default phase
-            });
+      const syncResult = await syncRoadmapToFirestore({
+        userId: user.uid,
+        topicId: topicId,
+        roadmapData: roadmapResult,
+      });
 
-             allLessonsForTopic.push({
-                lessonId: lessonRef.id,
-                title: lesson.title,
-                description: lesson.overview
-            });
-        }
+      if (!syncResult.success) {
+        throw new Error(syncResult.message || 'Failed to sync roadmap to Firestore.');
       }
-      await batch.commit();
-
       
-      // 4. Create daily tasks from all lessons
-      if(allLessonsForTopic.length > 0) {
-        setLoadingStep('save');
-        const dailyTasksResult = await createDailyLearningTasks({
-            lessons: allLessonsForTopic,
+      // Step 4: Create daily tasks (optional, can be done in background)
+      // This part can be adjusted based on whether you want to create tasks from all lessons at once.
+      // For now, we assume this is a desired feature.
+      setLoadingStep('save');
+      const allLessonsForDailyTasks = roadmapResult.roadmap.flatMap(phase => 
+        phase.lessons.map(lesson => ({
+          lessonId: lesson.lessonId,
+          title: lesson.title,
+          description: lesson.description
+        }))
+      );
+
+      if (allLessonsForDailyTasks.length > 0) {
+        // This can be a non-blocking call if we don't need to wait for it.
+        createDailyLearningTasks({
+            lessons: allLessonsForDailyTasks,
             userId: user.uid,
             topicId: topicId,
-            tasksPerDay: 1, // Or make this configurable
-        });
-
-        const dailyTasksCollection = collection(firestore, 'users', user.uid, 'dailyTasks');
-        const taskBatch = writeBatch(firestore);
-        const firstTaskData = dailyTasksResult[0];
-
-        for(const task of dailyTasksResult) {
-            const taskRef = doc(dailyTasksCollection);
-            taskBatch.set(taskRef, { ...task, status: 'To Learn'});
-        }
-        
-        await taskBatch.commit().catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-              path: dailyTasksCollection.path,
-              operation: 'create',
-              requestResourceData: firstTaskData, 
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            throw serverError;
-        });
+            tasksPerDay: 1,
+        }).catch(error => console.error("Failed to create daily tasks:", error));
       }
 
       toast({
