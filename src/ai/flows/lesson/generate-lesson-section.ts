@@ -9,10 +9,9 @@
  * @exports generateLessonSection - The main function to generate a lesson section.
  */
 
-import { ai } from '../../../../genkit.config';
 import { z } from 'zod';
-import { googleAI } from '@genkit-ai/google-genai';
-
+import { generateWithGemini } from '@/lib/gemini';
+import { parseGeminiJson } from '@/lib/utils';
 
 // Defines the schema for the flow's input.
 const GenerateLessonSectionInputSchema = z.object({
@@ -32,24 +31,14 @@ const GenerateLessonSectionOutputSchema = z.object({
     .describe('The title of the generated section, matching the input.'),
   section_content: z
     .string()
-
     .describe(
       'The detailed content for the section, in Markdown format, between 300 and 400 words.'
     ),
 });
 type GenerateLessonSectionOutput = z.infer<typeof GenerateLessonSectionOutputSchema>;
 
-export async function generateLessonSection(
-  input: GenerateLessonSectionInput
-): Promise<GenerateLessonSectionOutput> {
-  return generateLessonSectionFlow(input);
-}
 
-const generateLessonSectionPrompt = ai.definePrompt({
-  name: 'generateLessonSectionPrompt',
-  input: { schema: GenerateLessonSectionInputSchema },
-  output: { schema: GenerateLessonSectionOutputSchema },
-  prompt: `You are an expert instructional writer. Your task is to write a detailed and clear explanation for a specific section of a larger topic.
+const PROMPT_TEMPLATE = `You are an expert instructional writer. Your task is to write a detailed and clear explanation for a specific section of a larger topic.
 
 Topic: {{{topic}}}
 Section to write: {{{section}}}
@@ -63,22 +52,24 @@ Section to write: {{{section}}}
 6.  The final output must be a valid JSON object, with the 'section_title' matching the requested section and the 'section_content' containing your written explanation.
 
 Do not write the entire lesson, only the content for the specified section.
-`,
-});
+`;
 
-const generateLessonSectionFlow = ai.defineFlow(
-  {
-    name: 'generateLessonSectionFlow',
-    inputSchema: GenerateLessonSectionInputSchema,
-    outputSchema: GenerateLessonSectionOutputSchema,
-  },
-  async (input) => {
-    const { output } = await generateLessonSectionPrompt(input, { model: googleAI.model('gemini-pro') });
+
+export async function generateLessonSection(
+  input: GenerateLessonSectionInput
+): Promise<GenerateLessonSectionOutput> {
+  
+    const prompt = PROMPT_TEMPLATE
+        .replace('{{{topic}}}', input.topic)
+        .replace('{{{section}}}', input.section);
+
+    const aiText = await generateWithGemini(prompt);
+    let output = parseGeminiJson<GenerateLessonSectionOutput>(aiText);
+    
     if (!output) {
       throw new Error('Failed to get a valid response from the AI model.');
     }
     // Ensure the section title in the output matches the input
     output.section_title = input.section;
-    return output;
-  }
-);
+    return GenerateLessonSectionOutputSchema.parse(output);
+}
