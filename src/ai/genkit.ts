@@ -1,5 +1,3 @@
-
-'use server';
 /**
  * @fileoverview This file initializes and configures the Genkit AI instance.
  * It sets up the necessary plugins, such as the Google AI plugin for Gemini,
