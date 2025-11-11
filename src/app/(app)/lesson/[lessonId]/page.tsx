@@ -131,14 +131,14 @@ export default function LessonPage() {
             lessonId: lesson.id,
         });
 
-        if (!response || response.success === false) {
-            const err = response?.error || { step: 'Unknown', message: 'Unknown error' };
-            console.error('Lesson generation details:', err);
+        if (response.success === false) {
+            const err = response.error || { step: 'Unknown', message: 'Unknown error' };
             toast({
                 variant: 'destructive',
                 title: `Tạo bài học thất bại ở bước: ${err.step}`,
                 description: err.message,
             });
+            console.error('Lesson generation details:', err.details);
             setIsGenerating(false);
             return;
         }
