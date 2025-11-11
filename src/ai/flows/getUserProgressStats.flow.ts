@@ -32,7 +32,6 @@ export type GetUserProgressStatsOutput = z.infer<
 >;
 
 export async function getUserProgressStats(input: GetUserProgressStatsInput): Promise<GetUserProgressStatsOutput> {
-    console.warn("`getUserProgressStats` is a stub. This logic should be handled client-side.");
     return {
         totalTopics: 0,
         totalLessons: 0,

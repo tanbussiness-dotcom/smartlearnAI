@@ -38,11 +38,8 @@ export type RecommendNextLessonOutput = z.infer<
 >;
 
 export async function recommendNextLesson(input: RecommendNextLessonInput): Promise<RecommendNextLessonOutput> {
-  console.log(`🧠 Generating next lesson recommendations for user: ${input.userId}`);
-
   try {
     if (!input.learningContext) {
-        console.warn("⚠️ No learning context provided. Suggesting beginner topics.");
         return {
             recommendations: [
             {
@@ -81,11 +78,9 @@ export async function recommendNextLesson(input: RecommendNextLessonInput): Prom
     const aiText = await generateWithGemini(prompt);
     const output = parseGeminiJson<RecommendNextLessonOutput>(aiText);
 
-    console.log("✅ Recommendations generated successfully");
     return RecommendNextLessonOutputSchema.parse(output);
 
   } catch (error: any) {
-    console.error("❌ Failed to generate recommendations:", error);
     return {
       recommendations: [
         {

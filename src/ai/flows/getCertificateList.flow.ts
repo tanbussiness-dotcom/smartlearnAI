@@ -37,7 +37,6 @@ export type GetCertificateListOutput = z.infer<
 >;
 
 export async function getCertificateList(input: GetCertificateListInput): Promise<GetCertificateListOutput> {
-  console.warn("`getCertificateList` is a stub. This logic should be handled client-side.");
   return {
     success: false,
     message: 'Certificate fetching is not implemented on the server. This should be a client-side action.',

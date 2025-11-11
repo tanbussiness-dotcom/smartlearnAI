@@ -43,25 +43,19 @@ export async function generateLesson(input: z.infer<typeof GenerateLessonInputSc
     
   try {
     // Step 1: Search for sources
-    console.log(`[generateLesson] Step 1: Searching sources for topic: "${topic}"`);
     const searchResult = await searchSources({ topic, phase });
     if (!searchResult.sources || searchResult.sources.length === 0) {
-      console.error('[generateLesson] Step 1 FAILED: No sources found.');
       throw new Error('Could not find any relevant sources for the topic.');
     }
-    console.log(`[generateLesson] Step 1 COMPLETED: Found ${searchResult.sources.length} sources.`);
 
     // Step 2: Synthesize the lesson from the sources
-    console.log('[generateLesson] Step 2: Synthesizing lesson...');
     const lessonDraft = await synthesizeLesson({
       topic,
       phase,
       sources: searchResult.sources,
     });
-    console.log('[generateLesson] Step 2 COMPLETED: Lesson draft created.');
 
     // Step 2.5: Basic content validation before calling the validation AI
-    console.log('[generateLesson] Step 2.5: Performing basic validation...');
     const wordCount = lessonDraft.content.split(/\s+/).length;
     const hasHeadings = /^(##|###) /m.test(lessonDraft.content);
 
@@ -70,27 +64,21 @@ export async function generateLesson(input: z.infer<typeof GenerateLessonInputSc
         if (wordCount < 100) feedback += `Content is too short (${wordCount} words). `;
         if (!hasHeadings) feedback += `Content is missing proper section headings (## or ###). `;
         
-        console.error(`[generateLesson] Step 2.5 FAILED: ${feedback}`);
         throw new Error(feedback);
     }
-    console.log(`[generateLesson] Step 2.5 COMPLETED: Basic checks passed (Words: ${wordCount}, Headings: ${hasHeadings}).`);
 
     // Step 3: Validate the synthesized lesson using AI
-    console.log('[generateLesson] Step 3: Validating lesson with AI...');
     const validationResult = await validateLesson({ lessonDraft });
-    console.log(`[generateLesson] Step 3 COMPLETED: Validation result: ${validationResult.valid} (Confidence: ${validationResult.confidence_score})`);
 
     if (!validationResult.valid) {
       throw new Error(`Lesson validation failed. Issues: ${JSON.stringify(validationResult.issues)}`);
     }
 
     // Step 4: Generate Quiz
-    console.log(`[generateLesson] Step 4: Generating quiz for lesson...`);
     const quizResult = await generateQuizForLesson({
         lesson_id: lessonId,
         lesson_content: lessonDraft.content,
     });
-    console.log(`[generateLesson] Step 4 COMPLETED: Quiz generated with ${quizResult.questions.length} questions.`);
 
     // Return all data to the client for saving.
     return {
@@ -99,7 +87,6 @@ export async function generateLesson(input: z.infer<typeof GenerateLessonInputSc
       quiz: quizResult,
     };
   } catch (error: any) {
-    console.error(`[generateLesson] CRITICAL FAILURE for topic "${topic}":`, error);
     // This flow can't write to Firestore, but we log the error on the server.
     // The client will handle user-facing errors.
     throw error;

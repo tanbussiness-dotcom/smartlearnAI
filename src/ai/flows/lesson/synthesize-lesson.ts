@@ -67,7 +67,6 @@ Your final output must be a single, valid JSON object that strictly conforms to 
   let output = parseGeminiJson<SynthesizeLessonOutput>(aiText);
 
   if (output.content.split(' ').length < 800) {
-    console.warn('Content too short, regenerating...');
     aiText = await generateWithGemini(
       prompt + '\nViết chi tiết hơn, khoảng 1000 từ.'
     );
@@ -87,10 +86,6 @@ Your final output must be a single, valid JSON object that strictly conforms to 
           });
           existingVideoUrls.add(videoSource.url);
       }
-  }
-  
-  if (output.content.length < 600) {
-      console.warn(`[synthesizeLesson] Warning: Generated content is shorter than expected (${output.content.length} words).`);
   }
   
   return SynthesizeLessonOutputSchema.parse(output);
