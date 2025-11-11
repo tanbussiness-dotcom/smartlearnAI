@@ -21,8 +21,8 @@ import {
   Sparkles,
   BookOpen,
 } from 'lucide-react';
-import { useFirestore, useUser, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { useFirestore, useUser } from '@/firebase';
+import { doc, onSnapshot, writeBatch, collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
@@ -109,7 +109,7 @@ export default function LessonPage() {
   }
 
   const handleGenerateContent = useCallback(async () => {
-    if (!lesson || !user || !lessonRef || !topicId || !roadmapId) {
+    if (!lesson || !user || !lessonRef || !firestore || !topicId || !roadmapId) {
        toast({
         variant: 'destructive',
         title: 'Yêu cầu không hợp lệ',
@@ -125,31 +125,58 @@ export default function LessonPage() {
     })
 
     try {
-        await generateLesson({
+        const result = await generateLesson({
             userId: user.uid,
             topicId: topicId,
-            roadmapId: roadmapId,
             lessonId: lesson.id,
             topic: lesson.topic, 
             phase: lesson.phase,
         });
 
+        const batch = writeBatch(firestore);
+
+        // 1. Update Lesson with content
+        const lessonPayload = {
+            ...result.lesson,
+            status: 'Learning',
+            isAiGenerated: true,
+            createdBy: user.uid,
+            createdAt: new Date().toISOString(),
+            quiz_ready: true, // Mark quiz as ready now
+        };
+        batch.update(lessonRef, lessonPayload);
+
+        // 2. Create the Quiz document
+        const quizRef = doc(collection(lessonRef, 'tests'));
+        const quizPayload = {
+            ...result.quiz,
+            createdBy: user.uid,
+            createdAt: new Date().toISOString(),
+        };
+        batch.set(quizRef, quizPayload);
+
+        // 3. Update the lesson again with the quiz ID
+        batch.update(lessonRef, { quiz_id: quizRef.id });
+
+        // Commit all writes at once
+        await batch.commit();
+
         toast({
           title: `"${lesson.title}" đã sẵn sàng!`,
-          description: 'Nội dung bài học đã được tạo thành công.',
+          description: 'Nội dung bài học và bài kiểm tra đã được tạo thành công.',
         });
 
     } catch (error: any) {
-      console.error('Lỗi khi tạo nội dung bài học:', error);
+      console.error('Lỗi khi tạo và lưu nội dung bài học:', error);
       toast({
         variant: 'destructive',
         title: 'Tạo nội dung thất bại',
-        description: `Không thể tạo nội dung cho "${lesson.title}". AI có thể đang bận. Vui lòng thử lại.`,
+        description: `Không thể tạo nội dung cho "${lesson.title}". Lỗi: ${error.message}`,
       });
     } finally {
       setIsGenerating(false);
     }
-  }, [lesson, user, lessonRef, toast, topicId, roadmapId]);
+  }, [lesson, user, lessonRef, firestore, toast, topicId, roadmapId]);
 
   if (loading) {
     return (
