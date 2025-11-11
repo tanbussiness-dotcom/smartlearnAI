@@ -16,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Skeleton } from './ui/skeleton';
 
 export function UserNav() {
   const { user, isUserLoading } = useUser();
@@ -28,7 +29,9 @@ export function UserNav() {
   };
 
   if (isUserLoading) {
-    return null; // Don't render anything until auth state is known
+    // Render a skeleton placeholder during the initial loading phase
+    // to prevent hydration mismatch.
+    return <Skeleton className="h-9 w-9 rounded-full" />;
   }
 
   if (!user) {
