@@ -79,16 +79,18 @@ Your final output must be a single, valid JSON object that strictly conforms to 
     output.videos = [];
   }
 
-  // Post-processing to fix missing 'type' field from AI response
+  // Post-processing to fix missing fields from the AI's curated sources list.
   const inputSourcesByUrl = new Map(input.sources.map(s => [s.url, s]));
   output.sources = output.sources.map(source => {
-    if (!source.type) {
-        const originalSource = inputSourcesByUrl.get(source.url);
-        if (originalSource) {
-            return { ...source, type: originalSource.type };
-        }
+    const originalSource = inputSourcesByUrl.get(source.url);
+    if (originalSource) {
+        // Ensure all required fields from the original source are present if missing in the AI output.
+        return {
+            ...originalSource, // Start with all original data
+            ...source,          // Override with what the AI provided (like short_note)
+        };
     }
-    return source;
+    return source; // Return the source as-is if no original match is found
   });
 
   // Post-processing to ensure video data is consistent, if needed.
