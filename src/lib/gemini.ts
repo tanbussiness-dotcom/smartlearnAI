@@ -3,8 +3,8 @@
 
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
 const MODELS = [
+  "gemini-pro",
   "gemini-1.5-flash-latest",
-  "gemini-1.5-pro-latest",
 ];
 const cache = new Map<string, string>();
 
@@ -96,8 +96,3 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
   const finalError = `All Gemini models failed. Last error: ${lastError?.message || "Unknown error"}`;
   throw new Error(finalError);
 }
-
-
-
-
-
