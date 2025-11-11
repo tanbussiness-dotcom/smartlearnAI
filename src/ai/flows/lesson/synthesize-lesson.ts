@@ -79,6 +79,19 @@ Your final output must be a single, valid JSON object that strictly conforms to 
       throw new Error("Failed to generate a valid lesson structure from AI.");
   }
 
+  // Post-processing to fix missing 'type' field from AI response
+  const inputSourcesByUrl = new Map(input.sources.map(s => [s.url, s]));
+  output.sources = output.sources.map(source => {
+    if (!source.type) {
+        const originalSource = inputSourcesByUrl.get(source.url);
+        if (originalSource) {
+            return { ...source, type: originalSource.type };
+        }
+    }
+    return source;
+  });
+
+
   // Post-processing to ensure video data is consistent, if needed.
   const videoSources = output.sources.filter(s => s.type === 'video');
   const existingVideoUrls = new Set(output.videos.map(v => v.url));
