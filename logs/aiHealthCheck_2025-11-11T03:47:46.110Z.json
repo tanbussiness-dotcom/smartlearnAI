@@ -1,0 +1,20 @@
+[
+  {
+    "prompt": "Say hello!",
+    "success": true,
+    "response": "Hello!",
+    "time_ms": 1687
+  },
+  {
+    "prompt": "Give one fact about AI.",
+    "success": true,
+    "response": "Artificial intelligence (AI) is a broad field of computer science focused on creating machines that ",
+    "time_ms": 3340
+  },
+  {
+    "prompt": "What year was Google founded?",
+    "success": true,
+    "response": "Google was founded in **1998**.",
+    "time_ms": 1322
+  }
+]
