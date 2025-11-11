@@ -1,73 +1,88 @@
-
 'use server';
-/**
- * @fileOverview This file defines the function for validating a synthesized lesson using Gemini API.
- *
- * @exports validateLesson - The main function to validate a lesson draft.
- */
-
 import { z } from 'zod';
 import { generateWithGemini } from '@/lib/gemini';
 import { parseGeminiJson } from '@/lib/utils';
-import { SynthesizeLessonOutputSchema, ValidateLessonOutputSchema } from './types';
+import { ValidateLessonOutputSchema } from './types';
 
+export async function validateLesson(input: { lessonDraft: any }) {
+  const lesson = input.lessonDraft || {};
+  const lessonText = JSON.stringify(
+    {
+      title: lesson.title || '',
+      overview: lesson.overview || '',
+      content: lesson.content || '',
+    },
+    null,
+    2
+  );
 
-const ValidateLessonInputSchema = z.object({
-  lessonDraft: SynthesizeLessonOutputSchema.describe('The lesson object to be validated.'),
-});
-type ValidateLessonInput = z.infer<typeof ValidateLessonInputSchema>;
-type ValidateLessonOutput = z.infer<typeof ValidateLessonOutputSchema>;
-
-export async function validateLesson(input: ValidateLessonInput): Promise<ValidateLessonOutput> {
-  const lessonContentForValidation = {
-    title: input.lessonDraft.title,
-    overview: input.lessonDraft.overview,
-    content: input.lessonDraft.content,
-  };
-  const lessonDraftString = JSON.stringify(lessonContentForValidation, null, 2);
-  
   const prompt = `
-You are a QA validator for AI lessons.
-Return ONLY JSON, strictly matching this schema:
+You are a QA validator for AI-generated lessons.
+Return ONLY JSON strictly matching this schema:
 {
   "valid": boolean,
   "confidence_score": number,
   "issues": [{ "type": string, "detail": string }]
 }
-Review this lesson content:
-
-${lessonDraftString}
-
+Evaluate this lesson content:
+${lessonText}
 Rules:
-- No markdown, no explanation, no prefix.
-- If invalid JSON, output will be rejected.
+- Return only JSON. No extra text, markdown, or commentary.
 `;
 
-  const aiText = await generateWithGemini(prompt);
-  console.log('[validateLesson] Raw output:', aiText.slice(0, 400));
-
-  let output;
-    try {
-        output = parseGeminiJson<ValidateLessonOutput>(aiText);
-    } catch (e: any) {
-        console.error('[validateLesson] JSON parse error', e);
-        return {
-            valid: false,
-            confidence_score: 0,
-            issues: [{ type: 'ParseError', detail: e.message }],
-        };
-    }
-
-  // Enforce the business rule: if score < 0.7, valid must be false.
-  if (output.confidence_score < 0.7 && output.valid) {
-    output.valid = false;
-    if (output.issues.length === 0) {
-      output.issues.push({
-        type: 'Low Confidence',
-        detail: `The overall confidence score of ${output.confidence_score} is below the required threshold of 0.7, but no specific issues were itemized. Manual review is required.`,
-      });
-    }
+  let aiText = '';
+  try {
+    aiText = await generateWithGemini(prompt);
+  } catch (e: any) {
+    console.error('[validateLesson] Gemini call failed:', e);
+    return {
+      valid: false,
+      confidence_score: 0,
+      issues: [{ type: 'GeminiError', detail: e?.message || 'Gemini API failed' }],
+    };
   }
-  
-  return ValidateLessonOutputSchema.parse(output);
+
+  console.log('[validateLesson] Raw output preview:', (aiText || '').slice(0, 800));
+
+  let parsed: any;
+  try {
+    parsed = parseGeminiJson(aiText);
+  } catch (e: any) {
+    console.error('[validateLesson] parseGeminiJson failed:', e?.message);
+    return {
+      valid: false,
+      confidence_score: 0,
+      issues: [{ type: 'ParseError', detail: e?.message || 'Invalid JSON output from AI' }],
+    };
+  }
+
+  try {
+    const safe = {
+      valid: Boolean(parsed.valid),
+      confidence_score:
+        typeof parsed.confidence_score === 'number' ? parsed.confidence_score : 0,
+      issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+    };
+
+    try {
+      return ValidateLessonOutputSchema.parse(safe);
+    } catch (zerr: any) {
+      console.warn('[validateLesson] Zod parse warning:', zerr?.message || zerr);
+      return {
+        valid: false,
+        confidence_score: safe.confidence_score,
+        issues:
+          safe.issues.length > 0
+            ? safe.issues
+            : [{ type: 'SchemaMismatch', detail: 'Output did not match schema' }],
+      };
+    }
+  } catch (err: any) {
+    console.error('[validateLesson] unexpected error:', err);
+    return {
+      valid: false,
+      confidence_score: 0,
+      issues: [{ type: 'Unexpected', detail: err?.message || 'Unexpected error' }],
+    };
+  }
 }

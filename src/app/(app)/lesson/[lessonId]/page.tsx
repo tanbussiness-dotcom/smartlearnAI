@@ -125,60 +125,69 @@ export default function LessonPage() {
     })
 
     try {
-        const response = await generateLesson({
-            topic: lesson.topic, 
-            phase: lesson.phase,
-            lessonId: lesson.id,
-        });
+      const response = await generateLesson({
+        topic: lesson.topic,
+        phase: lesson.phase,
+        lessonId: lesson.id,
+      });
 
-        if (response.success === false) {
-            const err = response.error || { step: 'Unknown', message: 'Unknown error' };
-            toast({
-                variant: 'destructive',
-                title: `Tạo bài học thất bại ở bước: ${err.step}`,
-                description: err.message,
-            });
-            console.error('Lesson generation details:', err.details);
-            setIsGenerating(false);
-            return;
-        }
-
-        const { lesson: lessonData, quiz: quizData } = response.data;
-        const batch = writeBatch(firestore);
-        
-        const lessonPayload = {
-            ...lessonData,
-            status: 'Learning',
-            isAiGenerated: true,
-            createdBy: user.uid,
-            createdAt: new Date().toISOString(),
-            quiz_ready: true, 
-        };
-        batch.update(lessonRef, lessonPayload);
-
-        const quizRef = doc(collection(lessonRef, 'tests'));
-        const quizPayload = {
-            ...quizData,
-            createdBy: user.uid,
-            createdAt: new Date().toISOString(),
-        };
-        batch.set(quizRef, quizPayload);
-
-        batch.update(lessonRef, { quiz_id: quizRef.id });
-
-        await batch.commit();
-
+      if (!response || typeof response !== 'object') {
         toast({
-          title: `"${lesson.title}" đã sẵn sàng!`,
-          description: 'Nội dung bài học và bài kiểm tra đã được tạo thành công.',
+          variant: 'destructive',
+          title: 'Lỗi server',
+          description: 'Không nhận được phản hồi từ server. Vui lòng kiểm tra logs.',
         });
+        return;
+      }
 
-    } catch (error: any) {
-      console.error('generateLesson unexpected exception', error);
+      if (response.success === false) {
+          toast({
+              variant: 'destructive',
+              title: `❌ ${response.error.step}`,
+              description: response.error.message || 'Tạo bài học thất bại',
+          });
+          console.error('[Lesson generation error details]', response.error.details);
+          return;
+      }
+
+      // ✅ success
+      const { lesson: lessonData, quiz: quizData } = response.data;
+      
+      const batch = writeBatch(firestore);
+      
+      const lessonPayload = {
+          ...lessonData,
+          status: 'Learning',
+          isAiGenerated: true,
+          createdBy: user.uid,
+          createdAt: new Date().toISOString(),
+          quiz_ready: true, 
+      };
+      batch.update(lessonRef, lessonPayload);
+
+      const quizRef = doc(collection(lessonRef, 'tests'));
+      const quizPayload = {
+          ...quizData,
+          createdBy: user.uid,
+          createdAt: new Date().toISOString(),
+      };
+      batch.set(quizRef, quizPayload);
+
+      batch.update(lessonRef, { quiz_id: quizRef.id });
+
+      await batch.commit();
+
+      toast({
+        title: '✅ Tạo bài học thành công!',
+        description: lessonData?.title || 'Bài học đã sẵn sàng',
+      });
+
+    } catch (err: any) {
+      console.error('generateLesson unexpected error', err);
       toast({
         variant: 'destructive',
         title: 'Lỗi không mong muốn',
-        description: `Đã xảy ra lỗi khi tạo bài học. Vui lòng kiểm tra console để biết thêm chi tiết.`,
+        description: err?.message || 'Vui lòng kiểm tra logs của server',
       });
     } finally {
       setIsGenerating(false);

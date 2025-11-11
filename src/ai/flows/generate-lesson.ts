@@ -69,14 +69,44 @@ export async function generateLesson(input: { topic: string; phase: string; less
 
     // ✅ Done
     console.log('[generateLesson] 🎉 Success!');
-    return {
-      success: true,
-      data: {
-        lesson: lessonDraft,
-        validation,
-        quiz,
-      },
+    
+    // Before returning success, sanitize payload to ensure serializable structure
+    const payload = {
+      lesson: lessonDraft,
+      validation,
+      quiz,
     };
+
+    let safePayload: any;
+    try {
+      JSON.stringify(payload); // test serialization
+      safePayload = payload;
+    } catch (err) {
+      console.warn('[generateLesson] Payload not serializable, sanitizing...');
+      const sanitize = (obj: any): any => {
+        if (!obj || typeof obj !== 'object') return obj;
+        const out: any = Array.isArray(obj) ? [] : {};
+        for (const key of Object.keys(obj)) {
+          const val = obj[key];
+          if (val instanceof Date) out[key] = val.toISOString();
+          else if (typeof val === 'object' && (val._path || val.id || val._key)) {
+            try {
+              out[key] = JSON.stringify(val);
+            } catch {
+              out[key] = String(val);
+            }
+          } else if (typeof val === 'object') out[key] = sanitize(val);
+          else out[key] = val;
+        }
+        return out;
+      };
+      safePayload = sanitize(payload);
+    }
+
+    console.log('[generateLesson] Safe payload preview:', JSON.stringify(safePayload).slice(0, 800));
+
+    return { success: true, data: safePayload };
+
   } catch (e: any) {
     console.error('[generateLesson] 💥 UNEXPECTED orchestrator error', e);
     return makeError('generateLesson', e.message, e.stack);
