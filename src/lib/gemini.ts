@@ -4,8 +4,8 @@
 import { parseGeminiJson } from '@/lib/utils';
 
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
-// Updated to use a single model as requested.
-const MODEL = process.env.AI_MODEL_ID || "gemini-1.5-flash"; 
+const MODEL_PRIMARY = process.env.AI_MODEL_ID || "gemini-2.5-flash";
+const MODEL_FALLBACK = "gemini-pro";
 const cache = new Map<string, string>();
 
 type GeminiResponse = {
@@ -69,7 +69,7 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
       throw new Error(errorMsg);
   }
 
-  const cacheKey = `${prompt}-${MODEL}`;
+  const cacheKey = `${prompt}-${MODEL_PRIMARY}`;
   if (useCache && cache.has(cacheKey)) {
       return cache.get(cacheKey)!;
   }
@@ -78,15 +78,23 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
   let lastError: any = null;
 
   try {
-    console.log(`[Gemini API] 🔹 Using model: ${MODEL}`);
-    aiText = await callGeminiModel(prompt, MODEL);
+    console.log(`[Gemini API] 🔹 Using primary model: ${MODEL_PRIMARY}`);
+    aiText = await callGeminiModel(prompt, MODEL_PRIMARY);
   } catch (err: any) {
     lastError = err;
-    console.warn(`[Gemini API] ⚠️ Model ${MODEL} failed: ${err.message}.`);
+    console.warn(`[Gemini API] ⚠️ Primary model ${MODEL_PRIMARY} failed: ${err.message}. Switching to fallback...`);
+    try {
+        console.log(`[Gemini API] 🔹 Using fallback model: ${MODEL_FALLBACK}`);
+        aiText = await callGeminiModel(prompt, MODEL_FALLBACK);
+        lastError = null; // Clear error if fallback succeeds
+    } catch (fallbackErr: any) {
+        lastError = fallbackErr;
+        console.error(`[Gemini API] ❌ Fallback model ${MODEL_FALLBACK} also failed: ${fallbackErr.message}`);
+    }
   }
 
   if (!aiText) {
-      const finalError = `Gemini model failed. Error: ${lastError?.message || "Unknown error"}`;
+      const finalError = `All Gemini models failed. Last error: ${lastError?.message || "Unknown error"}`;
       console.error(`[Gemini API] ❌ ${finalError}`);
       throw new Error(finalError);
   }
@@ -118,7 +126,7 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
     `;
 
     try {
-      const retryText = await callGeminiModel(strictPrompt, MODEL); 
+      const retryText = await callGeminiModel(strictPrompt, MODEL_FALLBACK); 
       const retryResult = parseGeminiJson<any>(retryText);
       
       if (retryResult && Object.keys(retryResult).length > 0) {
