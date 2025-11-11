@@ -98,7 +98,7 @@ This is the short overview paragraph...
         short_note: `A resource for learning about ${input.topic}.`
     })),
     videos: input.sources
-        .filter(s => s.type === 'video')
+        .filter(s => s.type === 'video' && s.url)
         .map(s => ({
             title: s.title,
             url: s.url,
