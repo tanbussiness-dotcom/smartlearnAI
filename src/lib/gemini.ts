@@ -5,161 +5,128 @@ import { ai } from '@/ai/genkit';
 import { GenerateRequest } from '@genkit-ai/google-genai';
 import { parseGeminiJson } from './utils';
 
-// Fallback model order. Starts with the most preferred model.
-const MODEL_FALLBACK_ORDER = [
-  process.env.AI_MODEL_ID || "gemini-1.5-flash",
-  "gemini-pro"
-];
-
+const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
+const MODEL_PRIMARY = process.env.AI_MODEL_ID || "gemini-1.5-flash";
+const MODEL_FALLBACK = "gemini-pro";
 const cache = new Map<string, string>();
 
-// --- Throttling variables ---
-const requestTimestamps: number[] = [];
-const THROTTLE_LIMIT = 3; // Max requests
-const THROTTLE_WINDOW_MS = 1000; // per 1 second
-const THROTTLE_DELAY_MS = 2000; // Wait 2 seconds if throttled
-
-/**
- * A utility function to introduce a delay with jitter.
- * @param minMs - The minimum number of milliseconds to wait.
- * @param maxMs - The maximum number of milliseconds to wait.
- */
-const delay = (minMs: number, maxMs: number) => {
-    const jitter = Math.random() * (maxMs - minMs);
-    const totalDelay = minMs + jitter;
-    return new Promise(resolve => setTimeout(resolve, totalDelay));
+type GeminiResponse = {
+  candidates?: Array<{
+    content?: { parts?: Array<{ text?: string }> };
+    finishReason?: string;
+  }>;
+  error?: { message: string };
 };
 
-async function generateAndParseWithRetry<T>(prompt: string, useCache: boolean): Promise<T> {
-  if (!process.env.GOOGLE_API_KEY) {
-      const warning = "⚠️ Gemini API key is missing. Please add GOOGLE_API_KEY to environment variables.";
-      console.warn(warning);
-      throw new Error(warning);
-  }
 
-  // --- Throttling Logic ---
-  const now = Date.now();
-  while (requestTimestamps.length > 0 && now - requestTimestamps[0] > THROTTLE_WINDOW_MS) {
-    requestTimestamps.shift();
-  }
-  
-  if (requestTimestamps.length >= THROTTLE_LIMIT) {
-    console.log(`[Gemini Throttle] Waiting ${THROTTLE_DELAY_MS}ms to prevent overload.`);
-    await delay(THROTTLE_DELAY_MS, THROTTLE_DELAY_MS);
-  }
-  requestTimestamps.push(Date.now());
-  // --- End Throttling Logic ---
+async function callGeminiModel(prompt: string, model: string): Promise<string> {
+  if (!GEMINI_API_KEY) throw new Error("GOOGLE_API_KEY is missing in environment variables.");
 
-  let lastError: Error | null = null;
-  const maxRetries = 3;
-
-  for (let modelIndex = 0; modelIndex < MODEL_FALLBACK_ORDER.length; modelIndex++) {
-    const currentModel = MODEL_FALLBACK_ORDER[modelIndex];
-    console.log(`[Gemini Model] Using: ${currentModel} (Attempt ${modelIndex + 1}/${MODEL_FALLBACK_ORDER.length})`);
-    
-    for (let retryCount = 0; retryCount < maxRetries; retryCount++) {
-        try {
-            const request: GenerateRequest = {
-                model: `googleai/${currentModel}`,
-                prompt: prompt,
-                config: {
-                    temperature: 0.7,
-                    topK: 1,
-                    topP: 1,
-                    maxOutputTokens: 8192,
-                    safetySettings: [
-                        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-                        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-                        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-                        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-                    ],
-                },
-            };
-
-            const startTime = Date.now();
-            const response = await ai.generate(request);
-            const endTime = Date.now();
-            const text = response.text;
-
-            if (response.finishReason === 'SAFETY') {
-                lastError = new Error('Content generation was blocked by safety filters.');
-                console.warn(`[Gemini Safety] Request for model ${currentModel} blocked.`);
-                break; // Break retry loop and move to the next model
-            }
-            
-            if (text) {
-                // Return the raw text, parsing will be handled outside this loop
-                console.log(`✅ Success (model: ${currentModel}, time: ${endTime - startTime}ms)`);
-                return text as T;
-            }
-            
-            lastError = new Error("Gemini API returned an empty text response.");
-
-        } catch (error: any) {
-            lastError = error;
-            // Check for status codes that warrant a retry or fallback
-            if (error.status === 429 || error.status === 503) {
-                 if (retryCount < maxRetries - 1) {
-                    const delayRanges = [[1000, 2000], [3000, 5000], [6000, 10000]];
-                    const [min, max] = delayRanges[retryCount];
-                    const waitTime = min + Math.random() * (max - min);
-                    console.warn(`[Gemini Retry ${retryCount + 1}] ${error.status} - retrying in ${Math.round(waitTime)}ms`);
-                    await delay(min, max);
-                    continue; // Continue to next retry
-                }
-            }
-            // For other errors (like 404) or if retries are exhausted, break to fallback
-            break; 
-        }
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        safetySettings: [
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        ],
+      }),
     }
-    
-    if (modelIndex < MODEL_FALLBACK_ORDER.length - 1) {
-        console.warn(`[Gemini Fallback] Switching model from ${currentModel} → ${MODEL_FALLBACK_ORDER[modelIndex + 1]} due to persistent error.`);
-    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Gemini API ${model} failed (${res.status}): ${errText}`);
   }
+
+  const data: GeminiResponse = await res.json();
   
-  throw new Error(`All Gemini models failed due to overload or quota exhaustion. Last error: ${lastError?.message}`);
+  if (data.error) throw new Error(data.error.message);
+  if (data.candidates?.[0]?.finishReason === 'SAFETY') {
+      throw new Error('Content generation blocked by safety filters.');
+  }
+
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
-/**
- * A cached function to generate content with the Gemini API, including retry, model fallback,
- * and JSON parsing with an auto-correction mechanism.
- *
- * @param prompt - The prompt to send to the model.
- * @param useCache - Whether to use the cache. Defaults to true.
- * @returns The generated text from the model.
- * @throws An error if the API call or parsing fails after all attempts.
- */
 export async function generateWithGemini(prompt: string, useCache = true): Promise<string> {
-    const cacheKey = `${prompt}-${MODEL_FALLBACK_ORDER.join('-')}`;
-    if (useCache && cache.has(cacheKey)) {
-        return cache.get(cacheKey)!;
+  if (!GEMINI_API_KEY) {
+      const errorMsg = "GOOGLE_API_KEY is missing in environment variables.";
+      console.error(`[Gemini API] ❌ ${errorMsg}`);
+      throw new Error(errorMsg);
+  }
+
+  const cacheKey = `${prompt}-${MODEL_PRIMARY}-${MODEL_FALLBACK}`;
+  if (useCache && cache.has(cacheKey)) {
+      return cache.get(cacheKey)!;
+  }
+
+  let aiText = "";
+  try {
+    console.log(`[Gemini API] 🔹 Primary model: ${MODEL_PRIMARY}`);
+    aiText = await callGeminiModel(prompt, MODEL_PRIMARY);
+  } catch (err1: any) {
+    console.warn(`[Gemini API] ⚠️ Primary model failed (${err1.message}), switching to fallback.`);
+    try {
+      aiText = await callGeminiModel(prompt, MODEL_FALLBACK);
+    } catch (err2: any) {
+      console.error(`[Gemini API] ❌ Fallback model failed: ${err2}`);
+      throw new Error(`Both models failed. Last error: ${err2.message}`);
     }
+  }
+
+  // 1️⃣ Validate parse result
+  let parsedResult;
+  let parsedOK = true;
+  try {
+    parsedResult = parseGeminiJson<any>(aiText);
+    if (!parsedResult || Object.keys(parsedResult).length === 0) {
+      parsedOK = false;
+    }
+  } catch {
+    parsedOK = false;
+  }
+
+  // 2️⃣ Retry if invalid JSON
+  if (!parsedOK) {
+    console.warn("[Gemini Retry] ⚠️ Invalid JSON detected, retrying with strict prompt...");
+    const strictPrompt = `
+      You previously failed to output valid JSON.
+      Your task is to respond with only pure, valid JSON, without any markdown, explanations, or extra text.
+      This is the original request:
+      ---
+      ${prompt}
+      ---
+      
+      ⚠️ IMPORTANT: Your entire output must be a single JSON object, starting with { and ending with }.
+    `;
 
     try {
-        const rawText = await generateAndParseWithRetry<string>(prompt, useCache);
-        // Attempt to parse the JSON. If it fails, the catch block will handle it.
-        parseGeminiJson(rawText); 
-        if (useCache) {
-            cache.set(cacheKey, rawText);
-        }
-        return rawText;
-    } catch (error) {
-        if (error instanceof Error && error.message.startsWith('Invalid JSON format')) {
-            console.warn("[Gemini Auto-Correct] Initial response was invalid JSON. Re-prompting with correction instructions.");
-            const correctionPrompt = `${prompt}\n\nPrevious attempt failed due to invalid JSON format. Please ensure your response is a single, valid JSON object with no syntax errors, comments, or extra text.`;
-            
-            // Retry the generation and parsing once more with the correction prompt.
-            const correctedText = await generateAndParseWithRetry<string>(correctionPrompt, false);
-            // This will throw if it's still invalid, which is the desired behavior.
-            parseGeminiJson(correctedText);
-            
-            if (useCache) {
-                cache.set(cacheKey, correctedText);
-            }
-            return correctedText;
-        }
-        // Re-throw any other errors (e.g., API failures)
-        throw error;
+      const retryText = await callGeminiModel(strictPrompt, MODEL_FALLBACK); // Use fallback for stability
+      const retryResult = parseGeminiJson<any>(retryText);
+      
+      if (retryResult && Object.keys(retryResult).length > 0) {
+        console.log("[Gemini Retry] ✅ Success after repair attempt");
+        if (useCache) cache.set(cacheKey, retryText);
+        return retryText; // Return the successfully repaired text
+      }
+      
+      console.warn("[Gemini Retry] ❌ Retry attempt also resulted in invalid or empty JSON.");
+    } catch (retryErr: any) {
+      console.error("[Gemini Retry] ❌ Retry attempt failed entirely:", retryErr.message);
     }
+  }
+
+  // 3️⃣ Cache original successful text if it was valid JSON from the start
+  if (parsedOK && useCache) {
+      cache.set(cacheKey, aiText);
+  }
+  
+  return aiText;
 }
+
