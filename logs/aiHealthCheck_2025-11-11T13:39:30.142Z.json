@@ -1,0 +1,20 @@
+[
+  {
+    "prompt": "Say hello!",
+    "success": true,
+    "response": "{\n  \"message\": \"Hello!\"\n}",
+    "time_ms": 1436
+  },
+  {
+    "prompt": "Give one fact about AI.",
+    "success": true,
+    "response": "{\n  \"fact\": \"Artificial Intelligence (AI) encompasses various technologies that enable machines to s",
+    "time_ms": 1563
+  },
+  {
+    "prompt": "What year was Google founded?",
+    "success": true,
+    "response": "{\n  \"company\": \"Google\",\n  \"founding_year\": 1998\n}",
+    "time_ms": 3233
+  }
+]
