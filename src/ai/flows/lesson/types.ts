@@ -27,18 +27,11 @@ export const OutputSourceSchema = z.object({
     short_note: z.string().describe("A brief note on why this source is relevant or useful (1-2 sentences)."),
 });
 
-const VideoSchema = z.object({
-    title: z.string().describe("The title of the video."),
-    url: z.string().url().describe("The original YouTube watch URL (not an embed link)."),
-    channel: z.string().describe("The name of the YouTube channel, if available."),
-});
-
 export const SynthesizeLessonOutputSchema = z.object({
   title: z.string().describe('A clear and concise title for the lesson.'),
   overview: z.string().describe('A short introductory paragraph that summarizes the main content of the lesson.'),
   content: z.string().describe('The full lesson content in Markdown or HTML format, between 800 and 1200 words, with clear sections and practical examples.'),
   sources: z.array(OutputSourceSchema).describe('A curated list of the most reliable sources used for synthesis.'),
-  videos: z.array(VideoSchema).describe('A list of relevant videos found in the sources.'),
   estimated_time_min: z.number().describe('Estimated time in minutes to complete the lesson.'),
 });
 

@@ -88,13 +88,6 @@ ${sourcesString}
         ...s,
         short_note: `A resource for learning about ${input.topic}.`
     })),
-    videos: input.sources
-        .filter(s => s.type === 'video' && s.url) // <-- CRITICAL FIX: Ensure URL exists before mapping
-        .map(s => ({
-            title: s.title,
-            url: s.url,
-            channel: s.domain === 'youtube.com' ? 'YouTube' : s.domain,
-        })),
   };
 
   return SynthesizeLessonOutputSchema.parse(finalOutput);
