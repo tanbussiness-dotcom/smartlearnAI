@@ -26,10 +26,10 @@ export function parseGeminiJson<T>(aiText: string): T {
     .replace(/\u0000/g, "")
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
-    .replace(/[^\x20-\x7E]+/g, "") // remove non-ASCII control chars
+    .replace(/[^\x20-\x7E]+/g, "")
     .trim();
 
-  // 1️⃣ Parse thử bình thường
+  // 1️⃣ Parse trực tiếp
   try {
     const parsed = JSON.parse(clean);
     console.log(`[Gemini JSON] ✅ Parsed OK (${clean.length} chars)`);
@@ -38,14 +38,13 @@ export function parseGeminiJson<T>(aiText: string): T {
     console.warn("[Gemini JSON] ⚠️ First parse failed:", err1.message);
   }
 
-  // 2️⃣ Thử vá nhẹ
+  // 2️⃣ Vá cơ bản
   try {
     const lastBrace = clean.lastIndexOf("}");
     const lastBracket = clean.lastIndexOf("]");
     const cutIndex = Math.max(lastBrace, lastBracket);
     if (cutIndex > 0) clean = clean.substring(0, cutIndex + 1);
     if (!clean.endsWith("}") && !clean.endsWith("]")) clean += "}";
-
     const parsedFixed = JSON.parse(clean);
     console.log(`[Gemini JSON] ✅ Recovered OK (${clean.length} chars)`);
     return parsedFixed as T;
@@ -53,38 +52,51 @@ export function parseGeminiJson<T>(aiText: string): T {
     console.warn("[Gemini JSON] ⚠️ Repair attempt failed:", err2.message);
   }
 
-  // 3️⃣ Deep Recovery — vá lỗi chuỗi chưa đóng
+  // 3️⃣ Deep Recovery: vá chuỗi bị đứt
   try {
-    const partialMatch = clean.match(/\{[\s\S]*[\}\]]?/);
+    const partialMatch = clean.match(/\{[\s\S]*?[\}\]]?$/);
     if (partialMatch && partialMatch[0]) {
       let candidate = partialMatch[0];
 
-      // Nếu JSON bị đứt giữa chuỗi, tự động đóng dấu nháy và ngoặc
-      const quoteCount = (candidate.match(/"/g) || []).length;
-      if (quoteCount % 2 !== 0) candidate += '"';
-      if (!candidate.trim().endsWith("}") && !candidate.trim().endsWith("]")) candidate += "}";
-
-      // Thay thế các dấu nháy lặp hoặc chuỗi không kết thúc
-      candidate = candidate.replace(/\\+"/g, '"').replace(/"([^"]*)$/g, '"$1"');
-
+      // Đếm và đóng dấu nháy nếu thiếu
       try {
-        const parsedPartial = JSON.parse(candidate);
-        console.log(`[Gemini JSON] ✅ Deep Recovery Success (${candidate.length} chars)`);
-        return parsedPartial as T;
-      } catch (err3: any) {
-        console.error("[Gemini JSON] ❌ Deep Recovery parsing failed:", err3.message);
+        const quoteCount = (candidate.match(/"/g) || []).length;
+        if (quoteCount % 2 !== 0) candidate += '"';
+      } catch {}
+
+      // Đóng ngoặc nếu thiếu
+      if (!candidate.trim().endsWith("}") && !candidate.trim().endsWith("]")) {
+        candidate += "}";
+      }
+
+      // Thay nháy sai & bỏ ký tự cuối lỗi
+      candidate = candidate
+        .replace(/\\+"/g, '"')
+        .replace(/"([^"]*)$/g, '"$1"')
+        .replace(/,\s*([}\]])/g, "$1"); // xóa dấu phẩy lẻ
+
+      // Thử parse nhiều lần, mỗi lần cắt bớt cuối nếu lỗi
+      for (let i = 0; i < 5; i++) {
+        try {
+          const parsedPartial = JSON.parse(candidate);
+          console.log(`[Gemini JSON] ✅ Deep Recovery Success (${candidate.length} chars)`);
+          return parsedPartial as T;
+        } catch (errTry: any) {
+          // Cắt bớt 20 ký tự cuối để loại bỏ chuỗi lỗi
+          candidate = candidate.slice(0, -20).trim();
+        }
       }
     }
-  } catch (errDeep: any) {
-    console.error("[Gemini JSON] ❌ Deep Recovery Exception:", errDeep.message);
+  } catch (err3: any) {
+    console.error("[Gemini JSON] ❌ Deep Recovery Exception:", err3.message);
   }
 
-  // 4️⃣ Ghi log preview cuối cùng
+  // 4️⃣ Log preview để debug
   console.error("[Gemini JSON] ❌ All recovery attempts failed.");
   console.error("----- JSON Preview Start -----");
-  console.error(clean.slice(0, 300));
+  console.error(clean.slice(0, 400));
   console.error("...");
-  console.error(clean.slice(-300));
+  console.error(clean.slice(-400));
   console.error("----- JSON Preview End -----");
 
   return {} as T;
