@@ -7,6 +7,7 @@ import {
   GoogleAuthProvider,
   OAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
   updateProfile,
 } from 'firebase/auth';
 import Link from 'next/link';
@@ -27,12 +28,17 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 
 async function socialSignIn(auth: Auth, provider: any) {
-  try {
-    await signInWithPopup(auth, provider);
-  } catch (error: any) {
-    console.error('Social Sign-In Error:', error);
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error: any) {
+      if (error.code === 'auth/popup-blocked') {
+          await signInWithRedirect(auth, provider);
+      } else {
+          console.error('Social Sign-In Error:', error);
+          throw error;
+      }
+    }
   }
-}
 
 export default function SignupPage() {
   const auth = useAuth();
@@ -64,10 +70,9 @@ export default function SignupPage() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    const provider = new GoogleAuthProvider();
+  const handleSocialSignIn = async (provider: GoogleAuthProvider | OAuthProvider) => {
     try {
-      await signInWithPopup(auth, provider);
+      await socialSignIn(auth, provider);
       router.push('/dashboard');
     } catch (error: any) {
        toast({
@@ -78,18 +83,14 @@ export default function SignupPage() {
     }
   };
 
-  const handleAppleSignIn = async () => {
+  const handleGoogleSignIn = () => {
+    const provider = new GoogleAuthProvider();
+    handleSocialSignIn(provider);
+  };
+
+  const handleAppleSignIn = () => {
     const provider = new OAuthProvider('apple.com');
-    try {
-      await signInWithPopup(auth, provider);
-      router.push('/dashboard');
-    } catch (error: any) {
-       toast({
-        variant: 'destructive',
-        title: 'Signup Failed',
-        description: error.message,
-      });
-    }
+    handleSocialSignIn(provider);
   };
 
   return (
@@ -103,7 +104,7 @@ export default function SignupPage() {
       <CardContent className="grid gap-4">
         <div className="grid grid-cols-2 gap-6">
            <Button variant="outline" onClick={handleAppleSignIn}>
-              <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="mr-2 h-4 w-4"><title>Apple</title><path d="M12.152 6.896c-.922 0-1.854.49-2.583 1.238-.729.748-1.221 1.73-1.221 2.818 0 .22.031.439.092.658h3.712c.01-.22.041-.439.041-.658 0-1.088-.523-2.07-1.262-2.818-.74-.748-1.652-1.238-2.58-1.238zm1.09-2.455c.66-.717 1.139-1.651 1.139-2.738 0-.158-.01-.316-.041-.443h-4.992c-.718 1.248-1.049 2.518-1.049 3.848 0 .688.131 1.346.383 1.965.433.989 1.162 1.843 2.122 2.5.95.647 2.062 1.02 3.235 1.02.43 0 .85-.05 1.251-.158.158-.03.316-.08.463-.129-.208.119-.427.238-.646.347-.84.448-1.742.687-2.672.687-1.29 0-2.55-.42-3.62-1.238-.97-.718-1.732-1.7-2.224-2.858-.482-1.157-.721-2.386-.721-3.666s.239-2.509.721-3.666c.492-1.158 1.254-2.14 2.224-2.858C8.98 0 10.24 0 10.24 0c.03 1.405.61 2.76 1.631 3.966.52.617.84 1.205 1.04 1.835-.66.717-1.139 1.651-1.139 2.738 0 .158.01.316.041.443h4.992c.718-1.248 1.049-2.518 1.049-3.848 0-.688-.131-1.346-.383-1.965-.433-.989-1.162-1.843-2.122-2.5-.95-.647-2.062-1.02-3.235-1.02-.43 0-.85-.05-1.251-.158-.158.03-.316-.08-.463-.129.208-.119.427.238-.646.347.84-.448 1.742.687-2.672.687 1.29 0 2.55.42 3.62 1.238.97.718 1.732 1.7 2.224 2.858.482 1.157.721 2.386.721 3.666s-.239 2.509-.721 3.666c-.492 1.158-1.254 2.14-2.224 2.858-1.07 1.02-2.33 1.238-3.62 1.238-1.09 0-2.15-.316-3.11-.939l-.168-.1c-.198-.129-.396-.258-.563-.396-.07-.05-.14-.11-.2-.16a.54.54 0 0 1-.03-.02c-.52-.42-1.01-.89-1.44-1.4l-.19-.24c-.03-.04-.06-.08-.09-.12a_small_buf_for_rounding_error_0.001-c.4-.48-.77-.98-1.1-1.52-.33-.53-.6-1.08-.8-1.66-.2-.58-.3-1.18-.3-1.78 0-2.29 1.04-4.32 2.72-5.71a.03.03 0 0 0 0-.01zM11.532 9.9c.492 0 .973.1 1.413.316.44.216.82.522 1.141.918.32.396.561.851.721 1.366h-6.55c.18-1.196.881-2.178 1.956-2.56.43-.168.88-.24 1.319-.24z"/></svg>
+              <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="mr-2 h-4 w-4"><title>Apple</title><path d="M12.152 6.896c-.922 0-1.854.49-2.583 1.238-.729.748-1.221 1.73-1.221 2.818 0 .22.031.439.092.658h3.712c.01-.22.041-.439.041-.658 0-1.088-.523-2.07-1.262-2.818-.74-.748-1.652-1.238-2.58-1.238zm1.09-2.455c.66-.717 1.139-1.651 1.139-2.738 0-.158-.01-.316-.041-.443h-4.992c-.718 1.248-1.049 2.518-1.049 3.848 0 .688.131 1.346.383 1.965.433.989 1.162 1.843 2.122 2.5.95.647 2.062 1.02 3.235 1.02.43 0 .85-.05 1.251-.158.158-.03.316-.08.463-.129-.208.119-.427.238-.646.347-.84.448-1.742.687-2.672.687-1.29 0-2.55-.42-3.62-1.238-.97-.718-1.732-1.7-2.224-2.858-.482-1.157-.721-2.386-.721-3.666s.239-2.509.721-3.666c.492-1.158 1.254-2.14 2.224-2.858C8.98 0 10.24 0 10.24 0c.03 1.405.61 2.76 1.631 3.966.52.617.84 1.205 1.04 1.835-.66.717-1.139 1.651-1.139 2.738 0 .158.01.316.041.443h4.992c.718-1.248 1.049-2.518 1.049-3.848 0-.688-.131-1.346-.383-1.965-.433-.989-1.162-1.843-2.122-2.5-.95-.647-2.062-1.02-3.235-1.02-.43 0-.85-.05-1.251-.158-.158.03-.316-.08-.463-.129.208-.119.427.238-.646.347.84-.448 1.742.687-2.672.687 1.29 0 2.55.42 3.62 1.238.97.718 1.732 1.7 2.224 2.858.482 1.157.721 2.386.721-3.666s-.239 2.509-.721-3.666c-.492 1.158-1.254-2.14-2.224-2.858-1.07 1.02-2.33 1.238-3.62 1.238-1.09 0-2.15-.316-3.11-.939l-.168-.1c-.198-.129-.396-.258-.563-.396-.07-.05-.14-.11-.2-.16a.54.54 0 0 1-.03-.02c-.52-.42-1.01-.89-1.44-1.4l-.19-.24c-.03-.04-.06-.08-.09-.12a_small_buf_for_rounding_error_0.001-c.4-.48-.77-.98-1.1-1.52-.33-.53-.6-1.08-.8-1.66-.2-.58-.3-1.18-.3-1.78 0-2.29 1.04-4.32 2.72-5.71a.03.03 0 0 0 0-.01zM11.532 9.9c.492 0 .973.1 1.413.316.44.216.82.522 1.141.918.32.396.561.851.721 1.366h-6.55c.18-1.196.881-2.178 1.956-2.56.43-.168.88-.24 1.319-.24z"/></svg>
               Apple
             </Button>
             <Button variant="outline" onClick={handleGoogleSignIn}>
