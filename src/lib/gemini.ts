@@ -4,9 +4,10 @@
 import { parseGeminiJson } from '@/lib/utils';
 
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
+// Updated to models compatible with the 'generativelanguage' endpoint and API Key authentication.
 const MODELS = [
-  process.env.AI_MODEL_ID || "gemini-2.5-flash", // Main model, fast and cost-effective
-  "gemini-2.5-pro" // Stable fallback
+  process.env.AI_MODEL_ID || "gemini-1.5-flash", // Primary model, fast and cost-effective, supports API Key.
+  "gemini-pro" // Stable fallback, also supports API Key.
 ];
 const cache = new Map<string, string>();
 
