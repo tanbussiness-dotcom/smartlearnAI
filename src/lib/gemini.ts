@@ -3,8 +3,8 @@
 
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
 const MODELS = [
-  "gemini-pro",
-  "gemini-1.5-flash-latest",
+  "gemini-2.5-pro",
+  "gemini-2.5-flash",
 ];
 const cache = new Map<string, string>();
 
