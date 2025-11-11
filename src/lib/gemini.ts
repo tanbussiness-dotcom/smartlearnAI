@@ -163,5 +163,3 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
         throw error;
     }
 }
-
-    
