@@ -169,14 +169,27 @@ export default function RoadmapPage() {
     const currentStep = roadmap.find(step => step.lessons.some(l => l.id === lesson.id));
     if (!currentStep) return;
 
-    // If lesson is "To Learn", change it to "Learning" optimistically
+    // Optimistic Update: Change status to 'Learning' immediately if it's 'To Learn'
     if (lesson.status === 'To Learn') {
-      const lessonRef = doc(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', currentStep.id, 'lessons', lesson.id);
-      updateDocumentNonBlocking(lessonRef, { status: 'Learning' });
+        const lessonRef = doc(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', currentStep.id, 'lessons', lesson.id);
+        
+        // Non-blocking write to Firestore. We don't wait for it to complete.
+        updateDocumentNonBlocking(lessonRef, { status: 'Learning' });
+
+        // Update local state for immediate UI feedback
+        setRoadmap(prevRoadmap => prevRoadmap.map(step => {
+            if (step.id === currentStep.id) {
+                return {
+                    ...step,
+                    lessons: step.lessons.map(l => l.id === lesson.id ? { ...l, status: 'Learning' } : l)
+                };
+            }
+            return step;
+        }));
     }
     
-    // Immediately navigate to the lesson page
-    router.push(`/lesson/${lesson.id}`);
+    // Immediately navigate to the lesson page with all necessary query params
+    router.push(`/lesson/${lesson.id}?topicId=${topicId}&roadmapId=${currentStep.id}`);
 
   }, [user, firestore, roadmap, topicId, router]);
 
