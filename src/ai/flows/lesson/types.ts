@@ -18,11 +18,12 @@ export const SearchSourcesOutputSchema = z.object({
 });
 
 // From synthesize-lesson.ts
-const OutputSourceSchema = z.object({
+export const OutputSourceSchema = z.object({
     title: z.string().describe("The title of the source."),
     url: z.string().url().describe("The URL of the source."),
     domain: z.string().describe("The domain of the source."),
     type: z.enum(['article', 'doc', 'tutorial', 'video']).describe("The type of content."),
+    relevance: z.number().optional(), // Make relevance optional as it might not be in the curated list
     short_note: z.string().describe("A brief note on why this source is relevant or useful (1-2 sentences)."),
 });
 
