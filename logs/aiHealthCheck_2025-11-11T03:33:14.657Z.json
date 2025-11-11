@@ -1,0 +1,20 @@
+[
+  {
+    "prompt": "Say hello!",
+    "success": false,
+    "error": "All Gemini models failed due to overload or quota exhaustion. Last error: Failed to fetch from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: [404 Not Found] models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.",
+    "time_ms": 430
+  },
+  {
+    "prompt": "Give one fact about AI.",
+    "success": false,
+    "error": "All Gemini models failed due to overload or quota exhaustion. Last error: Failed to fetch from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: [404 Not Found] models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.",
+    "time_ms": 83
+  },
+  {
+    "prompt": "What year was Google founded?",
+    "success": false,
+    "error": "All Gemini models failed due to overload or quota exhaustion. Last error: Failed to fetch from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent: [404 Not Found] models/gemini-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.",
+    "time_ms": 78
+  }
+]
