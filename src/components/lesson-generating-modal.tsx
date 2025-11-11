@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { LoaderCircle, CheckCircle, Circle } from 'lucide-react';
+import { LoaderCircle, CheckCircle, Circle, PartyPopper } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 type Step = {
@@ -18,10 +18,11 @@ type Step = {
 };
 
 const steps: Step[] = [
-  { key: 'sources', label: 'Đang tìm kiếm nguồn tài liệu...' },
-  { key: 'synthesize', label: 'Đang tổng hợp nội dung bài học...' },
-  { key: 'validate', label: 'Đang kiểm tra và xác thực bài học...' },
-  { key: 'save', label: 'Đang lưu vào cơ sở dữ liệu...' },
+  { key: 'start', label: 'Bắt đầu quá trình...' },
+  { key: 'topic', label: 'Đang tạo chủ đề chính...' },
+  { key: 'roadmap', label: 'AI đang phân tích và tạo lộ trình...' },
+  { key: 'save', label: 'Đang lưu lộ trình vào tài khoản của bạn...' },
+  { key: 'done', label: 'Hoàn tất!' },
 ];
 
 type LessonGeneratingModalProps = {
@@ -41,6 +42,8 @@ export function LessonGeneratingModal({
       setCurrentStepIndex(stepIndex);
     }
   }, [currentStepKey]);
+  
+  const isDone = currentStepKey === 'done';
 
   return (
     <Dialog open={isOpen}>
@@ -51,12 +54,15 @@ export function LessonGeneratingModal({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl font-headline">
-            <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
-            <span>Đang tạo lộ trình học...</span>
+            {isDone ? (
+                <PartyPopper className="h-6 w-6 text-primary" />
+            ) : (
+                <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
+            )}
+            <span>{isDone ? 'Đã tạo lộ trình thành công!' : 'Đang tạo lộ trình học...'}</span>
           </DialogTitle>
           <DialogDescription>
-            AI đang làm việc. Quá trình này có thể mất một vài phút. Vui lòng
-            không đóng cửa sổ này.
+             {isDone ? 'Bạn sẽ được chuyển hướng ngay bây giờ.' : 'AI đang làm việc. Quá trình này có thể mất một vài phút. Vui lòng không đóng cửa sổ này.'}
           </DialogDescription>
         </DialogHeader>
         <div className="mt-4 space-y-4">
@@ -72,16 +78,20 @@ export function LessonGeneratingModal({
                 {index < currentStepIndex ? (
                   <CheckCircle className="h-5 w-5 text-green-500" />
                 ) : index === currentStepIndex ? (
-                  <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
+                  isDone ? (
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
+                  )
                 ) : (
                   <Circle className="h-5 w-5 text-muted-foreground" />
                 )}
                 <span
                   className={
-                    index < currentStepIndex
-                      ? 'text-muted-foreground line-through'
-                      : index === currentStepIndex
-                        ? 'font-medium text-foreground'
+                    index <= currentStepIndex
+                        ? index === currentStepIndex && !isDone
+                            ? 'font-medium text-foreground'
+                            : 'text-muted-foreground line-through'
                         : 'text-muted-foreground'
                   }
                 >

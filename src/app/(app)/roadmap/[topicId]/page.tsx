@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -182,8 +181,9 @@ export default function RoadmapPage() {
   }, [user, firestore, roadmap, topicId, router]);
 
 
-  const completedSteps = roadmap.filter(s => s.status === 'Learned').length;
-  const progress = roadmap.length > 0 ? (completedSteps / roadmap.length) * 100 : 0;
+  const completedLessons = useMemo(() => roadmap.flatMap(s => s.lessons).filter(l => l.status === 'Learned').length, [roadmap]);
+  const totalLessons = useMemo(() => roadmap.flatMap(s => s.lessons).length, [roadmap]);
+  const progress = totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
   
   const [activeStep, setActiveStep] = useState<string | undefined>(
     roadmap.find(s => s.status === 'Learning')?.id
@@ -261,7 +261,7 @@ export default function RoadmapPage() {
               <Progress value={progress} className="w-full" />
               <span className="text-sm font-medium text-muted-foreground">{Math.round(progress)}%</span>
             </div>
-             {isCompleted && (
+             {isCompleted && totalLessons > 0 && (
                 <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-4 text-center p-4 border-2 border-dashed border-green-500 rounded-lg bg-green-50 dark:bg-green-900/20">
                     <Award className="h-10 w-10 text-green-600 dark:text-green-400" />
                     <div>
@@ -349,5 +349,3 @@ export default function RoadmapPage() {
     </div>
   );
 }
-
-    

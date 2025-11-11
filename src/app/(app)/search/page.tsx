@@ -2,103 +2,136 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Search as SearchIcon, LoaderCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { collection, doc, writeBatch } from 'firebase/firestore';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PopularTopics } from '@/components/popular-topics';
-import { useUser, useFirestore, setDocumentNonBlocking } from '@/firebase';
-import { vertexDynamicOutline } from '@/ai/flows/vertexDynamicOutline.flow';
+import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
+import { generatePersonalizedLearningRoadmap } from '@/ai/flows/generate-personalized-learning-roadmap';
 import { useToast } from '@/hooks/use-toast';
+import { LessonGeneratingModal } from '@/components/lesson-generating-modal';
 
 export default function SearchPage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
 
-  const [topic, setTopic] = useState(searchParams.get('topic') || '');
+  const [topic, setTopic] = useState('');
   const [loading, setLoading] = useState(false);
+  const [modalState, setModalState] = useState({ isOpen: false, currentStepKey: '' });
 
   const handleGenerateRoadmap = async (currentTopic: string) => {
     if (!currentTopic.trim()) {
       toast({
         variant: 'destructive',
-        title: 'Topic is required',
-        description: 'Please enter a topic to generate a roadmap.',
+        title: 'Yêu cầu nhập chủ đề',
+        description: 'Vui lòng nhập chủ đề để tạo lộ trình.',
       });
       return;
     }
     if (!user || !firestore) {
       toast({
         variant: 'destructive',
-        title: 'Authentication Error',
-        description: 'You must be logged in to create a roadmap.',
+        title: 'Lỗi xác thực',
+        description: 'Bạn cần đăng nhập để tạo lộ trình.',
       });
       router.push('/login');
       return;
     }
 
     setLoading(true);
+    setModalState({ isOpen: true, currentStepKey: 'start' });
 
     try {
-      // Step 1: Generate Lesson Outline from AI
-      const outlineResult = await vertexDynamicOutline({
+      // Step 1: Create the parent topic document
+      setModalState({ isOpen: true, currentStepKey: 'topic' });
+      const topicRef = await addDocumentNonBlocking(
+        collection(firestore, 'users', user.uid, 'topics'), {
+          title: currentTopic,
+          createdBy: user.uid,
+          createdAt: new Date().toISOString(),
+          progress: 0,
+        }
+      );
+      const topicId = topicRef.id;
+
+      // Step 2: Generate Roadmap from AI
+      setModalState({ isOpen: true, currentStepKey: 'roadmap' });
+      const roadmapResult = await generatePersonalizedLearningRoadmap({
         topic: currentTopic,
-        level: 'beginner',
-        targetAudience: 'self-learner',
+        duration: '1 tháng',
+        level: 'người mới bắt đầu',
+        goal: 'nắm vững kiến thức nền tảng và có thể áp dụng vào dự án nhỏ',
+        targetAudience: 'người tự học'
       });
-      
-      if (!outlineResult) {
-        // This case should ideally not be hit if the flow throws an error,
-        // but it's good practice to keep it as a fallback.
-        toast({
-          variant: 'destructive',
-          title: 'Generation Failed',
-          description:
-            'The AI returned an empty result. Please try again.',
-        });
-        setLoading(false);
-        return;
+
+      if (!roadmapResult || !roadmapResult.roadmap) {
+        throw new Error('AI không thể tạo được lộ trình. Vui lòng thử lại.');
       }
-
-      // Step 2: Create a single Lesson document in Firestore
-      const lessonRef = doc(collection(firestore, 'users', user.uid, 'lessons'));
-      const lessonId = lessonRef.id;
-
-      const lessonData = {
-        id: lessonId,
-        title: outlineResult.title,
-        overview: outlineResult.overview,
-        outline: outlineResult.outline,
-        sections: {}, // Initially empty, will be populated on demand
-        createdBy: user.uid,
-        createdAt: new Date().toISOString(),
-        status: 'To Learn',
-      };
       
-      setDocumentNonBlocking(lessonRef, lessonData);
-      
-      toast({
-        title: 'Lesson Outline Generated!',
-        description: `Your lesson outline for "${currentTopic}" is ready.`,
+      // Update topic with generated title
+       updateDoc(topicRef, { title: roadmapResult.title });
+
+
+      // Step 3: Save the entire roadmap structure to Firestore
+      setModalState({ isOpen: true, currentStepKey: 'save' });
+      const batch = writeBatch(firestore);
+
+      let totalLessons = 0;
+      roadmapResult.roadmap.forEach((phase, phaseIndex) => {
+        const roadmapDocRef = doc(collection(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps'));
+        const isFirstPhase = phaseIndex === 0;
+
+        batch.set(roadmapDocRef, {
+          stepNumber: phaseIndex + 1,
+          stepTitle: phase.title,
+          description: phase.goal,
+          duration: phase.duration,
+          status: isFirstPhase ? 'Learning' : 'Locked',
+        });
+
+        phase.lessons.forEach((lesson) => {
+          totalLessons++;
+          const lessonDocRef = doc(collection(roadmapDocRef, 'lessons'));
+          batch.set(lessonDocRef, {
+            title: lesson.title,
+            description: lesson.description,
+            difficulty: lesson.difficulty,
+            status: 'To Learn',
+            has_quiz: true, // Assume all lessons will have a quiz
+            quiz_ready: false, // Quiz is not generated yet
+            isAiGenerated: false, // Content is not generated yet
+            topic: roadmapResult.title,
+            phase: phase.title,
+          });
+        });
       });
+      
+      await batch.commit();
 
-      router.push(`/lesson/${lessonId}`);
+      setModalState({ isOpen: true, currentStepKey: 'done' });
+      toast({
+        title: 'Đã tạo lộ trình thành công!',
+        description: `Lộ trình học cho "${roadmapResult.title}" đã sẵn sàng.`,
+      });
+      
+      // Navigate to the new roadmap page
+      router.push(`/roadmap/${topicId}`);
+
     } catch (error: any) {
-      console.error('Failed to generate and store lesson outline:', error);
+      console.error('Failed to generate and store roadmap:', error);
       toast({
         variant: 'destructive',
-        title: 'Generation Failed',
-        description:
-          error.message ||
-          'There was an error generating your lesson outline. Please try again.',
+        title: 'Tạo lộ trình thất bại',
+        description: error.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.',
       });
-       setLoading(false);
+      setLoading(false);
+      setModalState({ isOpen: false, currentStepKey: '' });
     }
   };
 
@@ -108,6 +141,7 @@ export default function SearchPage() {
   };
 
   return (
+    <>
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -142,5 +176,7 @@ export default function SearchPage() {
         <PopularTopics />
       </div>
     </motion.div>
+    <LessonGeneratingModal isOpen={modalState.isOpen} currentStepKey={modalState.currentStepKey} />
+    </>
   );
 }
