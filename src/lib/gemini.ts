@@ -4,11 +4,8 @@
 import { parseGeminiJson } from '@/lib/utils';
 
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
-// Updated to models compatible with the 'generativelanguage' endpoint and API Key authentication.
-const MODELS = [
-  process.env.AI_MODEL_ID || "gemini-2.0-flash", // Primary model, fast and cost-effective, supports API Key.
-  "gemini-2.5-pro" // Stable fallback, also supports API Key.
-];
+// Updated to use a single model as requested.
+const MODEL = process.env.AI_MODEL_ID || "gemini-1.5-flash"; 
 const cache = new Map<string, string>();
 
 type GeminiResponse = {
@@ -72,7 +69,7 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
       throw new Error(errorMsg);
   }
 
-  const cacheKey = `${prompt}-${MODELS.join('-')}`;
+  const cacheKey = `${prompt}-${MODEL}`;
   if (useCache && cache.has(cacheKey)) {
       return cache.get(cacheKey)!;
   }
@@ -80,23 +77,16 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
   let aiText = "";
   let lastError: any = null;
 
-  for (const model of MODELS) {
-    try {
-      console.log(`[Gemini API] 🔹 Trying model: ${model}`);
-      aiText = await callGeminiModel(prompt, model);
-      if (aiText) {
-          console.log(`[Gemini API] ✅ Success with ${model}.`);
-          break; // Exit loop on success
-      }
-    } catch (err: any) {
-      lastError = err;
-      console.warn(`[Gemini API] ⚠️ Model ${model} failed: ${err.message}. Trying next model...`);
-      aiText = ""; // Reset aiText on failure
-    }
+  try {
+    console.log(`[Gemini API] 🔹 Using model: ${MODEL}`);
+    aiText = await callGeminiModel(prompt, MODEL);
+  } catch (err: any) {
+    lastError = err;
+    console.warn(`[Gemini API] ⚠️ Model ${MODEL} failed: ${err.message}.`);
   }
 
   if (!aiText) {
-      const finalError = `All Gemini models failed. Last error: ${lastError?.message || "Unknown error"}`;
+      const finalError = `Gemini model failed. Error: ${lastError?.message || "Unknown error"}`;
       console.error(`[Gemini API] ❌ ${finalError}`);
       throw new Error(finalError);
   }
@@ -128,8 +118,7 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
     `;
 
     try {
-      // Use the last, most stable model for the retry attempt.
-      const retryText = await callGeminiModel(strictPrompt, MODELS[MODELS.length-1]); 
+      const retryText = await callGeminiModel(strictPrompt, MODEL); 
       const retryResult = parseGeminiJson<any>(retryText);
       
       if (retryResult && Object.keys(retryResult).length > 0) {
