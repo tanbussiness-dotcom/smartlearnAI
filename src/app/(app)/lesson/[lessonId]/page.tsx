@@ -190,13 +190,6 @@ export default function LessonPage() {
 
   const hasContent = lesson.isAiGenerated && lesson.content;
 
-  // Sanitize content for markdown rendering
-  const cleanContent = (text: string | undefined) => {
-    if (!text) return "";
-    return text.replace(/\\n/g, '\n');
-  };
-
-
   return (
     <motion.div
       className="container mx-auto max-w-4xl py-8"
@@ -224,7 +217,7 @@ export default function LessonPage() {
                         className="prose prose-lg dark:prose-invert max-w-none"
                     >
                         <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                            {cleanContent(lesson.content)}
+                            {lesson.content}
                         </ReactMarkdown>
                     </motion.article>
                 ) : (
