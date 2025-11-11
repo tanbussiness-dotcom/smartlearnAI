@@ -1,0 +1,20 @@
+[
+  {
+    "prompt": "Say hello!",
+    "success": false,
+    "error": "⚠️ Gemini API key is missing. Please add GOOGLE_API_KEY to environment variables.",
+    "time_ms": 1
+  },
+  {
+    "prompt": "Give one fact about AI.",
+    "success": false,
+    "error": "⚠️ Gemini API key is missing. Please add GOOGLE_API_KEY to environment variables.",
+    "time_ms": 0
+  },
+  {
+    "prompt": "What year was Google founded?",
+    "success": false,
+    "error": "⚠️ Gemini API key is missing. Please add GOOGLE_API_KEY to environment variables.",
+    "time_ms": 0
+  }
+]
