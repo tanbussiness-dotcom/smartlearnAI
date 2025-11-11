@@ -44,7 +44,7 @@ export async function generateLesson(input: z.infer<typeof GenerateLessonInputSc
   try {
     // Step 1: Search for sources
     const searchResult = await searchSources({ topic, phase });
-    if (!searchResult.sources || searchResult.sources.length === 0) {
+    if (!searchResult || !searchResult.sources || searchResult.sources.length === 0) {
       throw new Error('Could not find any relevant sources for the topic.');
     }
 
@@ -55,7 +55,11 @@ export async function generateLesson(input: z.infer<typeof GenerateLessonInputSc
       sources: searchResult.sources,
     });
 
-    // Step 2.5: Basic content validation before calling the validation AI
+    // Step 2.5: Comprehensive validation before proceeding
+    if (!lessonDraft || typeof lessonDraft.content !== 'string' || lessonDraft.content.trim() === '') {
+        throw new Error('AI failed to generate valid lesson content. The draft is empty or malformed.');
+    }
+
     const wordCount = lessonDraft.content.split(/\s+/).length;
     const hasHeadings = /^(##|###) /m.test(lessonDraft.content);
 
@@ -92,3 +96,4 @@ export async function generateLesson(input: z.infer<typeof GenerateLessonInputSc
     throw error;
   }
 }
+
