@@ -63,20 +63,20 @@ ${sourcesString}
 Your final output must be a single, valid JSON object that strictly conforms to the provided output schema.
 `;
 
-  let aiText = await generateWithGemini(prompt);
+  const aiText = await generateWithGemini(prompt);
   let output = parseGeminiJson<SynthesizeLessonOutput>(aiText);
 
-  // Safety check to ensure output and output.content exist
-  if (output && output.content && output.content.split(' ').length < 800) {
-    aiText = await generateWithGemini(
-      prompt + '\nViết chi tiết hơn, khoảng 1000 từ.'
-    );
-    output = parseGeminiJson(aiText);
+  // Ensure the core content exists. If not, throw an error.
+  if (!output || !output.content) {
+      throw new Error("Failed to generate a valid lesson structure from AI. The 'content' field is missing.");
   }
-
-  // Ensure output is a valid object before proceeding
-  if (!output || !output.sources || !output.videos) {
-      throw new Error("Failed to generate a valid lesson structure from AI.");
+  
+  // Safely initialize sources and videos if they are missing from the AI response
+  if (!output.sources) {
+    output.sources = [];
+  }
+  if (!output.videos) {
+    output.videos = [];
   }
 
   // Post-processing to fix missing 'type' field from AI response
@@ -90,7 +90,6 @@ Your final output must be a single, valid JSON object that strictly conforms to 
     }
     return source;
   });
-
 
   // Post-processing to ensure video data is consistent, if needed.
   const videoSources = output.sources.filter(s => s.type === 'video');
