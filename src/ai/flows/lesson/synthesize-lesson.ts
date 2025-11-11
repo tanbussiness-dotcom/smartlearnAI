@@ -82,6 +82,8 @@ Your final output must be a single, valid JSON object that strictly conforms to 
   // Post-processing to fix missing fields from the AI's curated sources list.
   const inputSourcesByUrl = new Map(input.sources.map(s => [s.url, s]));
   output.sources = output.sources.map(source => {
+    // Ensure we don't crash if AI returns a source without a URL
+    if (!source || !source.url) return source; 
     const originalSource = inputSourcesByUrl.get(source.url);
     if (originalSource) {
         // Ensure all required fields from the original source are present if missing in the AI output.
@@ -90,15 +92,16 @@ Your final output must be a single, valid JSON object that strictly conforms to 
             ...source,          // Override with what the AI provided (like short_note)
         };
     }
-    return source; // Return the source as-is if no original match is found
-  });
+    return source; 
+  }).filter(Boolean); // Remove any null/undefined entries
 
   // Post-processing to ensure video data is consistent, if needed.
   const videoSources = output.sources.filter(s => s.type === 'video');
-  const existingVideoUrls = new Set(output.videos.map(v => v.url));
+  // Ensure output.videos is an array before trying to map it
+  const existingVideoUrls = new Set((output.videos || []).filter(v => v && v.url).map(v => v.url));
 
   for (const videoSource of videoSources) {
-      if (!existingVideoUrls.has(videoSource.url)) {
+      if (videoSource.url && !existingVideoUrls.has(videoSource.url)) {
           output.videos.push({
               title: videoSource.title,
               url: videoSource.url,
