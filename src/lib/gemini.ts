@@ -1,6 +1,9 @@
 
 'use server';
 
+import { ai } from '@/ai/genkit';
+import { GenerateRequest, generationConfigSchema, safetySettingSchema } from '@genkit-ai/google-genai';
+
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
 
 // Fallback model order. Starts with the most preferred model.
@@ -78,52 +81,27 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
     console.log(`[Gemini Model] Using: ${currentModel} (Attempt ${attempt + 1}/${MODEL_FALLBACK_ORDER.length})`);
     
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.7,
-              topK: 1,
-              topP: 1,
-              maxOutputTokens: 8192,
-            },
-            safetySettings: [
+       const request: GenerateRequest = {
+        model: `googleai/${currentModel}`,
+        prompt: prompt,
+        config: {
+          temperature: 0.7,
+          topK: 1,
+          topP: 1,
+          maxOutputTokens: 8192,
+           safetySettings: [
               { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
               { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
               { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
               { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
             ],
-          }),
-        }
-      );
+        },
+      };
 
-      if ([429, 503].includes(res.status)) {
-        lastError = new Error(`API returned status ${res.status}`);
-        if (attempt < MODEL_FALLBACK_ORDER.length - 1) {
-            const nextModel = MODEL_FALLBACK_ORDER[attempt + 1];
-            console.warn(`[Gemini Switch] Switching model ${currentModel} → ${nextModel} due to ${res.status}.`);
-        }
-        continue; // Move to the next model in the fallback list
-      }
-      
-      if (!res.ok) {
-        const errorBody = await res.text();
-        throw new Error(`Gemini API request failed with status ${res.status}: ${errorBody}`);
-      }
+      const response = await ai.generate(request);
+      const text = response.text;
 
-      const data: GeminiResponse = await res.json();
-
-      if (data.error) {
-        throw new Error(`Gemini API Error: ${data.error.message}`);
-      }
-      
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (data.candidates?.[0]?.finishReason === 'SAFETY') {
+      if (response.finishReason === 'SAFETY') {
           console.warn(`[Gemini Safety] Request for model ${currentModel} was blocked due to safety settings.`);
           lastError = new Error('Content generation was blocked by safety filters.');
           // Fallback to the next model if safety is the issue
@@ -142,6 +120,14 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
 
     } catch (error: any) {
       lastError = error;
+      if (error.status === 429 || error.status === 503) {
+         if (attempt < MODEL_FALLBACK_ORDER.length - 1) {
+            const nextModel = MODEL_FALLBACK_ORDER[attempt + 1];
+            console.warn(`[Gemini Switch] Switching model ${currentModel} → ${nextModel} due to ${error.status}.`);
+        }
+        continue;
+      }
+
       if (attempt < MODEL_FALLBACK_ORDER.length - 1) {
         console.warn(`[Gemini Error] Attempt ${attempt + 1} with model ${currentModel} failed: ${error.message}. Switching to next model.`);
       }
