@@ -76,15 +76,24 @@ export async function generateLesson(input: z.infer<typeof GenerateLessonInputSc
         lesson_content: lessonDraft.content,
     });
 
-    // Return all data to the client for saving.
-    return {
+    // Final Validation: Ensure the final object has the required keys
+    const finalResult = {
       lesson: lessonDraft,
       validation: validationResult,
       quiz: quizResult,
     };
+
+    if (!finalResult.lesson || !finalResult.validation || !finalResult.quiz) {
+        throw new Error("Lesson generation process failed to produce a complete result. One or more key parts are missing.");
+    }
+
+    // Return all data to the client for saving.
+    return GenerateLessonOutputSchema.parse(finalResult);
+    
   } catch (error: any) {
     // This flow can't write to Firestore, but we log the error on the server.
     // The client will handle user-facing errors.
-    throw error;
+    console.error('[generateLesson] ❌ Lesson generation failed:', error);
+    throw new Error(`Lesson generation failed: ${error.message}`);
   }
 }
