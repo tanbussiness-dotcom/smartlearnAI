@@ -10,34 +10,46 @@ export function cn(...inputs: ClassValue[]) {
  * A helper function to parse a JSON string from the AI's response.
  * It removes markdown code fences, cleans up common formatting issues,
  * and retries parsing if the initial attempt fails.
- * 
+ *
  * @param aiText - The text response from the Gemini API.
  * @returns The parsed JavaScript object.
  * @throws An error if the JSON is invalid after cleanup and retries.
  */
 export function parseGeminiJson<T>(aiText: string): T {
-  // Step 1: Basic cleanup
-  let cleanText = aiText
+  // Step 1: Find the JSON block within the text
+  let jsonString = aiText;
+  const jsonStart = aiText.indexOf('{');
+  const jsonEnd = aiText.lastIndexOf('}');
+  
+  if (jsonStart !== -1 && jsonEnd !== -1) {
+    jsonString = aiText.substring(jsonStart, jsonEnd + 1);
+  }
+
+  // Step 2: Basic cleanup
+  jsonString = jsonString
     .replace(/```json|```/g, "") // Remove markdown code fences
     .replace(/[“”]/g, '"') // Replace curly quotes with straight quotes
     .trim();
 
-  // Step 2: Remove trailing commas before brackets and braces
-  cleanText = cleanText.replace(/,\s*(}|])/g, "$1");
+  // Step 3: Remove trailing commas before brackets and braces. This is more robust.
+  jsonString = jsonString.replace(/,\s*(}|])/g, '$1');
 
-  if (!cleanText) {
-    throw new Error("AI returned an empty response.");
+  if (!jsonString) {
+    throw new Error("AI returned an empty response or no valid JSON block was found.");
   }
 
   try {
     // First attempt to parse
-    return JSON.parse(cleanText) as T;
+    return JSON.parse(jsonString) as T;
   } catch (error: any) {
     // If parsing fails, try a more aggressive cleanup
     console.warn("Initial JSON parse failed. Retrying after more aggressive cleanup...");
-    
-    // Remove all newlines and then try to remove trailing commas again
-    const singleLineText = cleanText.replace(/\n/g, "").replace(/,\s*(}|])/g, "$1");
+
+    // Remove comments and all newlines, then try to remove trailing commas again
+    const singleLineText = jsonString
+        .replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '') // Remove comments
+        .replace(/\n|\r/g, '') // Remove all newlines
+        .replace(/,\s*(}|])/g, "$1"); // Re-apply trailing comma removal
 
     try {
       return JSON.parse(singleLineText) as T;
