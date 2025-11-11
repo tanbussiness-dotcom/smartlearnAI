@@ -18,21 +18,23 @@ export function cn(...inputs: ClassValue[]) {
 export function parseGeminiJson<T>(aiText: string): T {
   // Step 1: Find the JSON block within the text
   let jsonString = aiText;
-  const jsonStart = aiText.indexOf('{');
-  const jsonEnd = aiText.lastIndexOf('}');
-  
-  if (jsonStart !== -1 && jsonEnd !== -1) {
-    jsonString = aiText.substring(jsonStart, jsonEnd + 1);
+  const match = /```json\s*([\s\S]*?)\s*```/.exec(aiText);
+
+  if (match && match[1]) {
+    jsonString = match[1];
+  } else {
+    // Fallback for cases where markdown fences are missing
+    const jsonStart = aiText.indexOf('{');
+    const jsonEnd = aiText.lastIndexOf('}');
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      jsonString = aiText.substring(jsonStart, jsonEnd + 1);
+    }
   }
 
   // Step 2: Basic cleanup
   jsonString = jsonString
-    .replace(/```json|```/g, "") // Remove markdown code fences
     .replace(/[“”]/g, '"') // Replace curly quotes with straight quotes
     .trim();
-
-  // Step 3: Remove trailing commas before brackets and braces. This is more robust.
-  jsonString = jsonString.replace(/,\s*(}|])/g, '$1');
 
   if (!jsonString) {
     throw new Error("AI returned an empty response or no valid JSON block was found.");
@@ -42,10 +44,9 @@ export function parseGeminiJson<T>(aiText: string): T {
     // First attempt to parse
     return JSON.parse(jsonString) as T;
   } catch (error: any) {
-    // If parsing fails, try a more aggressive cleanup
     console.warn("Initial JSON parse failed. Retrying after more aggressive cleanup...");
 
-    // Remove comments and all newlines, then try to remove trailing commas again
+    // Remove comments and all newlines, then try to remove trailing commas
     const singleLineText = jsonString
         .replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '') // Remove comments
         .replace(/\n|\r/g, '') // Remove all newlines
