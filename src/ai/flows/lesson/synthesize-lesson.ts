@@ -2,13 +2,13 @@
 'use server';
 /**
  * @fileOverview This file defines the function for synthesizing a structured lesson from a curated list of sources using Gemini API.
+ * It now requests only Markdown content from the AI and constructs the final object on the client.
  *
  * @exports synthesizeLesson - The main function to synthesize a lesson.
  */
 
 import { z } from 'zod';
 import { generateWithGemini } from '@/lib/gemini';
-import { parseGeminiJson } from '@/lib/utils';
 import { SynthesizeLessonOutputSchema } from './types';
 
 // Defines the schema for a single source provided as input.
@@ -29,14 +29,6 @@ const SynthesizeLessonInputSchema = z.object({
 type SynthesizeLessonInput = z.infer<typeof SynthesizeLessonInputSchema>;
 type SynthesizeLessonOutput = z.infer<typeof SynthesizeLessonOutputSchema>;
 
-// Partial schema for what we expect from the AI.
-const AISynthesisSchema = z.object({
-  title: z.string().describe('A clear and concise title for the lesson.'),
-  overview: z.string().describe('A short introductory paragraph that summarizes the main content of the lesson.'),
-  content: z.string().describe('The full lesson content in Markdown or HTML format, between 800 and 1200 words, with clear sections and practical examples.'),
-  estimated_time_min: z.number().describe('Estimated time in minutes to complete the lesson.'),
-});
-
 export async function synthesizeLesson(input: SynthesizeLessonInput): Promise<SynthesizeLessonOutput> {
   const sourcesString = JSON.stringify(input.sources.map(s => ({ url: s.url, title: s.title, type: s.type })), null, 2);
 
@@ -47,38 +39,63 @@ Phase: ${input.phase}
 Sources (for context):
 ${sourcesString}
 
-**Your response MUST be a JSON object containing ONLY the following keys: "title", "overview", "content", and "estimated_time_min".**
+**Your response MUST be ONLY the lesson content in pure Markdown format.**
 
-**Instructions for the content:**
+**Instructions for the Markdown content:**
 
-1.  **Generate In-Depth, Structured Content:** Create the lesson content ('content') in **Markdown**. It must be between **800 and 1200 words**, well-organized, and include the following sections using appropriate Markdown headings (##, ###):
+1.  **Structure:** The lesson must start with a level-1 heading (#) for the title. Immediately following the title, include a short introductory paragraph (this will be the overview).
+2.  **Content:** The main body of the lesson should be between **800 and 1200 words**, well-organized, and include the following sections using appropriate Markdown headings (##, ###):
     *   **Introduction:** Introduce the core concepts, explain their importance, and describe their practical applications.
     *   **Main Body:** Logically break down the topic into several sub-sections. Explain each concept clearly and thoroughly.
         *   Provide **at least 3 practical, real-world examples** to illustrate the concepts.
         *   If applicable, include formulas, tables, or visual descriptions.
     *   **Conclusion:** Summarize the key takeaways and provide specific, actionable practice suggestions or exercises for the learner.
+3.  **Originality:** Do NOT copy content directly. Synthesize the information in your own words. The tone should be encouraging and accessible but technically accurate.
 
-2.  **Estimate Time:** Based on the content, provide an 'estimated_time_min'.
-3.  **Title and Overview:** Create a concise 'title' and a short 'overview'.
-4.  **Write Original Content:** Do NOT copy content directly. Synthesize the information in your own words. The tone should be encouraging and accessible but technically accurate.
+**Example Format:**
+# The Title of The Lesson
+This is the short overview paragraph...
 
-Your final output must be a single, valid JSON object that strictly conforms to the requested structure.
+## Introduction
+...
+
+### Sub-section
+...
 `;
 
-  const aiText = await generateWithGemini(prompt);
-  const aiOutput = parseGeminiJson<z.infer<typeof AISynthesisSchema>>(aiText);
+  const markdownContent = await generateWithGemini(prompt, false);
 
-  // Ensure the core content exists. If not, throw an error.
-  if (!aiOutput || !aiOutput.content) {
-      throw new Error("Failed to generate a valid lesson structure from AI. The 'content' field is missing.");
+  if (!markdownContent || markdownContent.trim() === '') {
+    throw new Error("AI failed to generate any lesson content.");
   }
   
-  // Assemble the final output object on the client side for reliability
+  // --- Post-processing: Parse the Markdown to build the final object ---
+  const lines = markdownContent.split('\n');
+  
+  // Extract Title (first line, remove '#')
+  const title = lines.length > 0 ? lines[0].replace(/^#\s*/, '').trim() : "Untitled Lesson";
+  
+  // Extract Overview (find the first paragraph after the title)
+  let overview = `An AI-generated lesson about ${input.topic}.`;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() !== '') {
+      overview = lines[i].trim();
+      break;
+    }
+  }
+
+  // Estimate reading time (approx. 200 words per minute)
+  const wordCount = markdownContent.split(/\s+/).length;
+  const estimatedTimeMin = Math.max(1, Math.round(wordCount / 200));
+
   const finalOutput: SynthesizeLessonOutput = {
-    ...aiOutput,
+    title,
+    overview,
+    content: markdownContent, // The full, raw markdown
+    estimated_time_min: estimatedTimeMin,
     sources: input.sources.map(s => ({
         ...s,
-        short_note: `A resource for learning about ${input.topic}.` // Add a generic but useful note
+        short_note: `A resource for learning about ${input.topic}.`
     })),
     videos: input.sources
         .filter(s => s.type === 'video')
