@@ -66,11 +66,17 @@ Your final output must be a single, valid JSON object that strictly conforms to 
   let aiText = await generateWithGemini(prompt);
   let output = parseGeminiJson<SynthesizeLessonOutput>(aiText);
 
-  if (output.content.split(' ').length < 800) {
+  // Safety check to ensure output and output.content exist
+  if (output && output.content && output.content.split(' ').length < 800) {
     aiText = await generateWithGemini(
       prompt + '\nViết chi tiết hơn, khoảng 1000 từ.'
     );
     output = parseGeminiJson(aiText);
+  }
+
+  // Ensure output is a valid object before proceeding
+  if (!output || !output.sources || !output.videos) {
+      throw new Error("Failed to generate a valid lesson structure from AI.");
   }
 
   // Post-processing to ensure video data is consistent, if needed.
