@@ -3,6 +3,7 @@
 
 import { ai } from '@/ai/genkit';
 import { GenerateRequest } from '@genkit-ai/google-genai';
+import { parseGeminiJson } from './utils';
 
 // Fallback model order. Starts with the most preferred model.
 const MODEL_FALLBACK_ORDER = [
@@ -29,24 +30,11 @@ const delay = (minMs: number, maxMs: number) => {
     return new Promise(resolve => setTimeout(resolve, totalDelay));
 };
 
-/**
- * A cached function to generate content with the Gemini API with retry and model fallback logic.
- *
- * @param prompt - The prompt to send to the model.
- * @param useCache - Whether to use the cache. Defaults to true.
- * @returns The generated text from the model.
- * @throws An error if the API call fails after all fallbacks and retries.
- */
-export async function generateWithGemini(prompt: string, useCache = true): Promise<string> {
+async function generateAndParseWithRetry<T>(prompt: string, useCache: boolean): Promise<T> {
   if (!process.env.GOOGLE_API_KEY) {
       const warning = "⚠️ Gemini API key is missing. Please add GOOGLE_API_KEY to environment variables.";
       console.warn(warning);
       throw new Error(warning);
-  }
-
-  const cacheKey = `${prompt}-${MODEL_FALLBACK_ORDER.join('-')}`;
-  if (useCache && cache.has(cacheKey)) {
-    return cache.get(cacheKey)!;
   }
 
   // --- Throttling Logic ---
@@ -100,11 +88,9 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
             }
             
             if (text) {
-                if (useCache) {
-                  cache.set(cacheKey, text);
-                }
+                // Return the raw text, parsing will be handled outside this loop
                 console.log(`✅ Success (model: ${currentModel}, time: ${endTime - startTime}ms)`);
-                return text;
+                return text as T;
             }
             
             lastError = new Error("Gemini API returned an empty text response.");
@@ -127,7 +113,6 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
         }
     }
     
-    // If we've exhausted retries for a model, and it's not the last model, log fallback
     if (modelIndex < MODEL_FALLBACK_ORDER.length - 1) {
         console.warn(`[Gemini Fallback] Switching model from ${currentModel} → ${MODEL_FALLBACK_ORDER[modelIndex + 1]} due to persistent error.`);
     }
@@ -135,3 +120,48 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
   
   throw new Error(`All Gemini models failed due to overload or quota exhaustion. Last error: ${lastError?.message}`);
 }
+
+/**
+ * A cached function to generate content with the Gemini API, including retry, model fallback,
+ * and JSON parsing with an auto-correction mechanism.
+ *
+ * @param prompt - The prompt to send to the model.
+ * @param useCache - Whether to use the cache. Defaults to true.
+ * @returns The generated text from the model.
+ * @throws An error if the API call or parsing fails after all attempts.
+ */
+export async function generateWithGemini(prompt: string, useCache = true): Promise<string> {
+    const cacheKey = `${prompt}-${MODEL_FALLBACK_ORDER.join('-')}`;
+    if (useCache && cache.has(cacheKey)) {
+        return cache.get(cacheKey)!;
+    }
+
+    try {
+        const rawText = await generateAndParseWithRetry<string>(prompt, useCache);
+        // Attempt to parse the JSON. If it fails, the catch block will handle it.
+        parseGeminiJson(rawText); 
+        if (useCache) {
+            cache.set(cacheKey, rawText);
+        }
+        return rawText;
+    } catch (error) {
+        if (error instanceof Error && error.message.startsWith('Invalid JSON format')) {
+            console.warn("[Gemini Auto-Correct] Initial response was invalid JSON. Re-prompting with correction instructions.");
+            const correctionPrompt = `${prompt}\n\nPrevious attempt failed due to invalid JSON format. Please ensure your response is a single, valid JSON object with no syntax errors, comments, or extra text.`;
+            
+            // Retry the generation and parsing once more with the correction prompt.
+            const correctedText = await generateAndParseWithRetry<string>(correctionPrompt, false);
+            // This will throw if it's still invalid, which is the desired behavior.
+            parseGeminiJson(correctedText);
+            
+            if (useCache) {
+                cache.set(cacheKey, correctedText);
+            }
+            return correctedText;
+        }
+        // Re-throw any other errors (e.g., API failures)
+        throw error;
+    }
+}
+
+    
