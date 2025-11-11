@@ -64,8 +64,10 @@ export async function generateLesson(input: z.infer<typeof GenerateLessonInputSc
     // Step 3: Validate the synthesized lesson using AI
     const validationResult = await validateLesson({ lessonDraft });
 
-    if (!validationResult.valid) {
-      throw new Error(`Lesson validation failed. Issues: ${JSON.stringify(validationResult.issues)}`);
+    // CRITICAL FIX: Check for the existence of validationResult itself before accessing its properties.
+    if (!validationResult || !validationResult.valid) {
+      const issues = validationResult?.issues ? JSON.stringify(validationResult.issues) : "No validation result was returned from the AI.";
+      throw new Error(`Lesson validation failed. Issues: ${issues}`);
     }
 
     // Step 4: Generate Quiz
