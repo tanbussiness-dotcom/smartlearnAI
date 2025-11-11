@@ -54,11 +54,13 @@ export default function SearchPage() {
       });
       
       if (!outlineResult) {
+        // This case should ideally not be hit if the flow throws an error,
+        // but it's good practice to keep it as a fallback.
         toast({
           variant: 'destructive',
           title: 'Generation Failed',
           description:
-            'The AI is currently busy. Please try again in a few moments.',
+            'The AI returned an empty result. Please try again.',
         });
         setLoading(false);
         return;

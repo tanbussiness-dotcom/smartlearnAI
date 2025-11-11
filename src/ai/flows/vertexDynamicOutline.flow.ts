@@ -96,8 +96,8 @@ Không thêm markdown hay \`\`\`json vào đầu hoặc cuối, chỉ trả về
     return VertexDynamicOutlineOutputSchema.parse(output);
   } catch (error: any) {
     console.error("Failed to generate lesson outline:", error);
-    // Instead of throwing, return null to indicate failure gracefully.
-    // The calling function can then handle this by showing a toast.
-    return null;
+    // Re-throw the error so it can be caught by the calling client component
+    // and displayed in a toast for better debugging during development.
+    throw error;
   }
 }
