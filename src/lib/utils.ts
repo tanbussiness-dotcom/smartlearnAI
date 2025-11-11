@@ -21,11 +21,19 @@ export function parseGeminiJson<T>(aiText: string): T {
 
   let clean = aiText
     .replace(/```json|```/g, "")
-    .replace(/[\r\n\t]+/g, " ")
-    .replace(/\u0000/g, "")
+    .replace(/\u0000/g, "") // Remove null characters
+    .replace(/\\u00([0-9a-f]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16))) // Decode \\u00xx
+    .replace(/\\u([0-9a-f]{4})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))  // Decode \\uxxxx
+    .replace(/\\n/g, "\n")
+    .replace(/\\"/g, '\"')
+    .normalize("NFC") // Normalize Vietnamese characters
+    .replace(/[^\x00-\x7F]/g, (char) => { // Re-escape non-ASCII characters for JSON safety
+        if (char === ' ' || char === '\n' || char === '\r' || char === '\t') return char;
+        return '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0');
+    })
+    .replace(/[\r\n\t]+/g, " ") // Now collapse whitespace
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
-    .replace(/[^\x20-\x7E]+/g, "")
     .trim();
 
   // 1️⃣ Parse trực tiếp
