@@ -30,7 +30,10 @@ type SynthesizeLessonInput = z.infer<typeof SynthesizeLessonInputSchema>;
 type SynthesizeLessonOutput = z.infer<typeof SynthesizeLessonOutputSchema>;
 
 export async function synthesizeLesson(input: SynthesizeLessonInput): Promise<SynthesizeLessonOutput> {
-  const sourcesString = JSON.stringify(input.sources.map(s => ({ url: s.url, title: s.title, type: s.type })), null, 2);
+  const sourcesString = input.sources && input.sources.length > 0 
+    ? JSON.stringify(input.sources.map(s => ({ url: s.url, title: s.title, type: s.type })), null, 2)
+    : "No external sources provided. Please generate content based on your own knowledge.";
+
 
   const prompt = `
 # ROLE: You are an expert instructional designer and technical writer.
@@ -84,10 +87,10 @@ ${sourcesString}
     overview,
     content: htmlContent,
     estimated_time_min: estimatedTimeMin,
-    sources: input.sources.map(s => ({
+    sources: input.sources ? input.sources.map(s => ({
         ...s,
         short_note: `A resource for learning about ${input.topic}.`
-    })),
+    })) : [],
   };
 
   return SynthesizeLessonOutputSchema.parse(finalOutput);
