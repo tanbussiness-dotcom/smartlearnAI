@@ -40,7 +40,7 @@ async function aiHealthCheck() {
   // --- Statistics Calculation ---
   const successfulTests = results.filter(r => r.success);
   const totalTests = results.length;
-  const successRate = (successfulTests.length / totalTests) * 100;
+  const successRate = totalTests > 0 ? (successfulTests.length / totalTests) * 100 : 0;
   
   const totalResponseTime = successfulTests.reduce((acc, r) => acc + r.time_ms, 0);
   const averageResponseTime = successfulTests.length > 0 ? totalResponseTime / successfulTests.length : 0;
@@ -60,6 +60,48 @@ async function aiHealthCheck() {
   }
   console.log("--------------------");
   console.log(`Results saved at: ${logPath}`);
+
+  // --- Alerting Logic ---
+  const SUCCESS_RATE_THRESHOLD = 70;
+  const AVG_RESPONSE_TIME_THRESHOLD = 8000;
+
+  if (successRate < SUCCESS_RATE_THRESHOLD || (successfulTests.length > 0 && averageResponseTime > AVG_RESPONSE_TIME_THRESHOLD)) {
+    const timestamp = new Date().toISOString();
+    const alertMessage = `⚠️ SmartLearn AI Warning: Model stability degraded. Success Rate: ${successRate.toFixed(2)}%, Avg Latency: ${averageResponseTime.toFixed(0)}ms`;
+    
+    console.log('\x1b[31m%s\x1b[0m', '\n====================\n');
+    console.log('\x1b[31m%s\x1b[0m', '  AI SYSTEM ALERT');
+    console.log('\x1b[31m%s\x1b[0m', alertMessage);
+    console.log('\x1b[31m%s\x1b[0m', '\n====================\n');
+
+    const alertLogPath = path.join(logDir, 'aiAlerts.json');
+    const alertLogEntry = {
+      timestamp,
+      alert: alertMessage,
+      details: {
+        successRate: successRate.toFixed(2),
+        averageResponseTime: averageResponseTime.toFixed(0),
+        thresholds: {
+          successRate: SUCCESS_RATE_THRESHOLD,
+          responseTime: AVG_RESPONSE_TIME_THRESHOLD,
+        },
+        fullReport: logPath,
+      },
+    };
+
+    let existingAlerts = [];
+    if (fs.existsSync(alertLogPath)) {
+      try {
+        existingAlerts = JSON.parse(fs.readFileSync(alertLogPath, 'utf-8'));
+      } catch (e) {
+        console.error('Could not parse existing aiAlerts.json. Overwriting.');
+      }
+    }
+    existingAlerts.push(alertLogEntry);
+    fs.writeFileSync(alertLogPath, JSON.stringify(existingAlerts, null, 2));
+    console.log(`Alert logged to: ${alertLogPath}`);
+  }
+
 
   if (hasApiError) {
     console.log('\x1b[33m%s\x1b[0m', '\n⚠️ Gemini connectivity unstable — please check API quota or model region.');
