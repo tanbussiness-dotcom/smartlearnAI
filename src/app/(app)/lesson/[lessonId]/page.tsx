@@ -125,16 +125,29 @@ export default function LessonPage() {
     })
 
     try {
-        const result = await generateLesson({
+        const response = await generateLesson({
             topic: lesson.topic, 
             phase: lesson.phase,
             lessonId: lesson.id,
         });
 
-        const batch = writeBatch(firestore);
+        if (!response || response.success === false) {
+            const err = response?.error || { step: 'Unknown', message: 'Unknown error' };
+            console.error('Lesson generation details:', err);
+            toast({
+                variant: 'destructive',
+                title: `Tạo bài học thất bại ở bước: ${err.step}`,
+                description: err.message,
+            });
+            setIsGenerating(false);
+            return;
+        }
 
+        const { lesson: lessonData, quiz: quizData } = response.data;
+        const batch = writeBatch(firestore);
+        
         const lessonPayload = {
-            ...result.lesson,
+            ...lessonData,
             status: 'Learning',
             isAiGenerated: true,
             createdBy: user.uid,
@@ -145,7 +158,7 @@ export default function LessonPage() {
 
         const quizRef = doc(collection(lessonRef, 'tests'));
         const quizPayload = {
-            ...result.quiz,
+            ...quizData,
             createdBy: user.uid,
             createdAt: new Date().toISOString(),
         };
@@ -161,11 +174,11 @@ export default function LessonPage() {
         });
 
     } catch (error: any) {
-      console.error('Lỗi khi tạo và lưu nội dung bài học:', error);
+      console.error('generateLesson unexpected exception', error);
       toast({
         variant: 'destructive',
-        title: 'Tạo nội dung thất bại',
-        description: `Không thể tạo nội dung cho "${lesson.title}". Lỗi: ${error.message}`,
+        title: 'Lỗi không mong muốn',
+        description: `Đã xảy ra lỗi khi tạo bài học. Vui lòng kiểm tra console để biết thêm chi tiết.`,
       });
     } finally {
       setIsGenerating(false);

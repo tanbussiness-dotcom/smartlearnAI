@@ -67,6 +67,8 @@ ${sourcesString}
 `;
 
   const htmlContent = await generateWithGemini(prompt, false);
+  console.log('[synthesizeLesson] AI raw preview:', htmlContent.slice(0, 500));
+
 
   if (!htmlContent || htmlContent.trim().length < 100) { 
     throw new Error("AI failed to generate any valid lesson content.");

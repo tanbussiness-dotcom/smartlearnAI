@@ -38,6 +38,7 @@ ${input.lesson_content}
 `;
 
   const aiText = await generateWithGemini(prompt, false); // Don't cache quizzes
+  console.log('[generateQuizForLesson] AI raw preview:', aiText.slice(0, 500));
   const result = parseGeminiJson<GenerateQuizForLessonOutput>(aiText);
   
   // Ensure the lesson_id is correctly passed through and pass_score is set

@@ -51,6 +51,7 @@ Your final output must be a single, valid JSON object that strictly conforms to 
 `;
 
   const aiText = await generateWithGemini(prompt);
+  console.log('[validateLesson] AI raw preview:', aiText.slice(0, 500));
   let output = parseGeminiJson<ValidateLessonOutput>(aiText);
 
   // Enforce the business rule: if score < 0.7, valid must be false.
