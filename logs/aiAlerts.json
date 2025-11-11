@@ -11,5 +11,18 @@
       },
       "fullReport": "/home/user/studio/logs/aiHealthCheck_2025-11-11T07:28:30.033Z.json"
     }
+  },
+  {
+    "timestamp": "2025-11-11T07:33:28.503Z",
+    "alert": "⚠️ SmartLearn AI Warning: Model stability degraded. Success Rate: 0.00%, Avg Latency: 0ms",
+    "details": {
+      "successRate": "0.00",
+      "averageResponseTime": "0",
+      "thresholds": {
+        "successRate": 70,
+        "responseTime": 8000
+      },
+      "fullReport": "/home/user/studio/logs/aiHealthCheck_2025-11-11T07:33:28.472Z.json"
+    }
   }
 ]

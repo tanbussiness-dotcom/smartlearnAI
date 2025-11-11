@@ -1,0 +1,20 @@
+[
+  {
+    "prompt": "Say hello!",
+    "success": false,
+    "error": "All Gemini models failed. Last error: Gemini API gemini-1.5-pro failed (404): {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
+    "time_ms": 246
+  },
+  {
+    "prompt": "Give one fact about AI.",
+    "success": false,
+    "error": "All Gemini models failed. Last error: Gemini API gemini-1.5-pro failed (404): {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
+    "time_ms": 211
+  },
+  {
+    "prompt": "What year was Google founded?",
+    "success": false,
+    "error": "All Gemini models failed. Last error: Gemini API gemini-1.5-pro failed (404): {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"models/gemini-1.5-pro is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.\",\n    \"status\": \"NOT_FOUND\"\n  }\n}\n",
+    "time_ms": 93
+  }
+]
