@@ -52,3 +52,17 @@ export const ValidateLessonOutputSchema = z.object({
     })
   ).describe('A list of issues found in the lesson draft. Empty if the lesson is valid.'),
 });
+
+// From generate-quiz-for-lesson.ts
+const QuestionSchema = z.object({
+    question: z.string().describe('The quiz question.'),
+    options: z.array(z.string()).length(4).describe('An array of 4 possible answers for the question.'),
+    correct_answer: z.string().describe('The correct answer to the question.'),
+    explanation: z.string().describe('A detailed explanation of why the answer is correct, quoting or referencing the lesson content.'),
+});
+
+export const GenerateQuizForLessonOutputSchema = z.object({
+  lesson_id: z.string().describe('The ID of the lesson this quiz belongs to.'),
+  questions: z.array(QuestionSchema).length(5).describe('A list of 5 quiz questions.'),
+  pass_score: z.number().default(80).describe('The passing score percentage for the quiz.'),
+});

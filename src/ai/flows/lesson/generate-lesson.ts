@@ -18,8 +18,12 @@ import { searchSources } from './search-sources';
 import { synthesizeLesson } from './synthesize-lesson';
 import { validateLesson } from './validate-lesson';
 import { generateQuizForLesson } from '../quiz/generate-quiz-for-lesson';
-import { SynthesizeLessonOutputSchema, ValidateLessonOutputSchema } from './types';
-import { GenerateQuizForLessonOutputSchema } from '../quiz/generate-quiz-for-lesson';
+import { 
+  SynthesizeLessonOutputSchema, 
+  ValidateLessonOutputSchema, 
+  GenerateQuizForLessonOutputSchema 
+} from './types';
+
 
 const GenerateLessonInputSchema = z.object({
   topic: z.string().describe('The topic of study (e.g., "React Hooks", "Quantum Physics").'),

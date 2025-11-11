@@ -8,26 +8,15 @@
 import { z } from 'zod';
 import { generateWithGemini } from '@/lib/gemini';
 import { parseGeminiJson } from '@/lib/utils';
+import { GenerateQuizForLessonOutputSchema } from '../lesson/types';
 
 const GenerateQuizForLessonInputSchema = z.object({
   lesson_id: z.string().describe('The ID of the lesson to generate a quiz for.'),
   lesson_content: z.string().describe('The detailed content of the lesson to generate questions from.'),
 });
 export type GenerateQuizForLessonInput = z.infer<typeof GenerateQuizForLessonInputSchema>;
-
-const QuestionSchema = z.object({
-    question: z.string().describe('The quiz question.'),
-    options: z.array(z.string()).length(4).describe('An array of 4 possible answers for the question.'),
-    correct_answer: z.string().describe('The correct answer to the question.'),
-    explanation: z.string().describe('A detailed explanation of why the answer is correct, quoting or referencing the lesson content.'),
-});
-
-const GenerateQuizForLessonOutputSchema = z.object({
-  lesson_id: z.string().describe('The ID of the lesson this quiz belongs to.'),
-  questions: z.array(QuestionSchema).length(5).describe('A list of 5 quiz questions.'),
-  pass_score: z.number().default(80).describe('The passing score percentage for the quiz.'),
-});
 export type GenerateQuizForLessonOutput = z.infer<typeof GenerateQuizForLessonOutputSchema>;
+
 
 export async function generateQuizForLesson(input: GenerateQuizForLessonInput): Promise<GenerateQuizForLessonOutput> {
   const prompt = `You are an expert quiz creator for educational material. Your task is to generate a 5-question multiple-choice quiz based *only* on the provided lesson content.
