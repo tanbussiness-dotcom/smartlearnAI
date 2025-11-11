@@ -23,8 +23,6 @@ import { SynthesizeLessonOutputSchema, ValidateLessonOutputSchema } from './type
 import { getFirestore, doc, setDoc, addDoc, collection } from 'firebase/firestore';
 import { firebaseApp } from '@/firebase/config';
 
-const firestore = getFirestore(firebaseApp);
-
 const GenerateLessonInputSchema = z.object({
   topic: z.string().describe('The topic of study (e.g., "React Hooks", "Quantum Physics").'),
   phase: z.string().describe('The learning phase (e.g., "Beginner", "Intermediate", "Advanced").'),
@@ -44,6 +42,8 @@ const GenerateLessonOutputSchema = z.object({
 });
 
 export async function generateLesson(input: z.infer<typeof GenerateLessonInputSchema>): Promise<z.infer<typeof GenerateLessonOutputSchema>> {
+  // Move Firestore initialization inside the function
+  const firestore = getFirestore(firebaseApp);
   const { topic, phase, userId, topicId, roadmapId, lessonId } = input;
     
   const lessonRef = doc(firestore, 'users', userId, 'topics', topicId, 'roadmaps', roadmapId, 'lessons', lessonId);
