@@ -5,8 +5,8 @@ import { parseGeminiJson } from '@/lib/utils';
 
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
 const MODELS = [
-  process.env.AI_MODEL_ID || "gemini-1.5-flash", // Main model, fast and cost-effective
-  "gemini-pro" // Stable fallback
+  process.env.AI_MODEL_ID || "gemini-2.5-flash", // Main model, fast and cost-effective
+  "gemini-2.5-pro" // Stable fallback
 ];
 const cache = new Map<string, string>();
 
