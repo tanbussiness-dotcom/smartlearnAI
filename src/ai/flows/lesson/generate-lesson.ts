@@ -28,8 +28,7 @@ import {
 const GenerateLessonInputSchema = z.object({
   topic: z.string().describe('The topic of study (e.g., "React Hooks", "Quantum Physics").'),
   phase: z.string().describe('The learning phase (e.g., "Beginner", "Intermediate", "Advanced").'),
-  userId: z.string().describe('The ID of the user requesting the lesson.'),
-  lessonId: z.string().describe('The Firestore ID of the lesson document to update.'),
+  lessonId: z.string().describe('The Firestore ID of the lesson document to update.'), // Kept for quiz generation
 });
 
 // The final output schema, combining all generated data.
@@ -40,7 +39,7 @@ const GenerateLessonOutputSchema = z.object({
 });
 
 export async function generateLesson(input: z.infer<typeof GenerateLessonInputSchema>): Promise<z.infer<typeof GenerateLessonOutputSchema>> {
-  const { topic, phase, userId, lessonId } = input;
+  const { topic, phase, lessonId } = input;
     
   try {
     // Step 1: Search for sources
@@ -100,7 +99,7 @@ export async function generateLesson(input: z.infer<typeof GenerateLessonInputSc
       quiz: quizResult,
     };
   } catch (error: any) {
-    console.error(`[generateLesson] CRITICAL FAILURE for user ${userId} on topic "${topic}":`, error);
+    console.error(`[generateLesson] CRITICAL FAILURE for topic "${topic}":`, error);
     // This flow can't write to Firestore, but we log the error on the server.
     // The client will handle user-facing errors.
     throw error;

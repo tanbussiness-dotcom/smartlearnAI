@@ -109,7 +109,7 @@ export default function LessonPage() {
   }
 
   const handleGenerateContent = useCallback(async () => {
-    if (!lesson || !user || !lessonRef || !firestore || !topicId || !roadmapId) {
+    if (!lesson || !user || !lessonRef || !firestore) {
        toast({
         variant: 'destructive',
         title: 'Yêu cầu không hợp lệ',
@@ -126,11 +126,9 @@ export default function LessonPage() {
 
     try {
         const result = await generateLesson({
-            userId: user.uid,
-            topicId: topicId,
-            lessonId: lesson.id,
             topic: lesson.topic, 
             phase: lesson.phase,
+            lessonId: lesson.id,
         });
 
         const batch = writeBatch(firestore);
@@ -176,7 +174,7 @@ export default function LessonPage() {
     } finally {
       setIsGenerating(false);
     }
-  }, [lesson, user, lessonRef, firestore, toast, topicId, roadmapId]);
+  }, [lesson, user, lessonRef, firestore, toast]);
 
   if (loading) {
     return (
