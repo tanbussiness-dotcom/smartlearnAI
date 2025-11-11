@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { searchSources } from './search-sources';
 import { synthesizeLesson } from './synthesize-lesson';
 import { validateLesson } from './validate-lesson';
-import { generateQuizForLesson } from '../quiz/generate-quiz-for-lesson';
+import { generateQuizForLesson } from '../generate-quizzes-for-knowledge-assessment';
 import { 
   SynthesizeLessonOutputSchema, 
   ValidateLessonOutputSchema, 
