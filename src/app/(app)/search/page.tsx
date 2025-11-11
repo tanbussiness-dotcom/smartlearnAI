@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -10,7 +9,7 @@ import { collection, doc, writeBatch } from 'firebase/firestore';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { PopularTopics } from '@/components/popular-topics';
-import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { generatePersonalizedLearningRoadmap } from '@/ai/flows/generate-personalized-learning-roadmap';
 import { useToast } from '@/hooks/use-toast';
 import { LessonGeneratingModal } from '@/components/lesson-generating-modal';
@@ -75,7 +74,7 @@ export default function SearchPage() {
       }
       
       // Update topic with generated title
-       updateDoc(topicRef, { title: roadmapResult.title });
+      updateDocumentNonBlocking(topicRef, { title: roadmapResult.title });
 
 
       // Step 3: Save the entire roadmap structure to Firestore
