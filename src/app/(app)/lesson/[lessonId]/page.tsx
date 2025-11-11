@@ -19,145 +19,138 @@ import {
   Circle,
   CheckCircle,
   Sparkles,
+  BookOpen,
 } from 'lucide-react';
 import { useFirestore, useUser, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { vertexDynamicSectionGenerator } from '@/ai/flows/vertexDynamicSectionGenerator.flow';
-
-type QuizQuestion = {
-  question: string;
-  options: string[];
-  correctAnswer: string;
-};
-
-type OutlineSection = {
-  sectionId: string;
-  title: string;
-  goal: string;
-  status: 'not_started' | 'generating' | 'completed';
-};
-
-type LessonSection = {
-  title: string;
-  content: string;
-  quiz: QuizQuestion[];
-};
+import { generateLesson } from '@/ai/flows/lesson/generate-lesson';
 
 type LessonData = {
   id: string;
   title: string;
   overview: string;
-  outline: OutlineSection[];
-  sections: Record<string, LessonSection>; // Keyed by sectionId
+  content: string;
+  isAiGenerated: boolean;
+  quiz_id?: string;
+  quiz_ready?: boolean;
+  status: 'To Learn' | 'Learning' | 'Learned';
+  topic: string;
+  phase: string;
 };
 
 export default function LessonPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const lessonId = params.lessonId as string;
+  
+  const topicId = searchParams.get('topicId');
+  const roadmapId = searchParams.get('roadmapId');
+
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const router = useRouter();
 
   const [lesson, setLesson] = useState<LessonData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeSections, setActiveSections] = useState<string[]>([]);
-  const [generatingSections, setGeneratingSections] = useState<string[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const lessonRef = useMemo(() => {
-    if (!firestore || !user) return null;
-    // This path is just an example, adjust it to your actual Firestore structure
-    const path = `users/${user.uid}/lessons/${lessonId}`;
-    return doc(firestore, path);
-  }, [firestore, user, lessonId]);
+    if (!firestore || !user || !topicId || !roadmapId || !lessonId) return null;
+    return doc(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapId, 'lessons', lessonId);
+  }, [firestore, user, topicId, roadmapId, lessonId]);
 
   useEffect(() => {
-    if (!lessonRef) return;
-    
+    if (!lessonRef) {
+      if(!loading) setLoading(false);
+      if (user && (!topicId || !roadmapId)) {
+        toast({
+          variant: 'destructive',
+          title: 'Thiếu thông tin',
+          description: 'Không tìm thấy thông tin về chủ đề hoặc lộ trình cho bài học này.'
+        });
+        setLoading(false);
+      }
+      return;
+    };
+
     setLoading(true);
-    const unsubscribe = onSnapshot(lessonRef, 
+    const unsubscribe = onSnapshot(lessonRef,
       (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data() as LessonData;
-          setLesson(data);
-          // Auto-open the first incomplete section
-          const firstIncomplete = data.outline.find(s => s.status !== 'completed');
-          if (firstIncomplete && !activeSections.includes(firstIncomplete.sectionId)) {
-            setActiveSections(prev => [...prev, firstIncomplete.sectionId]);
-          }
+          setLesson({ ...data, id: docSnap.id });
         } else {
-          toast({ variant: 'destructive', title: 'Lesson not found' });
+          toast({ variant: 'destructive', title: 'Không tìm thấy bài học' });
           setLesson(null);
         }
         setLoading(false);
       },
       (error) => {
-        console.error('Error fetching lesson:', error);
-        toast({ variant: 'destructive', title: 'Failed to load lesson.' });
+        console.error('Lỗi khi tải bài học:', error);
+        toast({ variant: 'destructive', title: 'Không thể tải bài học.' });
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [lessonRef, toast, activeSections]);
+  }, [lessonRef, toast, loading, user, topicId, roadmapId]);
+  
+  const handleGoToQuiz = () => {
+    if(lesson?.quiz_id && topicId && roadmapId) {
+        router.push(`/quiz/${lesson.id}?topicId=${topicId}&roadmapId=${roadmapId}`);
+    } else {
+        toast({ title: 'Bài kiểm tra chưa sẵn sàng', description: 'Nội dung kiểm tra vẫn đang được tạo hoặc thiếu thông tin.'})
+    }
+  }
 
-  const handleGenerateSection = useCallback(
-    async (section: OutlineSection) => {
-      if (!lesson || !user || !lessonRef) return;
+  const handleGenerateContent = useCallback(async () => {
+    if (!lesson || !user || !lessonRef || !topicId || !roadmapId) {
+       toast({
+        variant: 'destructive',
+        title: 'Yêu cầu không hợp lệ',
+        description: 'Không đủ thông tin để tạo nội dung bài học.',
+      });
+      return;
+    }
 
-      setGeneratingSections((prev) => [...prev, section.sectionId]);
+    setIsGenerating(true);
+    toast({
+        title: 'Bắt đầu tạo nội dung bài học...',
+        description: 'AI đang làm việc, việc này có thể mất một vài phút.'
+    })
 
-      try {
-        const generatedSection = await vertexDynamicSectionGenerator({
-          topic: lesson.title,
-          sectionId: section.sectionId,
-          sectionTitle: section.title,
-          sectionGoal: section.goal,
-        });
-
-        const newSections = {
-          ...lesson.sections,
-          [section.sectionId]: {
-            title: generatedSection.title,
-            content: generatedSection.content,
-            quiz: generatedSection.quiz,
-          },
-        };
-
-        const newOutline = lesson.outline.map((s) =>
-          s.sectionId === section.sectionId ? { ...s, status: 'completed' } : s
-        );
-
-        // Non-blocking update to Firestore
-        updateDocumentNonBlocking(lessonRef, {
-            sections: newSections,
-            outline: newOutline,
+    try {
+        await generateLesson({
+            userId: user.uid,
+            topicId: topicId,
+            roadmapId: roadmapId,
+            lessonId: lesson.id,
+            topic: lesson.topic, 
+            phase: lesson.phase,
         });
 
         toast({
-          title: `"${section.title}" is ready!`,
-          description: 'The content for the section has been generated.',
+          title: `"${lesson.title}" đã sẵn sàng!`,
+          description: 'Nội dung bài học đã được tạo thành công.',
         });
 
-      } catch (error: any) {
-        console.error('Failed to generate section content:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Generation Failed',
-          description: `Could not generate content for "${section.title}". The AI may be busy. Please try again.`,
-        });
-      } finally {
-        setGeneratingSections((prev) =>
-          prev.filter((id) => id !== section.sectionId)
-        );
-      }
-    },
-    [lesson, user, lessonRef, toast]
-  );
+    } catch (error: any) {
+      console.error('Lỗi khi tạo nội dung bài học:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Tạo nội dung thất bại',
+        description: `Không thể tạo nội dung cho "${lesson.title}". AI có thể đang bận. Vui lòng thử lại.`,
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [lesson, user, lessonRef, toast, topicId, roadmapId]);
 
   if (loading) {
     return (
@@ -170,10 +163,12 @@ export default function LessonPage() {
   if (!lesson) {
     return (
       <div className="flex items-center justify-center min-h-full py-12">
-        <p className="text-muted-foreground">Lesson not found or you do not have access.</p>
+        <p className="text-muted-foreground">Không tìm thấy bài học hoặc bạn không có quyền truy cập.</p>
       </div>
     );
   }
+
+  const hasContent = lesson.isAiGenerated && lesson.content;
 
   return (
     <motion.div
@@ -182,95 +177,93 @@ export default function LessonPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="mb-8 text-center">
+      <div className="mb-8">
         <h1 className="text-4xl font-extrabold font-headline tracking-tight">
           {lesson.title}
         </h1>
-        <p className="mt-2 text-lg text-muted-foreground max-w-2xl mx-auto">
+        <p className="mt-2 text-lg text-muted-foreground max-w-2xl">
           {lesson.overview}
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Lesson Outline</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <BookOpen className="h-6 w-6"/>
+            Nội dung bài học
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <Accordion
-            type="multiple"
-            value={activeSections}
-            onValueChange={setActiveSections}
-            className="w-full space-y-2"
-          >
-            {lesson.outline.map((section, index) => {
-              const isGenerating = generatingSections.includes(section.sectionId);
-              const sectionContent = lesson.sections[section.sectionId];
-
-              return (
-                <AccordionItem
-                  key={section.sectionId}
-                  value={section.sectionId}
-                  className="border rounded-lg px-4"
-                >
-                  <AccordionTrigger className="hover:no-underline">
-                    <div className="flex items-center gap-4">
-                      {section.status === 'completed' ? (
-                        <CheckCircle className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <Circle className="h-5 w-5 text-muted-foreground" />
-                      )}
-                      <div className="text-left">
-                        <h4 className="font-semibold">{`Part ${index + 1}: ${section.title}`}</h4>
-                        <p className="text-sm text-muted-foreground">{section.goal}</p>
-                      </div>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pt-4 border-t">
-                    {sectionContent ? (
-                      <article className="prose dark:prose-invert max-w-none">
+            <AnimatePresence mode="wait">
+                {hasContent ? (
+                    <motion.article 
+                        key="content"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="prose dark:prose-invert max-w-none"
+                    >
                         <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                          {sectionContent.content}
+                            {lesson.content}
                         </ReactMarkdown>
-                        {/* Quiz could be rendered here */}
-                      </article>
-                    ) : (
-                      <div className="text-center py-8 px-4 bg-muted/50 rounded-lg">
+                    </motion.article>
+                ) : (
+                    <motion.div 
+                        key="generate"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="text-center py-8 px-4 bg-muted/50 rounded-lg"
+                    >
                         <Button
-                          onClick={() => handleGenerateSection(section)}
-                          disabled={isGenerating}
-                          size="lg"
+                            onClick={handleGenerateContent}
+                            disabled={isGenerating}
+                            size="lg"
                         >
-                          {isGenerating ? (
+                            {isGenerating ? (
                             <>
-                              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                              Generating...
+                                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                                Đang tạo...
                             </>
-                          ) : (
+                            ) : (
                             <>
-                              <Sparkles className="mr-2 h-4 w-4" />
-                              Generate Section Content
+                                <Sparkles className="mr-2 h-4 w-4" />
+                                Tạo nội dung bài học bằng AI
                             </>
-                          )}
+                            )}
                         </Button>
                         <p className="text-xs text-muted-foreground mt-2">
-                          Click to generate the detailed content for this section using AI.
+                            Nhấn để AI tạo nội dung chi tiết cho bài học này.
                         </p>
-                      </div>
-                    )}
-                  </AccordionContent>
-                </AccordionItem>
-              );
-            })}
-          </Accordion>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </CardContent>
       </Card>
 
-      <div className="mt-8 text-center">
-        <Button size="lg">
-          <Check className="mr-2 h-4 w-4" />
-          Mark Entire Lesson as Complete
-        </Button>
-      </div>
+      <AnimatePresence>
+      {hasContent && (
+        <motion.div 
+            className="mt-8 text-center"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+        >
+          <Button size="lg" onClick={handleGoToQuiz} disabled={!lesson.quiz_ready}>
+            {!lesson.quiz_ready ? (
+                 <>
+                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                    Đang chuẩn bị kiểm tra...
+                 </>
+            ) : (
+                <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Làm bài kiểm tra
+                </>
+            )}
+          </Button>
+          <p className="text-xs text-muted-foreground mt-2">Vượt qua bài kiểm tra để đánh dấu bài học đã hoàn thành.</p>
+        </motion.div>
+      )}
+      </AnimatePresence>
     </motion.div>
   );
 }
