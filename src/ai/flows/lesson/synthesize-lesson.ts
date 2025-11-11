@@ -29,17 +29,27 @@ const SynthesizeLessonInputSchema = z.object({
 type SynthesizeLessonInput = z.infer<typeof SynthesizeLessonInputSchema>;
 type SynthesizeLessonOutput = z.infer<typeof SynthesizeLessonOutputSchema>;
 
+// Partial schema for what we expect from the AI.
+const AISynthesisSchema = z.object({
+  title: z.string().describe('A clear and concise title for the lesson.'),
+  overview: z.string().describe('A short introductory paragraph that summarizes the main content of the lesson.'),
+  content: z.string().describe('The full lesson content in Markdown or HTML format, between 800 and 1200 words, with clear sections and practical examples.'),
+  estimated_time_min: z.number().describe('Estimated time in minutes to complete the lesson.'),
+});
+
 export async function synthesizeLesson(input: SynthesizeLessonInput): Promise<SynthesizeLessonOutput> {
-  const sourcesString = JSON.stringify(input.sources, null, 2);
+  const sourcesString = JSON.stringify(input.sources.map(s => ({ url: s.url, title: s.title, type: s.type })), null, 2);
 
   const prompt = `You are an expert instructional designer and technical writer. Your task is to synthesize a high-quality, comprehensive, and structured learning lesson from the provided sources about the given topic and phase.
 
 Topic: ${input.topic}
 Phase: ${input.phase}
-Sources:
+Sources (for context):
 ${sourcesString}
 
-**Your response MUST follow these instructions:**
+**Your response MUST be a JSON object containing ONLY the following keys: "title", "overview", "content", and "estimated_time_min".**
+
+**Instructions for the content:**
 
 1.  **Generate In-Depth, Structured Content:** Create the lesson content ('content') in **Markdown**. It must be between **800 and 1200 words**, well-organized, and include the following sections using appropriate Markdown headings (##, ###):
     *   **Introduction:** Introduce the core concepts, explain their importance, and describe their practical applications.
@@ -48,68 +58,36 @@ ${sourcesString}
         *   If applicable, include formulas, tables, or visual descriptions.
     *   **Conclusion:** Summarize the key takeaways and provide specific, actionable practice suggestions or exercises for the learner.
 
-2.  **Estimate Time:** Based on the content length and complexity, provide an 'estimated_time_min' to read and understand the material.
+2.  **Estimate Time:** Based on the content, provide an 'estimated_time_min'.
+3.  **Title and Overview:** Create a concise 'title' and a short 'overview'.
+4.  **Write Original Content:** Do NOT copy content directly. Synthesize the information in your own words. The tone should be encouraging and accessible but technically accurate.
 
-3.  **Write Original, Engaging, and Self-Contained Content:** Do NOT copy content directly from the sources. Synthesize the information in your own words to create a clear, practical, and easy-to-apply lesson. The content must be comprehensive enough for a learner to understand the topic without needing external resources. The tone should be encouraging and accessible but technically accurate.
-
-4.  **Title and Overview:**
-    *   Create a concise, descriptive 'title' for the lesson.
-    *   Write a short introductory 'overview' (around 50 words) that summarizes the lesson's main points.
-
-5.  **Curate Sources and Videos:**
-    *   From the input 'sources' list, select the most relevant and high-quality ones to include in the output 'sources' array. For each, add a 'short_note' explaining its value. Ensure all links are functional.
-    *   If any of the sources are videos (especially from YouTube), extract their information and add them to the 'videos' array, including the 'title', original watch 'url', and 'channel' name if possible.
-
-Your final output must be a single, valid JSON object that strictly conforms to the provided output schema.
+Your final output must be a single, valid JSON object that strictly conforms to the requested structure.
 `;
 
   const aiText = await generateWithGemini(prompt);
-  let output = parseGeminiJson<SynthesizeLessonOutput>(aiText);
+  const aiOutput = parseGeminiJson<z.infer<typeof AISynthesisSchema>>(aiText);
 
   // Ensure the core content exists. If not, throw an error.
-  if (!output || !output.content) {
+  if (!aiOutput || !aiOutput.content) {
       throw new Error("Failed to generate a valid lesson structure from AI. The 'content' field is missing.");
   }
   
-  // Safely initialize sources and videos if they are missing from the AI response
-  if (!output.sources) {
-    output.sources = [];
-  }
-  if (!output.videos) {
-    output.videos = [];
-  }
+  // Assemble the final output object on the client side for reliability
+  const finalOutput: SynthesizeLessonOutput = {
+    ...aiOutput,
+    sources: input.sources.map(s => ({
+        ...s,
+        short_note: `A resource for learning about ${input.topic}.` // Add a generic but useful note
+    })),
+    videos: input.sources
+        .filter(s => s.type === 'video')
+        .map(s => ({
+            title: s.title,
+            url: s.url,
+            channel: s.domain === 'youtube.com' ? 'YouTube' : s.domain,
+        })),
+  };
 
-  // Post-processing to fix missing fields from the AI's curated sources list.
-  const inputSourcesByUrl = new Map(input.sources.map(s => [s.url, s]));
-  output.sources = output.sources.map(source => {
-    // Ensure we don't crash if AI returns a source without a URL
-    if (!source || !source.url) return source; 
-    const originalSource = inputSourcesByUrl.get(source.url);
-    if (originalSource) {
-        // Ensure all required fields from the original source are present if missing in the AI output.
-        return {
-            ...originalSource, // Start with all original data
-            ...source,          // Override with what the AI provided (like short_note)
-        };
-    }
-    return source; 
-  }).filter(Boolean); // Remove any null/undefined entries
-
-  // Post-processing to ensure video data is consistent, if needed.
-  const videoSources = output.sources.filter(s => s.type === 'video');
-  // Ensure output.videos is an array before trying to map it
-  const existingVideoUrls = new Set((output.videos || []).filter(v => v && v.url).map(v => v.url));
-
-  for (const videoSource of videoSources) {
-      if (videoSource.url && !existingVideoUrls.has(videoSource.url)) {
-          output.videos.push({
-              title: videoSource.title,
-              url: videoSource.url,
-              channel: videoSource.domain === 'youtube.com' ? 'YouTube' : videoSource.domain,
-          });
-          existingVideoUrls.add(videoSource.url);
-      }
-  }
-  
-  return SynthesizeLessonOutputSchema.parse(output);
+  return SynthesizeLessonOutputSchema.parse(finalOutput);
 }
