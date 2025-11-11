@@ -67,7 +67,6 @@ export default function LessonPage() {
 
   useEffect(() => {
     if (!lessonRef) {
-      if(!loading) setLoading(false);
       if (user && (!topicId || !roadmapId)) {
         toast({
           variant: 'destructive',
@@ -99,7 +98,7 @@ export default function LessonPage() {
     );
 
     return () => unsubscribe();
-  }, [lessonRef, toast, loading, user, topicId, roadmapId]);
+  }, [lessonRef, toast, user, topicId, roadmapId]);
   
   const handleGoToQuiz = () => {
     if(lesson?.quiz_id && topicId && roadmapId) {
