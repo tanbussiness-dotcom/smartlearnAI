@@ -13,7 +13,7 @@ const cache = new Map<string, string>();
 
 // --- Throttling variables ---
 const requestTimestamps: number[] = [];
-const THROTTLE_LIMIT = 2; // Max requests
+const THROTTLE_LIMIT = 3; // Max requests
 const THROTTLE_WINDOW_MS = 1000; // per 1 second
 const THROTTLE_DELAY_MS = 2000; // Wait 2 seconds if throttled
 
@@ -24,6 +24,7 @@ type GeminiResponse = {
         text?: string;
       }>;
     };
+    finishReason?: string;
   }>;
   error?: {
     message: string;
@@ -37,14 +38,6 @@ type GeminiResponse = {
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Returns a random integer between min and max (inclusive).
- */
-const getRandomDelay = (min: number, max: number) => {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-};
-
-
-/**
  * A cached function to generate content with the Gemini API with retry and model fallback logic.
  * It uses a simple in-memory cache to avoid repeated API calls for the same prompt.
  * It also includes a throttling mechanism to prevent API overload.
@@ -56,7 +49,9 @@ const getRandomDelay = (min: number, max: number) => {
  */
 export async function generateWithGemini(prompt: string, useCache = true): Promise<string> {
   if (!GEMINI_API_KEY) {
-    throw new Error("GOOGLE_API_KEY is not set in the environment variables.");
+      const warning = "⚠️ Gemini API key is missing. Please add GOOGLE_API_KEY to environment variables.";
+      console.warn(warning);
+      throw new Error(warning);
   }
 
   if (useCache && cache.has(prompt)) {
@@ -65,25 +60,22 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
 
   // --- Throttling Logic ---
   const now = Date.now();
-  // Clean up old timestamps
   while (requestTimestamps.length > 0 && now - requestTimestamps[0] > THROTTLE_WINDOW_MS) {
     requestTimestamps.shift();
   }
   
   if (requestTimestamps.length >= THROTTLE_LIMIT) {
-    console.log(`[Gemini Throttle] Waiting ${THROTTLE_DELAY_MS}ms to avoid overload.`);
+    console.log(`[Gemini Throttle] Waiting ${THROTTLE_DELAY_MS}ms to prevent overload.`);
     await delay(THROTTLE_DELAY_MS);
   }
-
   requestTimestamps.push(Date.now());
   // --- End Throttling Logic ---
 
   let lastError: Error | null = null;
-  const maxRetries = MODEL_FALLBACK_ORDER.length;
 
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+  for (let attempt = 0; attempt < MODEL_FALLBACK_ORDER.length; attempt++) {
     const currentModel = MODEL_FALLBACK_ORDER[attempt];
-    console.log(`[Gemini Attempt ${attempt + 1}/${maxRetries}] Calling model: ${currentModel}`);
+    console.log(`[Gemini Model] Using: ${currentModel} (Attempt ${attempt + 1}/${MODEL_FALLBACK_ORDER.length})`);
     
     try {
       const res = await fetch(
@@ -94,28 +86,26 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ text: prompt }] }],
             generationConfig: {
-              // Add safety settings to reduce blocking
-              // This is a trade-off, adjust as needed.
-              // "BLOCK_NONE" is very permissive.
-              safetySettings: [
-                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-              ],
+              temperature: 0.7,
+              topK: 1,
+              topP: 1,
+              maxOutputTokens: 8192,
             },
+            safetySettings: [
+              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            ],
           }),
         }
       );
 
-      // Retry on 429 (Too Many Requests), 500 (Internal Server Error), or 503 (Service Unavailable)
-      if ([429, 500, 503].includes(res.status)) {
-        lastError = new Error(`Gemini API request failed with status ${res.status}: ${await res.text()}`);
-        if (attempt < maxRetries - 1) {
+      if ([429, 503].includes(res.status)) {
+        lastError = new Error(`API returned status ${res.status}`);
+        if (attempt < MODEL_FALLBACK_ORDER.length - 1) {
             const nextModel = MODEL_FALLBACK_ORDER[attempt + 1];
-            console.warn(`[Gemini Fallback] Switching model from ${currentModel} → ${nextModel} due to status ${res.status}.`);
-            // Optional: add a small delay before falling back to the next model
-            await delay(500); 
+            console.warn(`[Gemini Switch] Switching model ${currentModel} → ${nextModel} due to ${res.status}.`);
         }
         continue; // Move to the next model in the fallback list
       }
@@ -130,28 +120,33 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
       if (data.error) {
         throw new Error(`Gemini API Error: ${data.error.message}`);
       }
+      
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      if (data.candidates?.[0]?.finishReason === 'SAFETY') {
+          console.warn(`[Gemini Safety] Request for model ${currentModel} was blocked due to safety settings.`);
+          lastError = new Error('Content generation was blocked by safety filters.');
+          // Fallback to the next model if safety is the issue
+          continue;
+      }
 
       if (text) {
         if (useCache) {
           cache.set(prompt, text);
         }
         console.log(`✅ Success with model: ${currentModel}`);
-        return text; // Success
+        return text;
       }
       
-      // If we get here, the response was successful but empty. We'll let it fall through to retry with the next model.
       lastError = new Error("Gemini API returned an empty text response.");
 
     } catch (error: any) {
       lastError = error;
-      if (attempt < maxRetries - 1) {
-        console.warn(`[Gemini Attempt ${attempt + 1}] An error occurred with model ${currentModel}: ${error.message}. Falling back...`);
+      if (attempt < MODEL_FALLBACK_ORDER.length - 1) {
+        console.warn(`[Gemini Error] Attempt ${attempt + 1} with model ${currentModel} failed: ${error.message}. Switching to next model.`);
       }
     }
   }
   
-  // If the loop finishes without returning, it means all retries and fallbacks failed.
-  throw new Error(`All Gemini models unavailable after fallback sequence. Last error: ${lastError?.message}`);
+  throw new Error(`All Gemini models failed due to overload or quota exhaustion. Last error: ${lastError?.message}`);
 }
