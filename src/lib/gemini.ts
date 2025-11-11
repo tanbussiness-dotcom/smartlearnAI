@@ -1,13 +1,13 @@
 
 'use server';
 
-import { ai } from '@/ai/genkit';
-import { GenerateRequest } from '@genkit-ai/google-genai';
-import { parseGeminiJson } from './utils';
+import { parseGeminiJson } from '@/lib/utils';
 
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
-const MODEL_PRIMARY = process.env.AI_MODEL_ID || "gemini-1.5-flash";
-const MODEL_FALLBACK = "gemini-pro";
+const MODELS = [
+  process.env.AI_MODEL_ID || "gemini-1.5-flash", // Main model, fast and cost-effective
+  "gemini-pro" // Stable fallback
+];
 const cache = new Map<string, string>();
 
 type GeminiResponse = {
@@ -20,7 +20,9 @@ type GeminiResponse = {
 
 
 async function callGeminiModel(prompt: string, model: string): Promise<string> {
-  if (!GEMINI_API_KEY) throw new Error("GOOGLE_API_KEY is missing in environment variables.");
+  if (!GEMINI_API_KEY) {
+      throw new Error("GOOGLE_API_KEY is missing in environment variables.");
+  }
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
@@ -46,12 +48,20 @@ async function callGeminiModel(prompt: string, model: string): Promise<string> {
 
   const data: GeminiResponse = await res.json();
   
-  if (data.error) throw new Error(data.error.message);
-  if (data.candidates?.[0]?.finishReason === 'SAFETY') {
-      throw new Error('Content generation blocked by safety filters.');
+  if (data.error) {
+    throw new Error(data.error.message);
   }
 
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  if (data.candidates?.[0]?.finishReason === 'SAFETY') {
+      throw new Error(`Content generation blocked by safety filters for model ${model}.`);
+  }
+
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  if (!text) {
+      throw new Error(`Empty response from model ${model}.`);
+  }
+  
+  return text;
 }
 
 export async function generateWithGemini(prompt: string, useCache = true): Promise<string> {
@@ -61,23 +71,33 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
       throw new Error(errorMsg);
   }
 
-  const cacheKey = `${prompt}-${MODEL_PRIMARY}-${MODEL_FALLBACK}`;
+  const cacheKey = `${prompt}-${MODELS.join('-')}`;
   if (useCache && cache.has(cacheKey)) {
       return cache.get(cacheKey)!;
   }
 
   let aiText = "";
-  try {
-    console.log(`[Gemini API] 🔹 Primary model: ${MODEL_PRIMARY}`);
-    aiText = await callGeminiModel(prompt, MODEL_PRIMARY);
-  } catch (err1: any) {
-    console.warn(`[Gemini API] ⚠️ Primary model failed (${err1.message}), switching to fallback.`);
+  let lastError: any = null;
+
+  for (const model of MODELS) {
     try {
-      aiText = await callGeminiModel(prompt, MODEL_FALLBACK);
-    } catch (err2: any) {
-      console.error(`[Gemini API] ❌ Fallback model failed: ${err2}`);
-      throw new Error(`Both models failed. Last error: ${err2.message}`);
+      console.log(`[Gemini API] 🔹 Trying model: ${model}`);
+      aiText = await callGeminiModel(prompt, model);
+      if (aiText) {
+          console.log(`[Gemini API] ✅ Success with ${model}.`);
+          break; // Exit loop on success
+      }
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[Gemini API] ⚠️ Model ${model} failed: ${err.message}. Trying next model...`);
+      aiText = ""; // Reset aiText on failure
     }
+  }
+
+  if (!aiText) {
+      const finalError = `All Gemini models failed. Last error: ${lastError?.message || "Unknown error"}`;
+      console.error(`[Gemini API] ❌ ${finalError}`);
+      throw new Error(finalError);
   }
 
   // 1️⃣ Validate parse result
@@ -107,7 +127,8 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
     `;
 
     try {
-      const retryText = await callGeminiModel(strictPrompt, MODEL_FALLBACK); // Use fallback for stability
+      // Use the last, most stable model for the retry attempt.
+      const retryText = await callGeminiModel(strictPrompt, MODELS[MODELS.length-1]); 
       const retryResult = parseGeminiJson<any>(retryText);
       
       if (retryResult && Object.keys(retryResult).length > 0) {
@@ -129,4 +150,3 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
   
   return aiText;
 }
-
