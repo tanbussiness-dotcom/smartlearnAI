@@ -1,4 +1,3 @@
-
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -9,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 /**
  * A robust helper function to parse a JSON string from an AI's response.
  * It cleans markdown fences, handles common formatting issues, and attempts
- * to recover from incomplete JSON before failing gracefully.
+ * to recover from incomplete or malformed JSON before failing gracefully.
  *
  * @param aiText - The text response from the Gemini API.
  * @returns The parsed JavaScript object, or an empty object if parsing fails.
@@ -57,38 +56,44 @@ export function parseGeminiJson<T>(aiText: string): T {
     const partialMatch = clean.match(/\{[\s\S]*?[\}\]]?$/);
     if (partialMatch && partialMatch[0]) {
       let candidate = partialMatch[0];
+      
+      // Bảo vệ null
+      if (!candidate || candidate.length < 5) {
+        console.warn("[Gemini JSON] ⚠️ Candidate quá ngắn để parse.");
+        throw new Error("Candidate too short");
+      }
 
-      // Đếm và đóng dấu nháy nếu thiếu
+      // Đếm và đóng nháy an toàn
       try {
         const quoteCount = (candidate.match(/"/g) || []).length;
         if (quoteCount % 2 !== 0) candidate += '"';
-      } catch {}
-
-      // Đóng ngoặc nếu thiếu
-      if (!candidate.trim().endsWith("}") && !candidate.trim().endsWith("]")) {
-        candidate += "}";
+      } catch {
+        console.warn("[Gemini JSON] ⚠️ Quote repair skipped (invalid match).");
       }
 
-      // Thay nháy sai & bỏ ký tự cuối lỗi
+      // Đóng ngoặc nếu thiếu
+      if (!candidate.trim().endsWith("}") && !candidate.trim().endsWith("]")) candidate += "}";
+
+      // Thay ký tự lỗi thường gặp
       candidate = candidate
         .replace(/\\+"/g, '"')
         .replace(/"([^"]*)$/g, '"$1"')
-        .replace(/,\s*([}\]])/g, "$1"); // xóa dấu phẩy lẻ
+        .replace(/,\s*([}\]])/g, "$1");
 
-      // Thử parse nhiều lần, mỗi lần cắt bớt cuối nếu lỗi
+      // Thử parse giảm dần độ dài
       for (let i = 0; i < 5; i++) {
         try {
           const parsedPartial = JSON.parse(candidate);
           console.log(`[Gemini JSON] ✅ Deep Recovery Success (${candidate.length} chars)`);
           return parsedPartial as T;
         } catch (errTry: any) {
-          // Cắt bớt 20 ký tự cuối để loại bỏ chuỗi lỗi
-          candidate = candidate.slice(0, -20).trim();
+          // Progressively trim the end of the string
+          candidate = candidate.slice(0, -Math.min(20 * (i + 1), Math.floor(candidate.length / 4))).trim();
         }
       }
     }
   } catch (err3: any) {
-    console.error("[Gemini JSON] ❌ Deep Recovery Exception:", err3.message);
+    console.error("[Gemini JSON] ❌ Deep Recovery exception:", err3.message);
   }
 
   // 4️⃣ Log preview để debug
@@ -99,5 +104,6 @@ export function parseGeminiJson<T>(aiText: string): T {
   console.error(clean.slice(-400));
   console.error("----- JSON Preview End -----");
 
+  console.error("[Gemini JSON] ❌ Return fallback {} (unrecoverable JSON).");
   return {} as T;
 }
