@@ -25,7 +25,7 @@ export default {
       typography: (theme: (arg0: string) => any) => ({
         DEFAULT: {
           css: {
-            '--tw-prose-body': theme('colors.foreground / 0.8'),
+            '--tw-prose-body': theme('colors.foreground / 0.85'),
             '--tw-prose-headings': theme('colors.foreground'),
             '--tw-prose-lead': theme('colors.muted.foreground'),
             '--tw-prose-links': theme('colors.primary.DEFAULT'),
@@ -37,7 +37,7 @@ export default {
             '--tw-prose-quote-borders': theme('colors.border'),
             '--tw-prose-captions': theme('colors.muted.foreground'),
             '--tw-prose-code': theme('colors.primary.DEFAULT'),
-            '--tw-prose-pre-code': theme('colors.primary.foreground'),
+            '--tw-prose-pre-code': theme('colors.secondary.foreground'),
             '--tw-prose-pre-bg': theme('colors.secondary.DEFAULT'),
             '--tw-prose-th-borders': theme('colors.border'),
             '--tw-prose-td-borders': theme('colors.border'),
@@ -57,13 +57,27 @@ export default {
             '--tw-prose-invert-pre-bg': theme('colors.secondary.DEFAULT'),
             '--tw-prose-invert-th-borders': theme('colors.border'),
             '--tw-prose-invert-td-borders': theme('colors.border'),
+            h1: {
+                fontFamily: theme('fontFamily.headline'),
+            },
+            h2: {
+                fontFamily: theme('fontFamily.headline'),
+            },
+            h3: {
+                fontFamily: theme('fontFamily.headline'),
+            },
             pre: {
-              backgroundColor: theme('colors.gray.900'),
-              color: theme('colors.white'),
+              backgroundColor: theme('colors.secondary.DEFAULT'),
+              color: theme('colors.secondary.foreground'),
               borderRadius: theme('borderRadius.lg'),
               overflowX: 'auto',
               padding: theme('spacing.4'),
+              border: `1px solid ${theme('colors.border')}`,
             },
+            code: {
+                '&::before': { content: 'none !important' },
+                '&::after': { content: 'none !important' },
+            }
           },
         },
       }),
@@ -150,5 +164,3 @@ export default {
   },
   plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography')],
 } satisfies Config;
-
-    

@@ -133,18 +133,16 @@ export default function LessonPage() {
 
         const batch = writeBatch(firestore);
 
-        // 1. Update Lesson with content
         const lessonPayload = {
             ...result.lesson,
             status: 'Learning',
             isAiGenerated: true,
             createdBy: user.uid,
             createdAt: new Date().toISOString(),
-            quiz_ready: true, // Mark quiz as ready now
+            quiz_ready: true, 
         };
         batch.update(lessonRef, lessonPayload);
 
-        // 2. Create the Quiz document
         const quizRef = doc(collection(lessonRef, 'tests'));
         const quizPayload = {
             ...result.quiz,
@@ -153,10 +151,8 @@ export default function LessonPage() {
         };
         batch.set(quizRef, quizPayload);
 
-        // 3. Update the lesson again with the quiz ID
         batch.update(lessonRef, { quiz_id: quizRef.id });
 
-        // Commit all writes at once
         await batch.commit();
 
         toast({
@@ -194,6 +190,13 @@ export default function LessonPage() {
 
   const hasContent = lesson.isAiGenerated && lesson.content;
 
+  // Sanitize content for markdown rendering
+  const cleanContent = (text: string | undefined) => {
+    if (!text) return "";
+    return text.replace(/\\n/g, '\n');
+  };
+
+
   return (
     <motion.div
       className="container mx-auto max-w-4xl py-8"
@@ -201,33 +204,27 @@ export default function LessonPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="mb-8">
-        <h1 className="text-4xl font-extrabold font-headline tracking-tight">
+      <div className="mb-8 border-b pb-8">
+        <h1 className="text-4xl font-extrabold font-headline tracking-tight lg:text-5xl">
           {lesson.title}
         </h1>
-        <p className="mt-2 text-lg text-muted-foreground max-w-2xl">
+        <p className="mt-4 text-lg text-muted-foreground max-w-3xl">
           {lesson.overview}
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BookOpen className="h-6 w-6"/>
-            Nội dung bài học
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="lg:grid lg:grid-cols-4 lg:gap-12">
+        <div className="lg:col-span-3">
             <AnimatePresence mode="wait">
                 {hasContent ? (
                     <motion.article 
                         key="content"
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="prose dark:prose-invert max-w-none"
+                        className="prose prose-lg dark:prose-invert max-w-none"
                     >
                         <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                            {lesson.content}
+                            {cleanContent(lesson.content)}
                         </ReactMarkdown>
                     </motion.article>
                 ) : (
@@ -235,8 +232,15 @@ export default function LessonPage() {
                         key="generate"
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="text-center py-8 px-4 bg-muted/50 rounded-lg"
+                        className="text-center py-12 px-6 bg-muted/50 rounded-lg border-2 border-dashed"
                     >
+                        <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 text-primary rounded-full flex items-center justify-center">
+                            <Sparkles className="h-8 w-8" />
+                        </div>
+                        <h3 className="text-xl font-bold mb-2">Bài học này chưa có nội dung</h3>
+                        <p className="text-muted-foreground mb-6">
+                            Nhấn nút bên dưới để AI tạo nội dung chi tiết cho bài học này.
+                        </p>
                         <Button
                             onClick={handleGenerateContent}
                             disabled={isGenerating}
@@ -254,19 +258,42 @@ export default function LessonPage() {
                             </>
                             )}
                         </Button>
-                        <p className="text-xs text-muted-foreground mt-2">
-                            Nhấn để AI tạo nội dung chi tiết cho bài học này.
-                        </p>
                     </motion.div>
                 )}
             </AnimatePresence>
-        </CardContent>
-      </Card>
+        </div>
+
+        <aside className="hidden lg:block lg:col-span-1">
+            <div className="sticky top-24">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Hành động</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-4">
+                        <Button size="lg" onClick={handleGoToQuiz} disabled={!lesson.quiz_ready || !hasContent}>
+                        {!lesson.quiz_ready ? (
+                            <>
+                                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                                Chuẩn bị...
+                            </>
+                        ) : (
+                            <>
+                                <Check className="mr-2 h-4 w-4" />
+                                Làm bài kiểm tra
+                            </>
+                        )}
+                        </Button>
+                        <p className="text-xs text-muted-foreground text-center">Vượt qua bài kiểm tra để hoàn thành.</p>
+                    </CardContent>
+                </Card>
+            </div>
+        </aside>
+      </div>
 
       <AnimatePresence>
       {hasContent && (
         <motion.div 
-            className="mt-8 text-center"
+            className="mt-12 text-center lg:hidden"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
