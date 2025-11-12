@@ -67,24 +67,41 @@ ${input.lesson_content}
 
     if (!parsed.success) {
       console.error('[generateQuizForLesson] ⚠️ Schema validation failed:', parsed.error.format());
-      // Even if parsing fails, return a structurally valid object based on the schema
+
+      // ✅ Always return schema-compliant fallback
       return {
-        lesson_id: input.lesson_id,
-        title: `Fallback Quiz for ${input.lesson_id}`,
-        questions: [],
+        lesson_id: input.lesson_id || 'unknown-lesson',
+        title: `Fallback Quiz for ${input.lesson_id || 'unknown'}`,
+        questions: [
+          {
+            question: 'What is the main topic of this lesson?',
+            options: ['A', 'B', 'C', 'D'],
+            correct_answer: 'A',
+            explanation: 'This is a placeholder quiz since AI quiz generation failed.',
+          },
+        ],
         pass_score: 80,
       };
     }
 
-    console.log('[generateQuizForLesson] ✅ Quiz generated successfully.');
+    console.log('[generateQuizForLesson] ✅ Quiz validated and returned successfully.');
     return parsed.data;
 
-  } catch (e: any) {
-    console.error('[generateQuizForLesson] ❌ Fatal error:', e?.message || e);
+  } catch (err: any) {
+    console.error('[generateQuizForLesson] ❌ Unexpected fatal error:', err?.message || err);
+
+    // ✅ Guaranteed fallback (never throws to frontend)
     return {
-      lesson_id: input.lesson_id,
-      title: `Quiz Generation Failed`,
-      questions: [],
+      lesson_id: input.lesson_id || 'unknown-lesson',
+      title: 'Quiz Generation Error',
+      questions: [
+        {
+          question: 'AI quiz generation encountered an error. Please retry later.',
+          options: ['Okay', 'Got it', 'Retry', 'Skip'],
+          correct_answer: 'Okay',
+          explanation: 'Fallback placeholder question to avoid frontend crash.',
+        },
+      ],
       pass_score: 80,
     };
   }
