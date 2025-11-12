@@ -37,16 +37,53 @@ ${input.lesson_content}
 '''
 `;
 
-  const aiText = await generateWithGemini(prompt, false); // Don't cache quizzes
-  console.log('[generateQuizForLesson] AI raw preview:', aiText.slice(0, 500));
-  const result = parseGeminiJson<GenerateQuizForLessonOutput>(aiText);
-  
-  // Ensure the lesson_id is correctly passed through and pass_score is set
-  const finalOutput = {
-      ...result,
-      lesson_id: input.lesson_id,
-      pass_score: 80,
-  };
+  try {
+    const aiText = await generateWithGemini(prompt, false); // Don't cache quizzes
+    console.log('[generateQuizForLesson] AI raw preview:', aiText.slice(0, 500));
+    let result: any;
 
-  return GenerateQuizForLessonOutputSchema.parse(finalOutput);
+    try {
+        result = parseGeminiJson(aiText);
+    } catch (err: any) {
+        console.warn('[generateQuizForLesson] ⚠️ parseGeminiJson failed, using fallback.', err.message);
+        result = {};
+    }
+
+    // ✅ Defensive normalization BEFORE Zod schema parse
+    if (!result || typeof result !== 'object') result = {};
+    if (!Array.isArray(result.questions)) {
+        console.warn('[generateQuizForLesson] ⚠️ Missing or invalid "questions" array, injecting empty.');
+        result.questions = [];
+    }
+    
+    // Ensure the lesson_id is correctly passed through and pass_score is set
+    const finalOutput = {
+        ...result,
+        lesson_id: input.lesson_id,
+        pass_score: 80,
+    };
+    
+    const parsed = GenerateQuizForLessonOutputSchema.safeParse(finalOutput);
+
+    if (!parsed.success) {
+      console.error('[generateQuizForLesson] ⚠️ Quiz schema validation failed:', parsed.error);
+      // Return a valid object that conforms to the schema, but is empty.
+      return {
+        lesson_id: input.lesson_id,
+        questions: [],
+        pass_score: 80,
+      };
+    }
+
+    return parsed.data;
+
+  } catch (e: any) {
+    console.error('[generateQuizForLesson] ❌ ERROR', e?.message || e);
+    // Return a valid, empty object in case of a catastrophic error
+    return {
+      lesson_id: input.lesson_id,
+      questions: [],
+      pass_score: 80,
+    };
+  }
 }
