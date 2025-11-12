@@ -77,14 +77,36 @@ export async function generateLesson(input: any) {
     }
     console.log('[generateLesson] STEP generateQuizForLesson OK');
 
-    // sanitize minimal and return
-    const safe = {
-      lesson: { title: lessonDraft.title || '', content: lessonDraft.content ? lessonDraft.content.slice(0,2000) : '' },
-      validation,
-      quiz,
+    // --- Deep sanitize result before returning to client ---
+    function sanitizeForClient(obj: any): any {
+      if (obj === null || obj === undefined) return null;
+      if (typeof obj === 'string') {
+        return obj.slice(0, 15000); // limit long strings
+      }
+      if (typeof obj !== 'object') return obj;
+      if (Array.isArray(obj)) {
+        return obj.map(sanitizeForClient);
+      }
+      const clean: Record<string, any> = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (typeof v === 'function' || typeof v === 'symbol') continue;
+        clean[k] = sanitizeForClient(v);
+      }
+      return clean;
+    }
+
+    const sanitized = sanitizeForClient({
+      lesson: { title: lessonDraft.title || '', content: lessonDraft.content || '' },
+      validation: validation || {},
+      quiz: quiz || {},
+    });
+
+    console.log('[generateLesson] ✅ Sanitized payload length:', JSON.stringify(sanitized).length);
+
+    return {
+      success: true,
+      data: sanitized,
     };
-    console.log('[generateLesson] SUCCESS payload preview', JSON.stringify(safe).slice(0,1000));
-    return { success: true, data: safe };
   } catch (e:any) {
     console.error('[generateLesson] UNEXPECTED', e?.message || e, e?.stack);
     return makeError('generateLesson', e?.message || 'unexpected', e?.stack);
