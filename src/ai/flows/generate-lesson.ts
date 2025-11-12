@@ -103,13 +103,22 @@ export async function generateLesson(input: any) {
 
   try {
     const sanitized = safeJSON({
-      lesson: { title: lessonDraft?.title || '', content: (lessonDraft?.content || '').slice(0, MAX_STRING) },
+      lesson: { 
+        title: lessonDraft?.title || '', 
+        content: (lessonDraft?.content || '').slice(0, MAX_STRING) 
+      },
       validation: safeJSON(validation),
       quiz: safeJSON(quiz),
     });
 
-    console.log('[generateLesson] ✅ Sanitized payload length:', JSON.stringify(sanitized).length);
-    return { success: true, data: sanitized };
+    const jsonString = JSON.stringify(sanitized);
+    console.log('[generateLesson] ✅ Final JSON size:', jsonString.length);
+
+    // Return JSON string instead of raw object
+    return {
+      success: true,
+      data: jsonString, // <-- Important: serialized safely
+    };
 
   } catch (err: any) {
     console.error('[generateLesson] FINAL SERIALIZATION ERROR', err?.message);
@@ -117,7 +126,7 @@ export async function generateLesson(input: any) {
       success: false,
       error: {
         step: 'serialization',
-        message: err?.message || 'Failed to serialize server action result',
+        message: err?.message || 'Failed to serialize result to JSON',
       },
     };
   }

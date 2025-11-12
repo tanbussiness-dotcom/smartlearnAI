@@ -28,7 +28,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { generateLesson } from '@/ai/flows/lesson/generate-lesson';
+import { generateLesson } from '@/ai/flows/generate-lesson';
 
 type LessonData = {
   id: string;
@@ -151,7 +151,8 @@ export default function LessonPage() {
       }
 
       // ✅ success
-      const { lesson: lessonData, quiz: quizData } = response.data;
+      const parsedData = JSON.parse(response.data);
+      const { lesson: lessonData, quiz: quizData } = parsedData;
       
       const batch = writeBatch(firestore);
       
