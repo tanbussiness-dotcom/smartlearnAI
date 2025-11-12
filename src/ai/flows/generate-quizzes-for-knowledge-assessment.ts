@@ -18,11 +18,11 @@ export type GenerateQuizForLessonInput = z.infer<typeof GenerateQuizForLessonInp
 export type GenerateQuizForLessonOutput = z.infer<typeof GenerateQuizForLessonOutputSchema>;
 
 export async function generateQuizForLesson(input: GenerateQuizForLessonInput): Promise<GenerateQuizForLessonOutput> {
-  const prompt = `You are an expert quiz creator for educational material. Your task is to generate a 5-question multiple-choice quiz based *only* on the provided lesson content.
+  const prompt = `You are an expert quiz creator for educational material. Your task is to generate a multiple-choice quiz with up to 5 questions based *only* on the provided lesson content.
 
 **Instructions:**
 1.  Read the entire 'lesson_content' provided below.
-2.  Create exactly 5 questions that directly test the core knowledge within the lesson.
+2.  Create up to 5 questions that directly test the core knowledge within the lesson.
 3.  For each question, provide:
     - A clear and unambiguous 'question'.
     - An array of 4 'options'.
@@ -55,21 +55,19 @@ ${input.lesson_content}
       console.warn('[generateQuizForLesson] ⚠️ Missing "questions" array, injecting empty.');
       result.questions = [];
     }
-    if (!result.title) result.title = `Quiz for ${input.lesson_id}`;
-    if (!result.lesson_id) result.lesson_id = input.lesson_id;
-    if (!result.pass_score) result.pass_score = 80;
-
+    
     const finalOutput = {
-      lesson_id: result.lesson_id,
+      lesson_id: input.lesson_id,
       title: result.title || `Quiz for ${input.lesson_id}`,
       questions: result.questions,
-      pass_score: result.pass_score,
+      pass_score: result.pass_score || 80,
     };
 
     const parsed = GenerateQuizForLessonOutputSchema.safeParse(finalOutput);
 
     if (!parsed.success) {
       console.error('[generateQuizForLesson] ⚠️ Schema validation failed:', parsed.error.format());
+      // Even if parsing fails, return a structurally valid object based on the schema
       return {
         lesson_id: input.lesson_id,
         title: `Fallback Quiz for ${input.lesson_id}`,
