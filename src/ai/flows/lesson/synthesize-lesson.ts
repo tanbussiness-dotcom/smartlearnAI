@@ -84,10 +84,17 @@ ${sourcesString}
   const wordCount = htmlContent.replace(/<[^>]+>/g, '').split(/\s+/).length;
   const estimatedTimeMin = Math.max(1, Math.round(wordCount / 200));
 
+  let cleanedContent = htmlContent
+    .replace(/\\n/g, '\n')
+    .replace(/\\\\n/g, '\n')
+    .trim();
+  
+  cleanedContent = cleanedContent.replace(/\n{3,}/g, '\n\n');
+
   const finalOutput: SynthesizeLessonOutput = {
     title,
     overview,
-    content: htmlContent,
+    content: cleanedContent,
     estimated_time_min: estimatedTimeMin,
     sources: input.sources ? input.sources.map(s => ({
         ...s,
