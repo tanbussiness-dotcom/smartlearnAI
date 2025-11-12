@@ -61,6 +61,7 @@ ${input.lesson_content}
 
     const finalOutput = {
       lesson_id: result.lesson_id,
+      title: result.title || `Quiz for ${input.lesson_id}`,
       questions: result.questions,
       pass_score: result.pass_score,
     };
@@ -68,9 +69,10 @@ ${input.lesson_content}
     const parsed = GenerateQuizForLessonOutputSchema.safeParse(finalOutput);
 
     if (!parsed.success) {
-      console.error('[generateQuizForLesson] ⚠️ Schema validation failed, fallback used.');
+      console.error('[generateQuizForLesson] ⚠️ Schema validation failed:', parsed.error.format());
       return {
         lesson_id: input.lesson_id,
+        title: `Fallback Quiz for ${input.lesson_id}`,
         questions: [],
         pass_score: 80,
       };
@@ -83,6 +85,7 @@ ${input.lesson_content}
     console.error('[generateQuizForLesson] ❌ Fatal error:', e?.message || e);
     return {
       lesson_id: input.lesson_id,
+      title: `Quiz Generation Failed`,
       questions: [],
       pass_score: 80,
     };
