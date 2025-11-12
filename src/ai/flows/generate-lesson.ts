@@ -1,3 +1,4 @@
+
 'use server';
 import { generateQuizForLesson } from './generate-quizzes-for-knowledge-assessment';
 import { searchSources } from './lesson/search-sources';
@@ -38,6 +39,19 @@ export async function generateLesson(input: any) {
       return makeError('synthesizeLesson', e?.message || String(e), e?.stack);
     }
     console.log('[generateLesson] STEP synthesizeLesson OK');
+    
+    // --- Cleanup escaped quotes in content ---
+    if (lessonDraft?.content && typeof lessonDraft.content === "string") {
+      const c = lessonDraft.content.trim();
+      // Detect pattern: starts with \"< or ends with >\"
+      if ((c.startsWith('\\"<') && c.endsWith('>\\"')) || (c.startsWith('"') && c.endsWith('"'))) {
+        console.warn("[generateLesson] 🧩 Detected escaped content quotes — cleaning up...");
+        lessonDraft.content = c
+          .replace(/^\\?"?/, "")  // remove leading escaped/double quote
+          .replace(/"?\\?$/, "")  // remove trailing escaped/double quote
+          .replace(/\\"/g, '"');  // unescape remaining quotes
+      }
+    }
 
     console.log('[generateLesson] STEP validateLesson START');
     let validation;
