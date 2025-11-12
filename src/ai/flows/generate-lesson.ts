@@ -1,5 +1,6 @@
 
 'use server';
+
 import { generateQuizForLesson } from './generate-quizzes-for-knowledge-assessment';
 import { searchSources } from './lesson/search-sources';
 import { synthesizeLesson } from './lesson/synthesize-lesson';
@@ -93,10 +94,26 @@ export async function generateLesson(input: any) {
   try {
     console.log('[generateLesson] STEP generateQuizForLesson START');
     quiz = await generateQuizForLesson({ lesson_id: lessonId, lesson_content: lessonDraft.content });
+
+    // --- Defensive fix: Ensure quiz.questions exists ---
+    if (!quiz || typeof quiz !== 'object') {
+      console.warn('[generateLesson] ⚠️ Quiz generation returned invalid object:', quiz);
+      quiz = { title: lessonDraft?.title || topic, questions: [] };
+    }
+
+    if (!Array.isArray(quiz.questions)) {
+      console.warn('[generateLesson] ⚠️ Quiz missing "questions" field, injecting empty array.');
+      quiz.questions = [];
+    }
+
     console.log('[generateLesson] generateQuizForLesson preview:', JSON.stringify(quiz).slice(0,500));
-    if (!quiz || !Array.isArray(quiz.questions) || quiz.questions.length === 0) return makeError('generateQuizForLesson', 'No quiz questions generated', quiz);
+
+    if (quiz.questions.length === 0) {
+      return makeError('generateQuizForLesson', 'No quiz questions generated', quiz);
+    }
+
     console.log('[generateLesson] STEP generateQuizForLesson OK');
-  } catch (e:any) {
+  } catch (e: any) {
     console.error('[generateLesson] generateQuizForLesson ERROR', e?.message || e);
     return makeError('generateQuizForLesson', e?.message || String(e), e?.stack);
   }
