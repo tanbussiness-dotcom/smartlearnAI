@@ -137,22 +137,23 @@ export default function LessonPage() {
           title: 'Lỗi server',
           description: 'Không nhận được phản hồi từ server. Vui lòng kiểm tra logs.',
         });
+        setIsGenerating(false);
         return;
       }
-
-      if (response.success === false) {
+      
+      if (response.status !== 'success' || !response.lesson || !response.quiz) {
           toast({
               variant: 'destructive',
-              title: `❌ ${response.error.step}`,
-              description: response.error.message || 'Tạo bài học thất bại',
+              title: `❌ Lỗi tạo bài học`,
+              description: response.error || 'Tạo bài học thất bại. Vui lòng thử lại.',
           });
-          console.error('[Lesson generation error details]', response.error.details);
+          console.error('[Lesson generation error details]', response);
+          setIsGenerating(false);
           return;
       }
 
       // ✅ success
-      const parsedData = JSON.parse(response.data);
-      const { lesson: lessonData, quiz: quizData } = parsedData;
+      const { lesson: lessonData, quiz: quizData } = response;
       
       const batch = writeBatch(firestore);
       
