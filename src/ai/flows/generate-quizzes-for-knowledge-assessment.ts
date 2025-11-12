@@ -38,36 +38,37 @@ ${input.lesson_content}
 `;
 
   try {
-    const aiText = await generateWithGemini(prompt, false); // Don't cache quizzes
+    const aiText = await generateWithGemini(prompt, false);
     console.log('[generateQuizForLesson] AI raw preview:', aiText.slice(0, 500));
-    let result: any;
 
+    let result: any;
     try {
-        result = parseGeminiJson(aiText);
+      result = parseGeminiJson(aiText);
     } catch (err: any) {
-        console.warn('[generateQuizForLesson] ⚠️ parseGeminiJson failed, using fallback.', err.message);
-        result = {};
+      console.warn('[generateQuizForLesson] ⚠️ parseGeminiJson failed:', err.message);
+      result = {};
     }
 
-    // ✅ Defensive normalization BEFORE Zod schema parse
+    // --- Defensive normalization BEFORE schema validation ---
     if (!result || typeof result !== 'object') result = {};
     if (!Array.isArray(result.questions)) {
-        console.warn('[generateQuizForLesson] ⚠️ Missing or invalid "questions" array, injecting empty.');
-        result.questions = [];
+      console.warn('[generateQuizForLesson] ⚠️ Missing "questions" array, injecting empty.');
+      result.questions = [];
     }
-    
-    // Ensure the lesson_id is correctly passed through and pass_score is set
+    if (!result.title) result.title = `Quiz for ${input.lesson_id}`;
+    if (!result.lesson_id) result.lesson_id = input.lesson_id;
+    if (!result.pass_score) result.pass_score = 80;
+
     const finalOutput = {
-        ...result,
-        lesson_id: input.lesson_id,
-        pass_score: 80,
+      lesson_id: result.lesson_id,
+      questions: result.questions,
+      pass_score: result.pass_score,
     };
-    
+
     const parsed = GenerateQuizForLessonOutputSchema.safeParse(finalOutput);
 
     if (!parsed.success) {
-      console.error('[generateQuizForLesson] ⚠️ Quiz schema validation failed:', parsed.error);
-      // Return a valid object that conforms to the schema, but is empty.
+      console.error('[generateQuizForLesson] ⚠️ Schema validation failed, fallback used.');
       return {
         lesson_id: input.lesson_id,
         questions: [],
@@ -75,11 +76,11 @@ ${input.lesson_content}
       };
     }
 
+    console.log('[generateQuizForLesson] ✅ Quiz generated successfully.');
     return parsed.data;
 
   } catch (e: any) {
-    console.error('[generateQuizForLesson] ❌ ERROR', e?.message || e);
-    // Return a valid, empty object in case of a catastrophic error
+    console.error('[generateQuizForLesson] ❌ Fatal error:', e?.message || e);
     return {
       lesson_id: input.lesson_id,
       questions: [],
