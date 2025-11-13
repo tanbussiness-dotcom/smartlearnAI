@@ -109,7 +109,16 @@ export default function LessonPage() {
   }
 
   const handleGenerateContent = useCallback(async () => {
-    if (!lesson || !user || !lessonRef || !firestore) {
+    if (loading || !lessonRef) {
+      toast({
+        variant: 'destructive',
+        title: 'Bài học chưa sẵn sàng',
+        description: 'Vui lòng đợi dữ liệu được tải đầy đủ trước khi tạo nội dung.',
+      });
+      return;
+    }
+
+    if (!lesson || !user || !firestore) {
        toast({
         variant: 'destructive',
         title: 'Yêu cầu không hợp lệ',
@@ -194,7 +203,7 @@ export default function LessonPage() {
     } finally {
       setIsGenerating(false);
     }
-  }, [lesson, user, lessonRef, firestore, toast]);
+  }, [lesson, user, lessonRef, firestore, toast, loading]);
 
   if (loading) {
     return (
