@@ -20,7 +20,6 @@ export default function AppLayout({
   const navLinks = [
     { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { href: '/search', icon: Search, label: 'New Topic' },
-    { href: '/roadmap/python', icon: BookOpen, label: 'My Learning' },
   ];
 
   const { user, isUserLoading } = useUser();
@@ -62,7 +61,7 @@ export default function AppLayout({
           <div className="mt-auto p-4">
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
               <Link
-                href="#"
+                href="/settings/api"
                 className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
               >
                 <Settings className="h-4 w-4" />
@@ -107,7 +106,7 @@ export default function AppLayout({
               <div className="mt-auto">
                 <nav className="grid gap-2 text-lg font-medium">
                   <Link
-                    href="#"
+                    href="/settings/api"
                     className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
                   >
                     <Settings className="h-5 w-5" />
