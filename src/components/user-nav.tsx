@@ -25,12 +25,12 @@ export function UserNav() {
 
   const handleLogout = async () => {
     await signOut(auth);
+    // Also clear the session cookie by calling our API route
+    await fetch('/api/auth/session', { method: 'DELETE' });
     router.push('/');
   };
 
   if (isUserLoading) {
-    // Render a skeleton placeholder during the initial loading phase
-    // to prevent hydration mismatch.
     return <Skeleton className="h-9 w-9 rounded-full" />;
   }
 
@@ -70,9 +70,12 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>Profile</DropdownMenuItem>
-          <DropdownMenuItem>Billing</DropdownMenuItem>
-          <DropdownMenuItem>Settings</DropdownMenuItem>
+          <DropdownMenuItem asChild>
+             <Link href="/dashboard">Profile</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+             <Link href="/settings/api">Settings</Link>
+          </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>Log out</DropdownMenuItem>

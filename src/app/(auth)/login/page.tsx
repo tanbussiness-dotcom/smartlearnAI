@@ -27,20 +27,26 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 
-async function checkUserApiKey(user: UserCredential['user']): Promise<boolean> {
-  try {
-    const idToken = await user.getIdToken();
-    const res = await fetch('/api/user/gemini-key', {
-      headers: { Authorization: `Bearer ${idToken}` },
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return data.hasKey;
-    }
-    return false;
-  } catch (error) {
-    console.error('Failed to check API key status:', error);
-    return false;
+async function handleLoginSuccess(user: UserCredential['user'], redirect: string | null, router: any) {
+  const idToken = await user.getIdToken();
+  
+  // Set session cookie via API route
+  const apiResponse = await fetch('/api/auth/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
+  });
+
+  if (!apiResponse.ok) {
+    throw new Error('Failed to set session cookie.');
+  }
+
+  const { status } = await apiResponse.json();
+
+  if (status === 'unverified') {
+    router.push('/setup/gemini-key');
+  } else {
+    router.push(redirect || '/dashboard');
   }
 }
 
@@ -50,9 +56,8 @@ async function socialSignIn(auth: Auth, provider: any) {
     return result;
   } catch (error: any) {
     if (error.code === 'auth/popup-blocked') {
-        // Fallback to redirect method if popups are blocked
         await signInWithRedirect(auth, provider);
-        return null; // signInWithRedirect doesn't return a result directly
+        return null;
     } else {
         console.error('Social Sign-In Error:', error);
         throw error;
@@ -67,15 +72,6 @@ export default function LoginPage() {
   const redirect = searchParams.get('redirect');
   const { toast } = useToast();
 
-  const handleSuccessfulLogin = async (user: UserCredential['user']) => {
-    const hasKey = await checkUserApiKey(user);
-    if (hasKey) {
-      router.push(redirect || '/dashboard');
-    } else {
-      router.push('/setup/gemini-key');
-    }
-  };
-
   const handleEmailLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const email = event.currentTarget.email.value;
@@ -83,7 +79,7 @@ export default function LoginPage() {
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      await handleSuccessfulLogin(userCredential.user);
+      await handleLoginSuccess(userCredential.user, redirect, router);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -97,7 +93,7 @@ export default function LoginPage() {
     try {
       const result = await socialSignIn(auth, provider);
       if(result?.user) {
-        await handleSuccessfulLogin(result.user);
+        await handleLoginSuccess(result.user, redirect, router);
       }
     } catch (error: any) {
        toast({
@@ -117,7 +113,6 @@ export default function LoginPage() {
     const provider = new OAuthProvider('apple.com');
     handleSocialSignIn(provider);
   };
-
 
   return (
     <>
