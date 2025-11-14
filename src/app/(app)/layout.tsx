@@ -27,7 +27,10 @@ export default function AppLayout({
   const pathname = usePathname();
 
   useEffect(() => {
+    // If the user data has finished loading and there is no user,
+    // redirect them to the login page.
     if (!isUserLoading && !user) {
+      // Pass the current path as a redirect parameter
       router.push(`/login?redirect=${pathname}`);
     }
   }, [user, isUserLoading, router, pathname]);
