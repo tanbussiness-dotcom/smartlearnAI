@@ -5,12 +5,27 @@ if (!admin.apps.length) {
   try {
     // This is for App Hosting environment which uses Application Default Credentials
     admin.initializeApp();
+    console.log("[Firebase Admin] Initialized successfully using Application Default Credentials.");
   } catch (e) {
-    // For local development, it might fall back to GOOGLE_APPLICATION_CREDENTIALS
-    // or other explicit configuration if available.
-    console.warn('Automatic Firebase Admin initialization failed. This is expected in local dev without credentials. Error:', e);
-    // If you need to run locally with admin SDK, ensure you have credentials set up.
-    // e.g. via `export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/key.json"`
+    console.warn('Automatic Firebase Admin initialization failed. This is expected in local dev without credentials. Attempting manual initialization... Error:', e);
+    try {
+        const serviceAccount = {
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        }
+        
+        if(!serviceAccount.projectId || !serviceAccount.clientEmail || !serviceAccount.privateKey) {
+            throw new Error("Missing Firebase Admin credentials in environment variables.");
+        }
+
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+        });
+        console.log("[Firebase Admin] Initialized successfully using environment variables.");
+    } catch (manualError) {
+        console.error("[Firebase Admin] All initialization methods failed:", manualError);
+    }
   }
 }
 
