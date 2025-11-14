@@ -61,36 +61,14 @@ export async function generateLesson(input:any) {
         t4 = quizDuration;
       
         if (!q || !Array.isArray(q.questions) || q.questions.length === 0) {
-          console.warn('⚠️ Quiz generation failed or empty — creating safe fallback');
-          quiz = {
-            lesson_id: lesson.title,
-            questions: [
-              {
-                question: "Placeholder question — quiz data not generated.",
-                options: ["A", "B", "C", "D"],
-                correct_answer: "A",
-                explanation: "This is fallback data due to quiz generation failure.",
-              },
-            ],
-            pass_score: 100,
-          };
+          console.warn('⚠️ Quiz generation returned empty.');
+          quiz = { lesson_id: lesson.title, questions: [] };
         } else {
           quiz = q;
         }
       } catch (err: any) {
         console.error('❌ Quiz generation error:', err);
-        quiz = {
-          lesson_id: lesson.title,
-          questions: [
-            {
-              question: "Error generating quiz — please retry.",
-              options: ["OK"],
-              correct_answer: "OK",
-              explanation: "Fallback when Gemini failed to return quiz content.",
-            },
-          ],
-          pass_score: 100,
-        };
+        quiz = { lesson_id: lesson.title, questions: [] };
       }
 
 

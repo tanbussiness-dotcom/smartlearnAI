@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -25,12 +25,12 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { CheckCircle, XCircle, ArrowRight, LoaderCircle } from "lucide-react";
+import { CheckCircle, XCircle, ArrowRight, LoaderCircle, BookOpen } from "lucide-react";
 import { useFirestore, useUser, addDocumentNonBlocking, updateDocumentNonBlocking, FirestorePermissionError, errorEmitter } from "@/firebase";
 import { collection, doc, addDoc, getDocs, query, limit, getDoc, writeBatch, where } from "firebase/firestore";
 import { generateQuizForLesson } from "@/ai/flows/generate-quizzes-for-knowledge-assessment";
 import { useToast } from "@/hooks/use-toast";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 
 
 type QuizQuestion = {
@@ -50,6 +50,7 @@ type QuizData = {
 
 export default function QuizPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const lessonId = params.quizId as string; // quizId is lessonId
   const firestore = useFirestore();
   const { user } = useUser();
@@ -63,10 +64,14 @@ export default function QuizPage() {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [showResult, setShowResult] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const noQuiz = searchParams.get('noQuiz') === 'true';
 
 
   useEffect(() => {
-    if (!firestore || !user) return;
+    if (noQuiz || !firestore || !user) {
+        setLoading(false);
+        return;
+    };
 
     const fetchOrCreateQuiz = async () => {
       setLoading(true);
@@ -179,7 +184,7 @@ export default function QuizPage() {
     };
 
     fetchOrCreateQuiz();
-  }, [firestore, user, lessonId, toast, router]);
+  }, [firestore, user, lessonId, toast, router, noQuiz]);
 
   const score = quizData ? quizData.questions.reduce((acc, q) => {
     return selectedAnswers[q.id] === q.correct_answer ? acc + 1 : acc;
@@ -280,16 +285,18 @@ export default function QuizPage() {
     );
   }
 
-  if (!quizData || !quizData.questions || quizData.questions.length === 0) {
+  if (noQuiz || !quizData || !quizData.questions || quizData.questions.length === 0) {
     return (
         <div className="flex flex-col items-center justify-center min-h-full py-12 text-center">
-            <XCircle className="h-12 w-12 text-destructive mb-4" />
-            <h2 className="text-xl font-semibold">Không thể tải bài kiểm tra</h2>
-            <p className="text-muted-foreground mt-2">
-                Bài kiểm tra chưa sẵn sàng hoặc không có câu hỏi. Vui lòng quay lại sau.
+            <BookOpen className="h-12 w-12 text-primary mb-4" />
+            <h2 className="text-2xl font-semibold text-muted-foreground">
+              Bài học này không có bài kiểm tra
+            </h2>
+            <p className="text-gray-500 max-w-sm mt-2">
+              Bạn đã hoàn thành bài học, hãy tiếp tục đến lộ trình để học bài tiếp theo nhé!
             </p>
-            <Button asChild className="mt-4">
-                <Link href={`/lesson/${lessonId}`}>Quay lại bài học</Link>
+            <Button asChild className="mt-6">
+                <Link href={quizData?.topicId ? `/roadmap/${quizData.topicId}` : '/dashboard'}>Quay lại lộ trình</Link>
             </Button>
         </div>
     );

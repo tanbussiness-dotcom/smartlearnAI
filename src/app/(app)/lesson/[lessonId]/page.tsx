@@ -142,11 +142,11 @@ export default function LessonPage() {
 
       const parsedResponse = response;
 
-      if (parsedResponse.status !== 'success' || !parsedResponse.lesson || !parsedResponse.quiz) {
+      if (parsedResponse.status !== 'success' || !parsedResponse.lesson) {
           toast({
               variant: 'destructive',
-              title: `❌ Lỗi tạo bài học`,
-              description: parsedResponse.error || 'Tạo bài học thất bại. Vui lòng thử lại.',
+              title: `⚠️ Tạo bài học thất bại`,
+              description: 'Đã có lỗi xảy ra trong quá trình tạo bài học. Vui lòng thử lại sau vài phút.',
           });
           console.error('[Lesson generation error details]', parsedResponse);
           setIsGenerating(false);
@@ -156,15 +156,30 @@ export default function LessonPage() {
       if (!parsedResponse.quiz?.questions || parsedResponse.quiz.questions.length === 0) {
         toast({
           variant: 'destructive',
-          title: '⚠️ Bài kiểm tra chưa được tạo đầy đủ',
-          description: 'AI chưa sinh ra câu hỏi. Vui lòng thử tạo lại bài học.',
+          title: '⚠️ Không thể tạo bài kiểm tra',
+          description: 'AI chưa tạo được bài kiểm tra cho bài học này. Bạn vẫn có thể học và hoàn thành bài học này.',
         });
-        console.error('[Quiz generation error]', JSON.stringify(parsedResponse.quiz, null, 2));
+        console.warn('[Quiz generation warning]', JSON.stringify(parsedResponse.quiz, null, 2));
+
+        const batch = writeBatch(firestore);
+        
+        const lessonPayload = {
+            ...parsedResponse.lesson,
+            status: 'Learning',
+            isAiGenerated: true,
+            createdBy: user.uid,
+            createdAt: new Date().toISOString(),
+            quiz_ready: false, // Explicitly set that quiz is not ready
+            has_quiz: false,
+        };
+        batch.update(lessonRef, lessonPayload);
+        await batch.commit();
+
         setIsGenerating(false);
         return;
       }
 
-      // ✅ success
+      // ✅ success with quiz
       const { lesson: lessonData, quiz: quizData } = parsedResponse;
       
       const batch = writeBatch(firestore);
@@ -197,16 +212,16 @@ export default function LessonPage() {
       });
 
     } catch (err: any) {
-      console.error('generateLesson unexpected error', err);
+      console.error('[Lesson generation failed]', err);
       toast({
-        variant: 'destructive',
-        title: 'Lỗi không mong muốn',
-        description: err?.message || 'Vui lòng kiểm tra logs của server',
+          variant: 'destructive',
+          title: '⚠️ Tạo bài học thất bại',
+          description: 'Đã có lỗi xảy ra trong quá trình tạo bài học. Vui lòng thử lại sau vài phút.',
       });
     } finally {
       setIsGenerating(false);
     }
-  }, [lesson, user, lessonRef, firestore, toast, loading]);
+  }, [lesson, user, lessonRef, firestore, toast, loading, router]);
 
   if (loading) {
     return (
