@@ -1,5 +1,3 @@
-
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 async function fetchImage(url: string) {
@@ -12,6 +10,9 @@ async function fetchImage(url: string) {
 }
 
 export async function generateCertificate(userName: string, topicTitle: string) {
+    // Dynamically import pdf-lib
+    const { PDFDocument, rgb, StandardFonts } = await import('pdf-lib');
+
     // Create a new PDFDocument
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([841.89, 595.28]); // A4 landscape
@@ -150,5 +151,3 @@ export async function generateCertificate(userName: string, topicTitle: string) 
     link.click();
     document.body.removeChild(link);
 }
-
-    

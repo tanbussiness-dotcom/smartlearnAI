@@ -1,3 +1,4 @@
+
 import { firestoreAdmin, authAdmin } from '@/firebase/admin';
 import { encrypt } from '@/lib/crypto';
 import { cookies } from 'next/headers';
@@ -24,11 +25,19 @@ export async function POST(req: Request) {
   }
 
   const { apiKey } = await req.json();
-  if (!apiKey) {
-    return Response.json({ error: "Missing API key" }, { status: 400 });
+  if (!apiKey || typeof apiKey !== 'string') {
+    return Response.json({ error: "Missing or invalid API key" }, { status: 400 });
   }
 
   try {
+    // Validate the API key by trying to list models
+    const validationUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+    const validationResponse = await fetch(validationUrl);
+
+    if (!validationResponse.ok) {
+        return Response.json({ error: "Invalid Gemini API key" }, { status: 400 });
+    }
+
     const encryptedKey = encrypt(apiKey);
 
     await firestoreAdmin.collection("users").doc(userId).set({

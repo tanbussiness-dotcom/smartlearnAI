@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "ai:health-check": "tsx src/ai/health-check.ts"
+    "ai:health-check": "tsx src/ai/health-check.ts",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.1.0",
@@ -47,7 +48,7 @@
     "next": "15.3.3",
     "node-fetch": "^3.3.2",
     "patch-package": "^8.0.0",
-    "pdf-lib": "latest",
+    "pdf-lib": "1.17.1",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
