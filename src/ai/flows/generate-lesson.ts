@@ -1,3 +1,4 @@
+
 'use server';
 
 import { searchSources } from './lesson/search-sources';
@@ -48,12 +49,21 @@ export async function generateLesson(input:any) {
       );
 
       // Phase 4: Generate Quiz
-      const { result: quiz, duration: t4 } = await measure('Generate Quiz', () =>
+      let { result: quiz, duration: t4 } = await measure('Generate Quiz', () =>
         generateQuizForLesson({
           lesson_id: lesson.title,
           lesson_content: lesson.content,
         })
       );
+
+      if (!quiz || !Array.isArray(quiz.questions)) {
+        log('⚠️ Quiz generation returned no questions or invalid format. Creating fallback.');
+        quiz = {
+          lesson_id: lesson.title,
+          questions: [],
+          pass_score: 80,
+        };
+      }
 
       const totalMs = t1 + t2 + t3 + t4;
 

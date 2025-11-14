@@ -140,7 +140,6 @@ export default function LessonPage() {
         lessonId: lesson.id,
       });
 
-      // The response is already a plain object, no parsing needed.
       const parsedResponse = response;
 
       if (parsedResponse.status !== 'success' || !parsedResponse.lesson || !parsedResponse.quiz) {
@@ -152,6 +151,17 @@ export default function LessonPage() {
           console.error('[Lesson generation error details]', parsedResponse);
           setIsGenerating(false);
           return;
+      }
+      
+      if (!parsedResponse.quiz?.questions || parsedResponse.quiz.questions.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: '⚠️ Bài kiểm tra chưa được tạo đầy đủ',
+          description: 'AI chưa sinh ra câu hỏi. Vui lòng thử tạo lại bài học.',
+        });
+        console.error('[Quiz generation error]', parsedResponse.quiz);
+        setIsGenerating(false);
+        return;
       }
 
       // ✅ success

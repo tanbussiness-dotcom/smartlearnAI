@@ -184,7 +184,7 @@ export default function QuizPage() {
   const score = quizData ? quizData.questions.reduce((acc, q) => {
     return selectedAnswers[q.id] === q.correct_answer ? acc + 1 : acc;
   }, 0) : 0;
-  const scorePercentage = quizData ? (score / quizData.questions.length) * 100 : 0;
+  const scorePercentage = quizData && quizData.questions.length > 0 ? (score / quizData.questions.length) * 100 : 0;
   const passed = scorePercentage >= 70;
 
   const handleNext = async () => {
@@ -271,12 +271,27 @@ export default function QuizPage() {
     });
   };
 
-  if (loading || !quizData) {
+  if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-full py-12">
         <LoaderCircle className="h-12 w-12 animate-spin text-primary" />
         <p className="mt-4 text-muted-foreground">Đang tải bài kiểm tra...</p>
       </div>
+    );
+  }
+
+  if (!quizData || !quizData.questions || quizData.questions.length === 0) {
+    return (
+        <div className="flex flex-col items-center justify-center min-h-full py-12 text-center">
+            <XCircle className="h-12 w-12 text-destructive mb-4" />
+            <h2 className="text-xl font-semibold">Không thể tải bài kiểm tra</h2>
+            <p className="text-muted-foreground mt-2">
+                Bài kiểm tra chưa sẵn sàng hoặc không có câu hỏi. Vui lòng quay lại sau.
+            </p>
+            <Button asChild className="mt-4">
+                <Link href={`/lesson/${lessonId}`}>Quay lại bài học</Link>
+            </Button>
+        </div>
     );
   }
 
@@ -392,5 +407,3 @@ export default function QuizPage() {
     </div>
   );
 }
-
-    
