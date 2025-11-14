@@ -1,4 +1,3 @@
-
 'use server';
 
 import { searchSources } from './lesson/search-sources';
@@ -7,81 +6,92 @@ import { validateLesson } from './lesson/validate-lesson';
 import { generateQuizForLesson } from './generate-quizzes-for-knowledge-assessment';
 
 export async function generateLesson(input:any) {
-  console.log('🧠 [generateLesson] Start:', input.topic);
+  const log = (msg:string) => console.log(`[🧠 generateLesson] ${msg}`);
 
-  const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('Lesson generation timeout')), ms));
-
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  const measure = async (label:string, fn: () => Promise<any>) => {
+    const start = Date.now();
     try {
-      console.log(`⚙️ [generateLesson] Attempt ${attempt}`);
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000);
-
-      const result = await Promise.race([
-        (async () => {
-          const sources = await searchSources(input);
-
-          const lesson = await synthesizeLesson({
-            topic: input.topic,
-            phase: input.phase,
-            sources: sources?.sources || [],
-          });
-
-          const validation = await validateLesson({ lessonDraft: lesson })
-            .catch(() => ({ valid: true, confidence_score: 0.7, issues: [] }));
-
-          const quiz = await generateQuizForLesson({
-            lesson_id: lesson.title,
-            lesson_content: lesson.content,
-          }).catch(() => ({
-            lesson_id: lesson.title,
-            questions: [
-              {
-                question: 'What is the main idea of this lesson?',
-                options: ['A', 'B', 'C', 'D'],
-                correct_answer: 'A',
-                explanation: 'Fallback quiz due to generation failure.',
-              },
-            ],
-            pass_score: 80,
-          }));
-
-          clearTimeout(timeoutId);
-          console.log('✅ [generateLesson] Completed successfully');
-          // Return a plain object, Next.js handles serialization
-          return {
-            status: 'success',
-            topic: input.topic,
-            phase: input.phase,
-            lesson,
-            validation,
-            quiz,
-          };
-
-        })(),
-        timeout(45000),
-      ]);
-
-      return result;
+      const result = await fn();
+      const duration = Date.now() - start;
+      log(`✅ ${label} completed in ${duration}ms`);
+      return { result, duration };
     } catch (err:any) {
-      console.warn(`[generateLesson] Attempt ${attempt} failed:`, err.message);
-      if (attempt === 3) {
-        console.error('❌ [generateLesson] All retries failed.');
+      const duration = Date.now() - start;
+      log(`❌ ${label} failed after ${duration}ms: ${err.message}`);
+      throw err;
+    }
+  };
+
+  const MAX_ATTEMPTS = 3;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    log(`🚀 Attempt ${attempt}/${MAX_ATTEMPTS} started for topic "${input.topic}"`);
+
+    try {
+      // Phase 1: Search Sources
+      const { result: sources, duration: t1 } = await measure('Search Sources', () =>
+        searchSources(input)
+      );
+
+      // Phase 2: Synthesize Lesson
+      const { result: lesson, duration: t2 } = await measure('Synthesize Lesson', () =>
+        synthesizeLesson({
+          topic: input.topic,
+          phase: input.phase,
+          sources: sources?.sources || [],
+        })
+      );
+
+      // Phase 3: Validate Lesson
+      const { result: validation, duration: t3 } = await measure('Validate Lesson', () =>
+        validateLesson({ lessonDraft: lesson })
+      );
+
+      // Phase 4: Generate Quiz
+      const { result: quiz, duration: t4 } = await measure('Generate Quiz', () =>
+        generateQuizForLesson({
+          lesson_id: lesson.title,
+          lesson_content: lesson.content,
+        })
+      );
+
+      const totalMs = t1 + t2 + t3 + t4;
+
+      const summary = {
+        status: 'success',
+        topic: input.topic,
+        phase: input.phase,
+        timings: {
+          search_ms: t1,
+          synthesize_ms: t2,
+          validate_ms: t3,
+          quiz_ms: t4,
+          total_ms: totalMs,
+        },
+        lesson,
+        validation,
+        quiz,
+      };
+
+      log(`🎯 Lesson generation success in ${totalMs}ms`);
+      console.table(summary.timings);
+      return summary;
+    } catch (err:any) {
+      log(`⚠️ Attempt ${attempt} failed: ${err.message}`);
+      if (attempt < MAX_ATTEMPTS) {
+        log('Retrying in 2 seconds...');
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      } else {
+        log('❌ All attempts failed.');
         return {
           status: 'error',
           topic: input.topic,
           phase: input.phase,
-          error: err.message || 'Unknown error',
-          lesson: {
-            title: 'Lesson generation failed',
-            overview: 'AI could not generate this lesson. Please try again later.',
-            content: '',
-            estimated_time_min: 0,
-            sources: [],
-          },
-          validation: { valid: false, confidence_score: 0, issues: [] },
-          quiz: { lesson_id: 'none', questions: [], pass_score: 80 },
+          error: err.message,
+          lesson: null,
+          validation: null,
+          quiz: null,
         };
       }
     }
