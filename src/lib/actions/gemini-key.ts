@@ -22,6 +22,20 @@ async function getUserIdFromToken(): Promise<string | null> {
       return null;
     }
   }
+  
+  // Fallback for when the user is already authenticated via session cookie
+  // and the client-side fetch doesn't explicitly set the Authorization header.
+  // This is common when calling server actions from client components.
+  try {
+      const { session } = await import('next/headers').then(m => m.cookies);
+      if(session) {
+          const decodedToken = await authAdmin.verifySessionCookie(session, true);
+          return decodedToken.uid;
+      }
+  } catch(e) {
+      console.error("Session cookie verification failed", e);
+  }
+
   return null;
 }
 
@@ -40,7 +54,7 @@ export async function saveGeminiKey(apiKey: string): Promise<ActionResult> {
 
   try {
     // 1. Validate the API key
-    const validationUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const validationUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
     const validationResponse = await fetch(validationUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -51,7 +65,13 @@ export async function saveGeminiKey(apiKey: string): Promise<ActionResult> {
 
     if (!validationResponse.ok) {
         console.warn(`[Gemini Key Validation] Failed with status: ${validationResponse.status}`);
-        return { success: false, message: 'Invalid Gemini Key. The test call failed.' };
+        let errorMessage = 'Invalid Gemini Key. The test call failed.';
+        if(validationResponse.status === 400) {
+            errorMessage = "Invalid Gemini API Key provided."
+        } else if (validationResponse.status === 429) {
+            errorMessage = "API Quota exceeded. Please try another key or check your Google Cloud Console."
+        }
+        return { success: false, message: errorMessage };
     }
 
     const validationData = await validationResponse.json();

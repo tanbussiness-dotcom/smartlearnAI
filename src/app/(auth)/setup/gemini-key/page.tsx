@@ -45,18 +45,6 @@ export default function GeminiKeySetupPage() {
 
     setIsVerifying(true);
     try {
-      // Add the Authorization header for the server action
-      const idToken = await auth.currentUser.getIdToken(true);
-      globalThis.fetch = new Proxy(globalThis.fetch, {
-        apply: (target, thisArg, args) => {
-          const newArgs = [...args];
-          const headers = new Headers(newArgs[1]?.headers);
-          headers.set('Authorization', `Bearer ${idToken}`);
-          newArgs[1] = { ...newArgs[1], headers };
-          return target.apply(thisArg, newArgs as [any, any]);
-        },
-      });
-
       const result = await saveGeminiKey(apiKey);
 
       if (result.success) {
@@ -76,8 +64,6 @@ export default function GeminiKeySetupPage() {
       });
     } finally {
       setIsVerifying(false);
-      // Restore original fetch
-      globalThis.fetch = (globalThis.fetch as any).__originalFetch ?? globalThis.fetch;
     }
   };
 
