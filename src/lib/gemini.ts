@@ -1,10 +1,13 @@
 
 'use server';
 
+import { firestoreAdmin } from '@/firebase/admin';
+import { decrypt } from './crypto';
+
 const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
 const MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.5-pro",
+  "gemini-1.5-flash-latest",
+  "gemini-1.5-pro-latest",
 ];
 const cache = new Map<string, string>();
 
@@ -17,13 +20,9 @@ type GeminiResponse = {
 };
 
 
-async function callGeminiModel(prompt: string, model: string): Promise<string> {
-  if (!GEMINI_API_KEY) {
-      throw new Error("GOOGLE_API_KEY is missing in environment variables.");
-  }
-
+async function callGeminiModel(prompt: string, model: string, apiKey: string): Promise<string> {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -65,13 +64,33 @@ async function callGeminiModel(prompt: string, model: string): Promise<string> {
   return text;
 }
 
-export async function generateWithGemini(prompt: string, useCache = true): Promise<string> {
-  if (!GEMINI_API_KEY) {
-      const errorMsg = "GOOGLE_API_KEY is missing in environment variables.";
+export async function generateWithGemini(prompt: string, useCache = true, userId?: string): Promise<string> {
+  let activeApiKey = GEMINI_API_KEY;
+  let cacheKey = `${prompt}-${MODELS[0]}`;
+
+  if (userId) {
+    try {
+      const userDoc = await firestoreAdmin.collection("users").doc(userId).get();
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        if (userData?.geminiKey) {
+          const decryptedKey = decrypt(userData.geminiKey);
+          if (decryptedKey) {
+            activeApiKey = decryptedKey;
+            cacheKey = `${prompt}-${userId}`; // Use a user-specific cache key
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`Could not retrieve user API key for user ${userId}. Falling back to system key.`, error);
+    }
+  }
+  
+  if (!activeApiKey) {
+      const errorMsg = "Gemini API key is not available (neither system nor user-provided).";
       throw new Error(errorMsg);
   }
 
-  const cacheKey = `${prompt}-${MODELS[0]}`; // Cache based on primary model
   if (useCache && cache.has(cacheKey)) {
       return cache.get(cacheKey)!;
   }
@@ -80,7 +99,7 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
 
   for (const model of MODELS) {
     try {
-      const aiText = await callGeminiModel(prompt, model);
+      const aiText = await callGeminiModel(prompt, model, activeApiKey);
       if (aiText) {
         if (useCache) {
             cache.set(cacheKey, aiText);
@@ -96,4 +115,3 @@ export async function generateWithGemini(prompt: string, useCache = true): Promi
   const finalError = `All Gemini models failed. Last error: ${lastError?.message || "Unknown error"}`;
   throw new Error(finalError);
 }
-
