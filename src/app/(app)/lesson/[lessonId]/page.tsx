@@ -186,12 +186,30 @@ export default function LessonPage() {
       });
 
     } catch (err: any) {
-      console.error('[Lesson generation failed]', err);
-      toast({
-          variant: 'destructive',
-          title: '⚠️ Tạo bài học thất bại',
-          description: 'Đã có lỗi xảy ra trong quá trình tạo bài học. Vui lòng thử lại sau vài phút.',
-      });
+        console.error('[Lesson generation failed]', err);
+        const message = String(err.message || "");
+
+        if (message.includes("Invalid") || message.includes("expired")) {
+            toast({
+            title: "API Key không hợp lệ",
+            description: "Gemini API Key của bạn đã sai hoặc hết hạn. Vui lòng nhập lại key trong phần Cài đặt.",
+            variant: "destructive",
+            });
+            router.push("/settings/api");
+        } else if (message.includes("Quota")) {
+            toast({
+            title: "Hết hạn mức sử dụng",
+            description: "Hệ thống đã đạt giới hạn. Vui lòng thêm API key riêng để tiếp tục học.",
+            variant: "destructive",
+            });
+            router.push("/settings/api");
+        } else {
+            toast({
+            title: "Tạo nội dung thất bại",
+            description: "AI không thể tạo bài học. Vui lòng thử lại sau.",
+            variant: "destructive",
+            });
+        }
     } finally {
       setIsGenerating(false);
     }

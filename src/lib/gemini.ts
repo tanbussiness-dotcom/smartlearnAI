@@ -41,9 +41,13 @@ async function callGeminiModel(prompt: string, model: string, apiKey: string): P
     }
   );
 
-  if (!res.ok) {
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("Invalid or expired Gemini API key.");
+  } else if (res.status === 429) {
+    throw new Error("Quota exceeded. Please use your own Gemini API key.");
+  } else if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Gemini API ${model} failed (${res.status}): ${errText}`);
+    throw new Error(`Gemini service error (${res.status}): ${errText}`);
   }
 
   const data: GeminiResponse = await res.json();
@@ -112,6 +116,5 @@ export async function generateWithGemini(prompt: string, useCache = true, userId
   }
 
   // If all models failed, throw the last error
-  const finalError = `All Gemini models failed. Last error: ${lastError?.message || "Unknown error"}`;
-  throw new Error(finalError);
+  throw lastError || new Error("All Gemini models failed. Unknown error");
 }

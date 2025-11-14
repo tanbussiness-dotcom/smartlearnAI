@@ -1,26 +1,50 @@
+diff --git a/node_modules/pdf-lib/cjs/utils/errors.js b/node_modules/pdf-lib/cjs/utils/errors.js
+index b33ee72..a3437e4 100644
+--- a/node_modules/pdf-lib/cjs/utils/errors.js
++++ b/node_modules/pdf-lib/cjs/utils/errors.js
+@@ -3,7 +3,7 @@
+ var _a;
+ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.error = exports.assertIs = exports.assertRange = exports.assertIsOneOf = exports.assertIsInstance = exports.assertIsString = exports.assertIsNumber = exports.assertIsArray = exports.assertIsBuffer = exports.assertIsBytes = exports.InvalidSwitchError = void 0;
+-var process = require("process");
++// var process = require("process");
+ var InvalidSwitchError = /** @class */ (function () {
+     function InvalidSwitchError(value) {
+         this.name = 'InvalidSwitchError';
 diff --git a/node_modules/pdf-lib/dist/pdf-lib.cjs.js b/node_modules/pdf-lib/dist/pdf-lib.cjs.js
-index 99a1738..f9e943c 100644
+index 9260682..8e24c6e 100644
 --- a/node_modules/pdf-lib/dist/pdf-lib.cjs.js
-+++ b/node_modules/pdf-lib/dist/pdf-lib.cjs-fixed.js
-@@ -36,7 +36,7 @@
-   return Object.prototype.toString.call(val) === '[object Uint8Array]';
- };
++++ b/node_modules/pdf-lib/dist/pdf-lib.cjs.js
+@@ -3,7 +3,7 @@
+ 'use strict';
  
--var process = require('node:process');
-+var process = require('process');
- 
- var version = "1.17.1";
- 
-diff --git a/node_modules/pdf-lib/dist/pdf-lib.es.js b/node_modules/pdf-lib/dist/pdf-lib.es.js
-index 8467439..b244439 100644
---- a/node_modules/pdf-lib/dist/pdf-lib.es.js
-+++ b/node_modules/pdf-lib/dist/pdf-lib.es-fixed.js
-@@ -31,7 +31,7 @@
-   return Object.prototype.toString.call(val) === '[object Uint8Array]';
- };
- var isString$1 = isString;
--import process from 'node:process';
-+import process from 'process';
- var version = "1.17.1";
- 
- /*
+ Object.defineProperty(exports, '__esModule', { value: true });
+-var process = require('process');
++// var process = require('process');
+ var pako = require('pako');
+ var fontkit = require('fontkit');
+ var fs = require('fs');
+diff --git a/node_modules/pdf-lib/es/utils/errors.js b/node_modules/pdf-lib/es/utils/errors.js
+index 8b671a5..251de1f 100644
+--- a/node_modules/pdf-lib/es/utils/errors.js
++++ b/node_modules/pdf-lib/es/utils/errors.js
+@@ -1,5 +1,5 @@
+-import process from "process";
+-var _a;
++// import process from "process";
++var _a; 
+ export var InvalidSwitchError = /** @class */ (function () {
+     function InvalidSwitchError(value) {
+         this.name = 'InvalidSwitchError';
+diff --git a/node_modules/pdf-lib/dist/pdf-lib.esm.js b/node_modules/pdf-lib/dist/pdf-lib.esm.js
+index f3db306..c290a16 100644
+--- a/node_modules/pdf-lib/dist/pdf-lib.esm.js
++++ b/node_modules/pdf-lib/dist/pdf-lib.esm.js
+@@ -1,5 +1,5 @@
+-import process from 'process';
+-import pako from 'pako';
++// import process from 'process';
++import pako from 'pako'; 
+ import fontkit from 'fontkit';
+ import fs from 'fs';
+ import fetch from 'node-fetch';

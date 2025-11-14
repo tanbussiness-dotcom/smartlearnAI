@@ -165,13 +165,34 @@ export default function QuizPage() {
              updateDocumentNonBlocking(lessonDocRef, { has_no_quiz: true, quiz_ready: false });
         }
         
-      } catch (serverError: any) {
+      } catch (error: any) {
+        console.error("Caught in fetchOrCreateQuiz:", error);
+
+        if (error.message.includes("Invalid") || error.message.includes("expired")) {
+            toast({
+                title: "API Key lỗi",
+                description: "Không thể tạo bài kiểm tra vì Gemini API Key của bạn không hợp lệ. Vui lòng nhập lại key.",
+                variant: "destructive",
+            });
+            router.push("/settings/api");
+            return;
+        }
+
+        if (error.message.includes("Quota")) {
+            toast({
+                title: "Đã vượt hạn mức API",
+                description: "Vui lòng nhập API key cá nhân để tiếp tục tạo bài kiểm tra.",
+                variant: "destructive",
+            });
+            router.push("/settings/api");
+            return;
+        }
+
         const permissionError = new FirestorePermissionError({
             path: 'users/' + user.uid,
             operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
-        console.error("Caught in fetchOrCreateQuiz:", serverError);
       } finally {
         setLoading(false);
       }
