@@ -77,11 +77,12 @@ export async function generateWithGemini(prompt: string, useCache = true, userId
       const userDoc = await firestoreAdmin.collection("users").doc(userId).get();
       if (userDoc.exists) {
         const userData = userDoc.data();
-        if (userData?.geminiKey) {
+        if (userData?.geminiKey && userData?.geminiKeyVerified) {
           const decryptedKey = decrypt(userData.geminiKey);
           if (decryptedKey) {
             activeApiKey = decryptedKey;
             cacheKey = `${prompt}-${userId}`; // Use a user-specific cache key
+            console.log(`Using API key for user: ${userId}`);
           }
         }
       }
@@ -92,7 +93,10 @@ export async function generateWithGemini(prompt: string, useCache = true, userId
   
   if (!activeApiKey) {
       const errorMsg = "Gemini API key is not available (neither system nor user-provided).";
+      console.error(errorMsg);
       throw new Error(errorMsg);
+  } else if (activeApiKey === GEMINI_API_KEY) {
+      console.warn("Using system-wide Gemini API Key. It's recommended for users to provide their own key.");
   }
 
   if (useCache && cache.has(cacheKey)) {
@@ -112,6 +116,7 @@ export async function generateWithGemini(prompt: string, useCache = true, userId
       }
     } catch (err: any) {
       lastError = err;
+      console.error(`Model ${model} failed:`, err.message);
     }
   }
 
