@@ -76,36 +76,27 @@ export default function QuizPage() {
     const fetchOrCreateQuiz = async () => {
       setLoading(true);
       try {
-        const topicsCollectionRef = collection(firestore, 'users', user.uid, 'topics');
-        const topicsSnapshot = await getDocs(topicsCollectionRef);
+        const topicId = searchParams.get('topicId');
+        const roadmapId = searchParams.get('roadmapId');
 
-        let lessonData: any = null;
-        let topicId: string | null = null;
-        let roadmapId: string | null = null;
-        let lessonDocRef: any = null;
-
-        for (const topicDoc of topicsSnapshot.docs) {
-            const roadmapsCollectionRef = collection(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps');
-            const roadmapsSnapshot = await getDocs(roadmapsCollectionRef);
-
-            for (const roadmapDoc of roadmapsSnapshot.docs) {
-                const currentLessonRef = doc(firestore, 'users', user.uid, 'topics', topicDoc.id, 'roadmaps', roadmapDoc.id, 'lessons', lessonId);
-                const lessonSnap = await getDoc(currentLessonRef);
-
-                if (lessonSnap && lessonSnap.exists()) {
-                    lessonData = lessonSnap.data();
-                    topicId = topicDoc.id;
-                    roadmapId = roadmapDoc.id;
-                    lessonDocRef = currentLessonRef;
-                    break;
-                }
-            }
-            if (lessonData) break;
+        if (!topicId || !roadmapId) {
+             toast({ variant: 'destructive', title: 'Không tìm thấy bài học' });
+             router.push('/dashboard');
+             return;
         }
 
-        if (!lessonData || !topicId || !roadmapId || !lessonDocRef) {
-            toast({ variant: 'destructive', title: 'Lesson not found' });
+        const lessonDocRef = doc(firestore, 'users', user.uid, 'topics', topicId, 'roadmaps', roadmapId, 'lessons', lessonId);
+        const lessonSnap = await getDoc(lessonDocRef);
+
+        if (!lessonSnap.exists()) {
+            toast({ variant: 'destructive', title: 'Không tìm thấy bài học' });
             router.push('/dashboard');
+            return;
+        }
+        
+        const lessonData = lessonSnap.data();
+
+        if (lessonData.has_no_quiz) {
             setLoading(false);
             return;
         }
@@ -125,13 +116,12 @@ export default function QuizPage() {
         }
 
         if (!testResult) {
-            toast({ title: 'Generating a new quiz...', description: 'This may take a moment.' });
+            toast({ title: 'Đang tạo bài kiểm tra mới...', description: 'Việc này có thể mất một lúc.' });
             
-            const lessonContent = lessonData.content || lessonData.synthesized_content || lessonData.instructions || "";
+            const lessonContent = lessonData.content || "";
             if (!lessonContent) {
-                toast({ variant: 'destructive', title: 'Cannot generate quiz', description: 'Lesson content is empty.' });
-                router.push(`/lesson/${lessonId}`);
-                setLoading(false);
+                toast({ variant: 'destructive', title: 'Không thể tạo bài kiểm tra', description: 'Nội dung bài học trống.' });
+                router.push(`/lesson/${lessonId}?topicId=${topicId}&roadmapId=${roadmapId}`);
                 return;
             }
 
@@ -139,6 +129,12 @@ export default function QuizPage() {
                 lesson_id: lessonId,
                 lesson_content: lessonContent,
             });
+
+            if (!quizResultFromAI.questions || quizResultFromAI.questions.length === 0) {
+                 updateDocumentNonBlocking(lessonDocRef, { has_no_quiz: true, quiz_ready: false });
+                 setLoading(false);
+                 return;
+            }
             
             const newTestDocRef = await addDocumentNonBlocking(testsRef, {
                 ...quizResultFromAI,
@@ -152,6 +148,7 @@ export default function QuizPage() {
             updateDocumentNonBlocking(lessonDocRef, {
                 quiz_id: testId,
                 quiz_ready: true,
+                has_no_quiz: false,
             });
         }
 
@@ -165,16 +162,13 @@ export default function QuizPage() {
             };
             setQuizData(formattedQuizData);
         } else {
-            toast({ variant: 'destructive', title: 'Failed to load or create quiz.'});
-            router.push(`/lesson/${lessonId}`);
+             updateDocumentNonBlocking(lessonDocRef, { has_no_quiz: true, quiz_ready: false });
         }
         
       } catch (serverError: any) {
-        // This is the crucial part. We catch any error, create a generic contextual error,
-        // and emit it. This will catch permission errors from getDocs, getDoc, etc.
         const permissionError = new FirestorePermissionError({
-            path: 'users/' + user.uid, // A generic path for the context
-            operation: 'list', // Assume list operation as it's the most likely to fail first
+            path: 'users/' + user.uid,
+            operation: 'list',
         });
         errorEmitter.emit('permission-error', permissionError);
         console.error("Caught in fetchOrCreateQuiz:", serverError);
@@ -184,7 +178,7 @@ export default function QuizPage() {
     };
 
     fetchOrCreateQuiz();
-  }, [firestore, user, lessonId, toast, router, noQuiz]);
+  }, [firestore, user, lessonId, toast, router, noQuiz, searchParams]);
 
   const score = quizData ? quizData.questions.reduce((acc, q) => {
     return selectedAnswers[q.id] === q.correct_answer ? acc + 1 : acc;
@@ -246,24 +240,21 @@ export default function QuizPage() {
 
     try {
         await batch.commit();
-        toast({ title: "Progress Saved!", description: "You've unlocked the next part of your journey." });
+        toast({ title: "Đã lưu tiến độ!", description: "Bạn đã mở khóa phần tiếp theo của hành trình." });
     } catch (serverError) {
-        // Create and emit a contextual error for debugging
         const permissionError = new FirestorePermissionError({
-            path: nextStepRef ? nextStepRef.path : lessonRef.path, // Use next step path if available, otherwise lesson path
+            path: nextStepRef ? nextStepRef.path : lessonRef.path,
             operation: 'update',
-            requestResourceData: { status: 'Learned' }, // Representative data for the batch operation
+            requestResourceData: { status: 'Learned' },
         });
         errorEmitter.emit('permission-error', permissionError);
         
-        // Also show a generic error to the user
         toast({
             variant: 'destructive',
-            title: 'Error updating progress',
-            description: 'Could not update your learning status. Please try again.'
+            title: 'Lỗi cập nhật tiến độ',
+            description: 'Không thể cập nhật trạng thái học tập của bạn. Vui lòng thử lại.'
         });
         
-        // Re-throw the original error to be caught by any outer error boundaries if needed
         throw serverError;
     }
   };
@@ -295,8 +286,8 @@ export default function QuizPage() {
             <p className="text-gray-500 max-w-sm mt-2">
               Bạn đã hoàn thành bài học, hãy tiếp tục đến lộ trình để học bài tiếp theo nhé!
             </p>
-            <Button asChild className="mt-6">
-                <Link href={quizData?.topicId ? `/roadmap/${quizData.topicId}` : '/dashboard'}>Quay lại lộ trình</Link>
+            <Button asChild className="mt-6" onClick={async () => await updateProgress()}>
+                <Link href={quizData?.topicId ? `/roadmap/${quizData.topicId}` : '/dashboard'}>Hoàn thành & Quay lại Lộ trình</Link>
             </Button>
         </div>
     );

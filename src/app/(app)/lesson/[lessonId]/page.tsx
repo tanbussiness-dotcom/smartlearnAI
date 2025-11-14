@@ -148,40 +148,11 @@ export default function LessonPage() {
               title: `⚠️ Tạo bài học thất bại`,
               description: 'Đã có lỗi xảy ra trong quá trình tạo bài học. Vui lòng thử lại sau vài phút.',
           });
-          console.error('[Lesson generation error details]', parsedResponse);
           setIsGenerating(false);
           return;
       }
       
-      if (!parsedResponse.quiz?.questions || parsedResponse.quiz.questions.length === 0) {
-        toast({
-          variant: 'destructive',
-          title: '⚠️ Không thể tạo bài kiểm tra',
-          description: 'AI chưa tạo được bài kiểm tra cho bài học này. Bạn vẫn có thể học và hoàn thành bài học này.',
-        });
-        console.warn('[Quiz generation warning]', JSON.stringify(parsedResponse.quiz, null, 2));
-
-        const batch = writeBatch(firestore);
-        
-        const lessonPayload = {
-            ...parsedResponse.lesson,
-            status: 'Learning',
-            isAiGenerated: true,
-            createdBy: user.uid,
-            createdAt: new Date().toISOString(),
-            quiz_ready: false, // Explicitly set that quiz is not ready
-            has_quiz: false,
-        };
-        batch.update(lessonRef, lessonPayload);
-        await batch.commit();
-
-        setIsGenerating(false);
-        return;
-      }
-
-      // ✅ success with quiz
       const { lesson: lessonData, quiz: quizData } = parsedResponse;
-      
       const batch = writeBatch(firestore);
       
       const lessonPayload = {
@@ -190,19 +161,22 @@ export default function LessonPage() {
           isAiGenerated: true,
           createdBy: user.uid,
           createdAt: new Date().toISOString(),
-          quiz_ready: true, 
+          quiz_ready: !!(quizData && quizData.questions?.length > 0),
       };
       batch.update(lessonRef, lessonPayload);
 
-      const quizRef = doc(collection(lessonRef, 'tests'));
-      const quizPayload = {
+      if (quizData && quizData.questions?.length > 0) {
+        const quizRef = doc(collection(lessonRef, 'tests'));
+        batch.set(quizRef, {
           ...quizData,
           createdBy: user.uid,
           createdAt: new Date().toISOString(),
-      };
-      batch.set(quizRef, quizPayload);
-
-      batch.update(lessonRef, { quiz_id: quizRef.id });
+        });
+        batch.update(lessonRef, { quiz_id: quizRef.id });
+      } else {
+        // No quiz generated — mark flag for later display
+        batch.update(lessonRef, { has_no_quiz: true, quiz_ready: false });
+      }
 
       await batch.commit();
 
@@ -314,11 +288,11 @@ export default function LessonPage() {
                         <CardTitle>Hành động</CardTitle>
                     </CardHeader>
                     <CardContent className="flex flex-col gap-4">
-                        <Button size="lg" onClick={handleGoToQuiz} disabled={!lesson.quiz_ready || !hasContent}>
+                        <Button size="lg" onClick={handleGoToQuiz} disabled={!hasContent}>
                         {!lesson.quiz_ready ? (
                             <>
-                                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                                Chuẩn bị...
+                                <Check className="mr-2 h-4 w-4" />
+                                Hoàn thành bài học
                             </>
                         ) : (
                             <>
@@ -327,7 +301,7 @@ export default function LessonPage() {
                             </>
                         )}
                         </Button>
-                        <p className="text-xs text-muted-foreground text-center">Vượt qua bài kiểm tra để hoàn thành.</p>
+                        <p className="text-xs text-muted-foreground text-center">Hoàn thành bài học để tiếp tục.</p>
                     </CardContent>
                 </Card>
             </div>
@@ -337,25 +311,24 @@ export default function LessonPage() {
       <AnimatePresence>
       {hasContent && (
         <motion.div 
-            className="mt-12 text-center lg:hidden"
+            className="mt-12 text-center"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
         >
-          <Button size="lg" onClick={handleGoToQuiz} disabled={!lesson.quiz_ready}>
-            {!lesson.quiz_ready ? (
-                 <>
-                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                    Đang chuẩn bị kiểm tra...
-                 </>
-            ) : (
-                <>
-                    <Check className="mr-2 h-4 w-4" />
-                    Làm bài kiểm tra
-                </>
-            )}
+          <Button
+            size="lg"
+            onClick={() => {
+              if (lesson.quiz_ready) {
+                handleGoToQuiz();
+              } else {
+                router.push(`/quiz/${lesson.id}?topicId=${topicId}&roadmapId=${roadmapId}&noQuiz=true`);
+              }
+            }}
+          >
+            Hoàn thành bài học
           </Button>
-          <p className="text-xs text-muted-foreground mt-2">Vượt qua bài kiểm tra để đánh dấu bài học đã hoàn thành.</p>
+          <p className="text-xs text-muted-foreground mt-2">Đánh dấu bài học đã hoàn thành để tiếp tục.</p>
         </motion.div>
       )}
       </AnimatePresence>
