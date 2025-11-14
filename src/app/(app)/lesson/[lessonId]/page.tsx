@@ -159,7 +159,7 @@ export default function LessonPage() {
           title: '⚠️ Bài kiểm tra chưa được tạo đầy đủ',
           description: 'AI chưa sinh ra câu hỏi. Vui lòng thử tạo lại bài học.',
         });
-        console.error('[Quiz generation error]', parsedResponse.quiz);
+        console.error('[Quiz generation error]', JSON.stringify(parsedResponse.quiz, null, 2));
         setIsGenerating(false);
         return;
       }
