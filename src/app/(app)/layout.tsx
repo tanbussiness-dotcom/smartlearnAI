@@ -27,10 +27,7 @@ export default function AppLayout({
   const pathname = usePathname();
 
   useEffect(() => {
-    // If the user data has finished loading and there is no user,
-    // redirect them to the login page.
     if (!isUserLoading && !user) {
-      // Pass the current path as a redirect parameter
       router.push(`/login?redirect=${pathname}`);
     }
   }, [user, isUserLoading, router, pathname]);
@@ -64,7 +61,7 @@ export default function AppLayout({
           <div className="mt-auto p-4">
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
               <Link
-                href="/settings/api"
+                href="/setup/gemini-key"
                 className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
               >
                 <Settings className="h-4 w-4" />
@@ -109,7 +106,7 @@ export default function AppLayout({
               <div className="mt-auto">
                 <nav className="grid gap-2 text-lg font-medium">
                   <Link
-                    href="/settings/api"
+                    href="/setup/gemini-key"
                     className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
                   >
                     <Settings className="h-5 w-5" />

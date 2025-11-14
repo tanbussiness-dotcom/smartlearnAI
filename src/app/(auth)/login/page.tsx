@@ -8,6 +8,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
+  UserCredential,
 } from 'firebase/auth';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -26,12 +27,32 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 
+async function checkUserApiKey(user: UserCredential['user']): Promise<boolean> {
+  try {
+    const idToken = await user.getIdToken();
+    const res = await fetch('/api/user/gemini-key', {
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.hasKey;
+    }
+    return false;
+  } catch (error) {
+    console.error('Failed to check API key status:', error);
+    return false;
+  }
+}
+
 async function socialSignIn(auth: Auth, provider: any) {
   try {
-    await signInWithPopup(auth, provider);
+    const result = await signInWithPopup(auth, provider);
+    return result;
   } catch (error: any) {
     if (error.code === 'auth/popup-blocked') {
+        // Fallback to redirect method if popups are blocked
         await signInWithRedirect(auth, provider);
+        return null; // signInWithRedirect doesn't return a result directly
     } else {
         console.error('Social Sign-In Error:', error);
         throw error;
@@ -46,14 +67,23 @@ export default function LoginPage() {
   const redirect = searchParams.get('redirect');
   const { toast } = useToast();
 
+  const handleSuccessfulLogin = async (user: UserCredential['user']) => {
+    const hasKey = await checkUserApiKey(user);
+    if (hasKey) {
+      router.push(redirect || '/dashboard');
+    } else {
+      router.push('/setup/gemini-key');
+    }
+  };
+
   const handleEmailLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const email = event.currentTarget.email.value;
     const password = event.currentTarget.password.value;
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push(redirect || '/dashboard');
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      await handleSuccessfulLogin(userCredential.user);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -65,8 +95,10 @@ export default function LoginPage() {
 
   const handleSocialSignIn = async (provider: GoogleAuthProvider | OAuthProvider) => {
     try {
-      await socialSignIn(auth, provider);
-      router.push(redirect || '/dashboard');
+      const result = await socialSignIn(auth, provider);
+      if(result?.user) {
+        await handleSuccessfulLogin(result.user);
+      }
     } catch (error: any) {
        toast({
         variant: 'destructive',
