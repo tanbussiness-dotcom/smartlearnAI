@@ -140,7 +140,8 @@ export default function LessonPage() {
         lessonId: lesson.id,
       });
 
-      const parsedResponse = typeof response === 'string' ? JSON.parse(response) : response;
+      // The response is already a plain object, no parsing needed.
+      const parsedResponse = response;
 
       if (parsedResponse.status !== 'success' || !parsedResponse.lesson || !parsedResponse.quiz) {
           toast({

@@ -49,7 +49,8 @@ export async function generateLesson(input:any) {
 
           clearTimeout(timeoutId);
           console.log('✅ [generateLesson] Completed successfully');
-          const finalPayload = {
+          // Return a plain object, Next.js handles serialization
+          return {
             status: 'success',
             topic: input.topic,
             phase: input.phase,
@@ -57,8 +58,6 @@ export async function generateLesson(input:any) {
             validation,
             quiz,
           };
-          // Final safety net: ensure everything is serializable
-          return JSON.stringify(finalPayload);
 
         })(),
         timeout(45000),
