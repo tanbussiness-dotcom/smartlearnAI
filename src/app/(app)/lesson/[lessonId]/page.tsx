@@ -140,29 +140,21 @@ export default function LessonPage() {
         lessonId: lesson.id,
       });
 
-      if (!response || typeof response !== 'object') {
-        toast({
-          variant: 'destructive',
-          title: 'Lỗi server',
-          description: 'Không nhận được phản hồi từ server. Vui lòng kiểm tra logs.',
-        });
-        setIsGenerating(false);
-        return;
-      }
-      
-      if (response.status !== 'success' || !response.lesson || !response.quiz) {
+      const parsedResponse = typeof response === 'string' ? JSON.parse(response) : response;
+
+      if (parsedResponse.status !== 'success' || !parsedResponse.lesson || !parsedResponse.quiz) {
           toast({
               variant: 'destructive',
               title: `❌ Lỗi tạo bài học`,
-              description: response.error || 'Tạo bài học thất bại. Vui lòng thử lại.',
+              description: parsedResponse.error || 'Tạo bài học thất bại. Vui lòng thử lại.',
           });
-          console.error('[Lesson generation error details]', response);
+          console.error('[Lesson generation error details]', parsedResponse);
           setIsGenerating(false);
           return;
       }
 
       // ✅ success
-      const { lesson: lessonData, quiz: quizData } = response;
+      const { lesson: lessonData, quiz: quizData } = parsedResponse;
       
       const batch = writeBatch(firestore);
       

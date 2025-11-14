@@ -58,8 +58,7 @@ export async function generateLesson(input:any) {
             quiz,
           };
           // Final safety net: ensure everything is serializable
-          const jsonString = JSON.stringify(finalPayload);
-          return JSON.parse(jsonString);
+          return JSON.stringify(finalPayload);
 
         })(),
         timeout(45000),
