@@ -1,15 +1,16 @@
+
 import admin from 'firebase-admin';
 
 if (!admin.apps.length) {
   try {
-    // This is for App Hosting environment
+    // This is for App Hosting environment which uses Application Default Credentials
     admin.initializeApp();
   } catch (e) {
-    if (process.env.NODE_ENV === "production") {
-      console.warn('Automatic Firebase Admin initialization failed. Check service account credentials.');
-    }
-    // Fallback for local development if GOOGLE_APPLICATION_CREDENTIALS is set
-    admin.initializeApp();
+    // For local development, it might fall back to GOOGLE_APPLICATION_CREDENTIALS
+    // or other explicit configuration if available.
+    console.warn('Automatic Firebase Admin initialization failed. This is expected in local dev without credentials. Error:', e);
+    // If you need to run locally with admin SDK, ensure you have credentials set up.
+    // e.g. via `export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/key.json"`
   }
 }
 

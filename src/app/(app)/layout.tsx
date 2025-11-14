@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -27,6 +28,8 @@ export default function AppLayout({
   const pathname = usePathname();
 
   useEffect(() => {
+    // This logic is now handled by the middleware, but we can keep it
+    // as a client-side fallback and for directing to login on initial load.
     if (!isUserLoading && !user) {
       router.push(`/login?redirect=${pathname}`);
     }
@@ -123,7 +126,7 @@ export default function AppLayout({
         </header>
         <main className="flex flex-1 flex-col gap-4 bg-background p-4 lg:gap-6 lg:p-6">
           <AnimatePresence mode="wait">
-            {isUserLoading || !user ? (
+            {isUserLoading ? (
                 <div className="flex h-full items-center justify-center">
                     <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
                 </div>

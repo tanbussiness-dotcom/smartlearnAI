@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { authAdmin, firestoreAdmin } from '@/firebase/admin';
 import { cookies } from 'next/headers';
@@ -9,8 +10,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'ID token is required' }, { status: 400 });
   }
 
-  // Set session expiration to 5 days.
-  const expiresIn = 60 * 60 * 24 * 5 * 1000;
+  // Set session expiration to 7 days.
+  const expiresIn = 60 * 60 * 24 * 7 * 1000;
 
   try {
     const decodedToken = await authAdmin.verifyIdToken(idToken, true);
@@ -20,9 +21,10 @@ export async function POST(req: Request) {
     const options = {
       name: 'session',
       value: sessionCookie,
-      maxAge: expiresIn,
+      maxAge: expiresIn / 1000, // maxAge is in seconds
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
     };
 
     // Set cookie
