@@ -30,8 +30,8 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy } from "firebase/firestore";
-import { format, subDays, startOfDay } from 'date-fns';
+import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
+import { format, subDays, startOfDay, differenceInCalendarDays } from 'date-fns';
 
 const chartConfig = {
   tasks: {
@@ -62,6 +62,15 @@ export default function Dashboard() {
     const { user } = useUser();
     const firestore = useFirestore();
 
+    const [stats, setStats] = useState({
+        topicsInProgress: 0,
+        completedLessons: 0,
+        testsPassed: 0,
+        learningStreak: 0,
+    });
+    const [continueLearning, setContinueLearning] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
     const dailyTasksQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
         const sevenDaysAgo = subDays(startOfDay(new Date()), 6);
@@ -74,6 +83,90 @@ export default function Dashboard() {
 
     const { data: dailyTasks, isLoading: isLoadingTasks } = useCollection(dailyTasksQuery);
     
+    useEffect(() => {
+        if (!user || !firestore) return;
+
+        const fetchDashboardData = async () => {
+            setIsLoading(true);
+            try {
+                // Topics in Progress
+                const topicsQuery = query(collection(firestore, `users/${user.uid}/topics`), where("progress", "<", 100));
+                const topicsSnap = await getDocs(topicsQuery);
+                const topicsData = topicsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setContinueLearning(topicsData);
+
+                // Completed Lessons & Daily Streak
+                const lessonsQuery = query(collection(firestore, `users/${user.uid}/topics`));
+                const topicsSnapshot = await getDocs(lessonsQuery);
+                let completedLessonsCount = 0;
+                const completedDates: Date[] = [];
+                for (const topicDoc of topicsSnapshot.docs) {
+                    const roadmapsQuery = collection(topicDoc.ref, 'roadmaps');
+                    const roadmapsSnapshot = await getDocs(roadmapsQuery);
+                    for (const roadmapDoc of roadmapsSnapshot.docs) {
+                        const lessonsQuery = query(collection(roadmapDoc.ref, 'lessons'), where("status", "==", "Learned"));
+                        const lessonsSnapshot = await getDocs(lessonsQuery);
+                        completedLessonsCount += lessonsSnapshot.size;
+                        lessonsSnapshot.forEach(lessonDoc => {
+                            const lessonData = lessonDoc.data();
+                            if (lessonData.completedAt) {
+                                completedDates.push(new Date(lessonData.completedAt));
+                            }
+                        })
+                    }
+                }
+
+                completedDates.sort((a, b) => b.getTime() - a.getTime());
+                let streak = 0;
+                if (completedDates.length > 0) {
+                    const today = startOfDay(new Date());
+                    if (differenceInCalendarDays(today, completedDates[0]) <= 1) {
+                        streak = 1;
+                        for (let i = 1; i < completedDates.length; i++) {
+                            const diff = differenceInCalendarDays(completedDates[i - 1], completedDates[i]);
+                            if (diff === 1) {
+                                streak++;
+                            } else if (diff > 1) {
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // Tests Passed (assuming tests are stored under lessons)
+                let testsPassedCount = 0;
+                 for (const topicDoc of topicsSnapshot.docs) {
+                    const roadmapsQuery = collection(topicDoc.ref, 'roadmaps');
+                    const roadmapsSnapshot = await getDocs(roadmapsQuery);
+                    for (const roadmapDoc of roadmapsSnapshot.docs) {
+                        const lessonsQuery = collection(roadmapDoc.ref, 'lessons');
+                        const lessonsSnapshot = await getDocs(lessonsQuery);
+                         for (const lessonDoc of lessonsSnapshot.docs) {
+                            const testsQuery = query(collection(lessonDoc.ref, 'tests'), where("score", ">=", 70));
+                            const testsSnapshot = await getDocs(testsQuery);
+                            testsPassedCount += testsSnapshot.size;
+                        }
+                    }
+                }
+
+                setStats({
+                    topicsInProgress: topicsData.length,
+                    completedLessons: completedLessonsCount,
+                    testsPassed: testsPassedCount,
+                    learningStreak: streak,
+                });
+
+            } catch (error) {
+                console.error("Failed to fetch dashboard data:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchDashboardData();
+
+    }, [user, firestore]);
+
     const chartData = useMemo(() => {
         const last7Days = Array.from({ length: 7 }).map((_, i) => {
             const date = subDays(new Date(), 6 - i);
@@ -98,6 +191,10 @@ export default function Dashboard() {
         return last7Days;
     }, [dailyTasks]);
 
+  if (isLoading) {
+      return <div className="flex h-full w-full items-center justify-center"><LoaderCircle className="h-12 w-12 animate-spin text-primary" /></div>
+  }
+
   return (
     <motion.div 
       className="flex flex-1 flex-col gap-4 md:gap-8"
@@ -110,15 +207,12 @@ export default function Dashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Topics in Progress
+                Chủ đề đang học
               </CardTitle>
               <BookCopy className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">3</div>
-              <p className="text-xs text-muted-foreground">
-                +2 from last month
-              </p>
+              <div className="text-2xl font-bold">{stats.topicsInProgress}</div>
             </CardContent>
           </Card>
         </motion.div>
@@ -126,42 +220,36 @@ export default function Dashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Completed Lessons
+                Bài học hoàn thành
               </CardTitle>
               <CheckCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">45</div>
-              <p className="text-xs text-muted-foreground">
-                +12 this week
-              </p>
+              <div className="text-2xl font-bold">{stats.completedLessons}</div>
             </CardContent>
           </Card>
         </motion.div>
         <motion.div variants={itemVariants}>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tests Passed</CardTitle>
+              <CardTitle className="text-sm font-medium">Bài kiểm tra đã qua</CardTitle>
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">12</div>
-              <p className="text-xs text-muted-foreground">
-                85% average score
-              </p>
+              <div className="text-2xl font-bold">{stats.testsPassed}</div>
             </CardContent>
           </Card>
         </motion.div>
          <motion.div variants={itemVariants}>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Daily Streak</CardTitle>
+              <CardTitle className="text-sm font-medium">Chuỗi ngày học</CardTitle>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-muted-foreground"><path d="M12 9.5V2.5c-2.3.6-4 2.4-4 4.5 0 1.3.5 2.5 1.4 3.4L6.9 13c-2.8 2.9-2.8 7.5-.1 10.4 2.7 2.7 7.2 2.7 9.9-.1L19.1 21c.9-.9 1.4-2.1 1.4-3.4 0-2.1-1.7-4.2-4-4.8V9.5zM12 14.5v-5"/></svg>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">5 Days</div>
+              <div className="text-2xl font-bold">{stats.learningStreak} Ngày</div>
               <p className="text-xs text-muted-foreground">
-                Keep it up!
+                Cố gắng lên!
               </p>
             </CardContent>
           </Card>
@@ -171,64 +259,46 @@ export default function Dashboard() {
         <motion.div variants={itemVariants} className="xl:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Continue Learning</CardTitle>
+              <CardTitle>Tiếp tục học</CardTitle>
               <CardDescription>
-                Pick up where you left off.
+                Chọn một chủ đề để tiếp tục.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Topic</TableHead>
-                    <TableHead className="hidden sm:table-cell">Status</TableHead>
-                    <TableHead className="hidden md:table-cell">Progress</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
+                    <TableHead>Chủ đề</TableHead>
+                    <TableHead className="hidden sm:table-cell">Trạng thái</TableHead>
+                    <TableHead className="hidden md:table-cell">Tiến độ</TableHead>
+                    <TableHead className="text-right">Hành động</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell>
-                      <div className="font-medium">Python for Data Science</div>
-                      <div className="hidden text-sm text-muted-foreground md:inline">
-                        Next: Functions
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Badge className="text-xs" variant="secondary">
-                        Learning
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      35%
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" asChild>
-                        <Link href="/roadmap/python">Resume</Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>
-                      <div className="font-medium">Digital Marketing</div>
-                       <div className="hidden text-sm text-muted-foreground md:inline">
-                        Next: SEO Basics
-                      </div>
-                    </TableCell>
-                     <TableCell className="hidden sm:table-cell">
-                      <Badge className="text-xs" variant="secondary">
-                        Learning
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      75%
-                    </TableCell>
-                    <TableCell className="text-right">
-                       <Button size="sm" asChild>
-                        <Link href="/roadmap/digital-marketing">Resume</Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                  {continueLearning.length > 0 ? continueLearning.map(topic => (
+                    <TableRow key={topic.id}>
+                        <TableCell>
+                        <div className="font-medium">{topic.title}</div>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                        <Badge className="text-xs" variant="secondary">
+                            Đang học
+                        </Badge>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                        {Math.round(topic.progress || 0)}%
+                        </TableCell>
+                        <TableCell className="text-right">
+                        <Button size="sm" asChild>
+                            <Link href={`/roadmap/${topic.id}`}>Tiếp tục</Link>
+                        </Button>
+                        </TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow>
+                        <TableCell colSpan={4} className="text-center h-24">Chưa có chủ đề nào đang học.</TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -237,8 +307,8 @@ export default function Dashboard() {
         <motion.div variants={itemVariants}>
           <Card>
             <CardHeader>
-              <CardTitle>Weekly Activity</CardTitle>
-              <CardDescription>These are your completed tasks for this week.</CardDescription>
+              <CardTitle>Hoạt động tuần</CardTitle>
+              <CardDescription>Số nhiệm vụ đã hoàn thành trong tuần này.</CardDescription>
             </CardHeader>
             <CardContent>
             {isLoadingTasks ? (
@@ -271,5 +341,3 @@ export default function Dashboard() {
     </motion.div>
   );
 }
-
-    
