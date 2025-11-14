@@ -40,7 +40,7 @@ export async function saveGeminiKey(apiKey: string): Promise<ActionResult> {
 
   try {
     // 1. Validate the API key
-    const validationUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+    const validationUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     const validationResponse = await fetch(validationUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
