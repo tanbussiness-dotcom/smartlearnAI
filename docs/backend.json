@@ -24,6 +24,10 @@
           "type": "string",
           "description": "Encrypted value of the user's Gemini API key."
         },
+        "geminiKeyVerified": {
+            "type": "boolean",
+            "description": "Indicates if the user's Gemini API key has been successfully validated."
+        },
         "geminiKeyLastUpdated": {
           "type": "string",
           "format": "date-time",
@@ -349,3 +353,5 @@
     "reasoning": "The Firestore structure is designed to support the SmartLearn AI platform, emphasizing authorization independence, clear data ownership, and efficient querying. Authorization Independence is achieved via path-based ownership for user-specific data. This eliminates the need for `get()` calls in security rules, ensuring atomic operations. Segregation via path-based ownership also enhances security and optimizes `list` operations. User-generated content is organized hierarchically under user-specific paths (`/users/{userId}/topics/{topicId}/roadmaps/{roadmapId}` etc.) to enforce clear ownership and facilitate secure, efficient queries."
   }
 }
+
+    
