@@ -15,6 +15,7 @@ import {
 import Link from 'next/link';
 import { LoaderCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { saveGeminiKey } from '@/lib/actions/gemini-key';
 
 export default function GeminiKeySetupPage() {
   const auth = useAuth();
@@ -44,34 +45,39 @@ export default function GeminiKeySetupPage() {
 
     setIsVerifying(true);
     try {
+      // Add the Authorization header for the server action
       const idToken = await auth.currentUser.getIdToken(true);
-      const res = await fetch('/api/user/gemini-key', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+      globalThis.fetch = new Proxy(globalThis.fetch, {
+        apply: (target, thisArg, args) => {
+          const newArgs = [...args];
+          const headers = new Headers(newArgs[1]?.headers);
+          headers.set('Authorization', `Bearer ${idToken}`);
+          newArgs[1] = { ...newArgs[1], headers };
+          return target.apply(thisArg, newArgs as [any, any]);
         },
-        body: JSON.stringify({ apiKey }),
       });
 
-      if (res.ok) {
+      const result = await saveGeminiKey(apiKey);
+
+      if (result.success) {
         toast({
           title: '✅ Đã xác thực và lưu thành công!',
           description: 'Bây giờ bạn có thể bắt đầu hành trình học tập của mình.',
         });
         router.push('/dashboard');
       } else {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Xác thực thất bại. Vui lòng kiểm tra lại khóa của bạn.');
+        throw new Error(result.message || 'Xác thực thất bại. Vui lòng kiểm tra lại khóa của bạn.');
       }
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: '❌ Khóa Gemini không hợp lệ',
-        description: 'Vui lòng thử lại.',
+        description: error.message || 'Vui lòng thử lại.',
       });
     } finally {
       setIsVerifying(false);
+      // Restore original fetch
+      globalThis.fetch = (globalThis.fetch as any).__originalFetch ?? globalThis.fetch;
     }
   };
 

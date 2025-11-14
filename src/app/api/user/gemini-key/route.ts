@@ -42,6 +42,7 @@ export async function POST(req: Request) {
 
     await firestoreAdmin.collection("users").doc(userId).set({
       geminiKey: encryptedKey,
+      geminiKeyVerified: true,
       geminiKeyLastUpdated: new Date().toISOString(),
     }, { merge: true });
 
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   const userId = await getAuthenticatedUserId(req);
   if (!userId) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return Response.json({ hasKey: false, lastUpdated: null, error: "Unauthorized" });
   }
 
   try {
@@ -68,7 +69,7 @@ export async function GET(req: Request) {
     const data = doc.data();
 
     return Response.json({
-      hasKey: !!data?.geminiKey,
+      hasKey: !!data?.geminiKey && data?.geminiKeyVerified === true,
       lastUpdated: data?.geminiKeyLastUpdated || null,
     });
   } catch (error) {
