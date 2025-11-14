@@ -52,7 +52,6 @@ export default function SignupPage() {
     const name = event.currentTarget.name.value;
     const email = event.currentTarget.email.value;
     const password = event.currentTarget.password.value;
-    const apiKey = event.currentTarget.apiKey.value;
 
     try {
       const userCredential = await createUserWithEmailAndPassword(
@@ -61,26 +60,6 @@ export default function SignupPage() {
         password
       );
       await updateProfile(userCredential.user, { displayName: name });
-
-      if (apiKey && userCredential.user) {
-        try {
-          const idToken = await userCredential.user.getIdToken(true);
-          const res = await fetch("/api/user/gemini-key", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${idToken}`,
-            },
-            body: JSON.stringify({ apiKey }),
-          });
-          if (!res.ok) {
-            console.warn("Could not save API key during signup.");
-          }
-        } catch (apiKeyError) {
-          console.error("Failed to save API key during signup:", apiKeyError);
-        }
-      }
-
       router.push('/dashboard');
     } catch (error: any) {
       toast({
@@ -161,10 +140,6 @@ export default function SignupPage() {
             <Label htmlFor="password">Mật khẩu</Label>
             <Input id="password" type="password" name="password" />
           </div>
-           <div className="grid gap-2">
-              <Label htmlFor="apiKey">Gemini API Key (Tùy chọn)</Label>
-              <Input id="apiKey" type="password" name="apiKey" placeholder="Dán khóa API của bạn ở đây" />
-            </div>
           <Button type="submit" className="w-full">
             Tạo tài khoản
           </Button>

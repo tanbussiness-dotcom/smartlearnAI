@@ -7,10 +7,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { LoaderCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function ApiSettings() {
   const { auth } = useFirebase();
   const { toast } = useToast();
+  const router = useRouter();
 
   const [apiKey, setApiKey] = useState("");
   const [hasKey, setHasKey] = useState(false);
@@ -63,7 +65,8 @@ export default function ApiSettings() {
       if (res.ok) {
         toast({ title: '✅ Đã lưu thành công!' });
         setApiKey("");
-        fetchKeyStatus();
+        await fetchKeyStatus(); // Re-fetch status
+        router.push('/dashboard'); // Redirect to dashboard on success
       } else {
         const errorData = await res.json();
         throw new Error(errorData.error || "Lưu thất bại.");
@@ -87,18 +90,18 @@ export default function ApiSettings() {
     <div className="flex justify-center items-start pt-12">
         <Card className="w-full max-w-lg">
         <CardHeader>
-            <CardTitle className="text-2xl font-headline">🔑 Quản lý Gemini API Key</CardTitle>
+            <CardTitle className="text-2xl font-headline">🔑 Cài đặt Gemini API Key</CardTitle>
             <CardDescription>
-                Cung cấp khóa API của riêng bạn để sử dụng các tính năng AI không giới hạn.
-                 Khóa của bạn sẽ được mã hóa và lưu trữ an toàn.
+                {hasKey 
+                    ? "Bạn đã cung cấp khóa API. Để cập nhật, chỉ cần nhập khóa mới và lưu lại."
+                    : "Để bắt đầu, bạn cần cung cấp khóa API của riêng mình để sử dụng các tính năng AI không giới hạn. Khóa của bạn sẽ được mã hóa và lưu trữ an toàn."
+                }
             </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
             {hasKey && lastUpdated && (
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 rounded-lg p-3 text-sm">
-                Khóa API của bạn đã được lưu và cập nhật lần cuối vào: {lastUpdated}.
-                <br />
-                Để cập nhật, chỉ cần nhập khóa mới và lưu lại.
+                Khóa API của bạn được cập nhật lần cuối vào: {lastUpdated}.
             </div>
             )}
             <Input
@@ -113,14 +116,19 @@ export default function ApiSettings() {
                 Bạn có thể lấy API key từ <Link href="https://aistudio.google.com/app/apikey" target="_blank" className="underline hover:text-primary">Google AI Studio</Link>.
             </p>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex-col items-stretch gap-4">
             <Button onClick={handleSave} className="w-full" disabled={isSaving}>
             {isSaving ? (
                 <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Đang lưu...</>
             ) : (
-                'Lưu API Key'
+                hasKey ? 'Cập nhật API Key' : 'Lưu và tiếp tục'
             )}
             </Button>
+            {hasKey && (
+                 <Button variant="ghost" size="sm" className="w-full" onClick={() => router.push('/dashboard')}>
+                    Bỏ qua và vào Dashboard
+                </Button>
+            )}
         </CardFooter>
         </Card>
     </div>
