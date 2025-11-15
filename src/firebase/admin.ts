@@ -1,33 +1,31 @@
 
-import admin from 'firebase-admin';
+import admin from "firebase-admin";
 
+let app;
+
+// This check ensures that Firebase is only initialized once
 if (!admin.apps.length) {
-  try {
-    // This is for App Hosting environment which uses Application Default Credentials
-    admin.initializeApp();
-    console.log("[Firebase Admin] Initialized successfully using Application Default Credentials.");
-  } catch (e) {
-    console.warn('Automatic Firebase Admin initialization failed. This is expected in local dev without credentials. Attempting manual initialization... Error:', e);
-    try {
-        const serviceAccount = {
-            projectId: process.env.FIREBASE_PROJECT_ID,
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        }
-        
-        if(!serviceAccount.projectId || !serviceAccount.clientEmail || !serviceAccount.privateKey) {
-            throw new Error("Missing Firebase Admin credentials in environment variables.");
-        }
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
-        admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount),
-        });
-        console.log("[Firebase Admin] Initialized successfully using environment variables.");
-    } catch (manualError) {
-        console.error("[Firebase Admin] All initialization methods failed:", manualError);
-    }
+  // Verify that the private key is in the correct format
+  if (!privateKey?.includes("-----BEGIN PRIVATE KEY-----")) {
+    console.error("❌ Invalid FIREBASE_PRIVATE_KEY. Please check your environment variable for correct line breaks and escaping.");
+    throw new Error("Invalid FIREBASE_PRIVATE_KEY format. Ensure it is a valid PEM key string.");
   }
+
+  app = admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey,
+    }),
+  });
+  console.log("✅ Firebase Admin initialized successfully.");
+} else {
+  // If already initialized, reuse the existing app instance
+  app = admin.app();
+  console.log("⚡ Firebase Admin already initialized (reusing existing instance).");
 }
 
-export const authAdmin = admin.auth();
-export const firestoreAdmin = admin.firestore();
+export const authAdmin = admin.auth(app);
+export const firestoreAdmin = admin.firestore(app);
