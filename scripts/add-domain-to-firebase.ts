@@ -7,7 +7,7 @@
  */
 
 // Load environment variables from .env file
-require('dotenv').config({ path: require('path').resolve(process.cwd(), '.env') });
+require('dotenv').config({ path: './.env' });
 
 import { authAdmin } from '@/firebase/admin';
 import fetch from 'node-fetch';
