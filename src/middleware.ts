@@ -1,7 +1,5 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
-// DO NOT import 'authAdmin' from '@/firebase/admin' here.
-// The middleware runs on the Edge and cannot use Node.js-specific modules.
 
 // List of routes that do not require authentication
 const UNPROTECTED_PATHS = ['/', '/login', '/signup', '/api/', '/_next', '/favicon.ico', '/setup/gemini-key'];
@@ -23,28 +21,41 @@ export async function middleware(request: NextRequest) {
   // Check if the path is protected
   const isProtectedRoute = !UNPROTECTED_PATHS.some(path => {
     if (path === '/') return pathname === '/';
-    // Match /api/ but not /api/auth/* etc. so we make it more specific
-    if (path === '/api/') return pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/') && !pathname.startsWith('/api/test-cookie');
+    // More specific matching for API routes
+    if (path === '/api/') {
+      return pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/') && !pathname.startsWith('/api/test-cookie');
+    }
     return pathname.startsWith(path);
   });
 
+  const sessionCookie = request.cookies.get('session')?.value;
   let response: NextResponse;
-  
-  // The actual verification of the cookie is handled by the server-side API routes
-  // or server components that use the Admin SDK. The middleware's job is to
-  // simply redirect if the cookie is missing for protected routes.
-  if (isProtectedRoute) {
-    const sessionCookie = request.cookies.get('session')?.value;
 
+  if (isProtectedRoute) {
     if (!sessionCookie) {
       // Redirect to login if no session cookie
-      const loginUrl = new URL(`/login`, request.url)
+      const loginUrl = new URL(`/login`, request.url);
       loginUrl.searchParams.set('redirect', pathname);
+      console.log(`[Middleware] No session for protected route '${pathname}'. Redirecting to login.`);
       response = NextResponse.redirect(loginUrl);
     } else {
-      // If cookie exists, let the request through. 
-      // Server-side logic will handle the actual validation.
-      response = NextResponse.next();
+      // If cookie exists, verify key status before allowing access
+      const statusUrl = new URL('/api/auth/check-status', request.url);
+      const statusResponse = await fetch(statusUrl, {
+        headers: {
+          'Cookie': `session=${sessionCookie}`
+        }
+      });
+      const { status } = await statusResponse.json();
+
+      if (status !== 'verified') {
+        console.log(`[Middleware] User status is '${status}' for protected route '${pathname}'. Redirecting to Gemini setup.`);
+        response = NextResponse.redirect(new URL('/setup/gemini-key', request.url));
+      } else {
+        // User is verified, proceed
+        console.log(`[Middleware] User is verified. Allowing access to '${pathname}'.`);
+        response = NextResponse.next();
+      }
     }
   } else {
     // For unprotected routes, just let them pass
@@ -61,6 +72,6 @@ export async function middleware(request: NextRequest) {
 export const config = {
   // Apply middleware to all routes except for static files and image optimization
   matcher: [
-    '/((?!static|.*\\..*|_next/static|_next/image).*)',
+    '/((?!_next/static|_next/image|static|.*\\..*).*)',
   ],
 };
