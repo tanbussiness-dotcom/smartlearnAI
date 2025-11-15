@@ -70,14 +70,14 @@ export default function GeminiKeySetupPage() {
   return (
     <Card className="w-full max-w-lg">
       <CardHeader>
-        <CardTitle className="text-2xl font-headline">Nhập khóa Gemini API của bạn</CardTitle>
+        <CardTitle className="text-2xl font-headline">Nhập khóa API Gemini của bạn</CardTitle>
         <CardDescription>
           Để tiếp tục, bạn cần cung cấp khóa API của riêng mình để sử dụng các tính năng AI không giới hạn.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Input
-          type="text"
+          type="password"
           value={apiKey}
           placeholder="Nhập Google AI Gemini API Key của bạn..."
           onChange={(e) => setApiKey(e.target.value)}
@@ -89,13 +89,13 @@ export default function GeminiKeySetupPage() {
         </p>
       </CardContent>
       <CardFooter className="flex-col items-stretch gap-4">
-        <Button onClick={handleVerifyAndContinue} className="w-full" disabled={isVerifying}>
+        <Button onClick={handleVerifyAndContinue} className="w-full" disabled={isVerifying || !apiKey}>
           {isVerifying ? (
             <>
               <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Đang xác thực...
             </>
           ) : (
-            'Xác thực và Tiếp tục'
+            'Xác thực và Lưu'
           )}
         </Button>
         <div className="text-center text-sm">
