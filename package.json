@@ -8,8 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "ai:health-check": "tsx src/ai/health-check.ts",
-    "postinstall": "patch-package"
+    "ai:health-check": "tsx src/ai/health-check.ts"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.1.0",
