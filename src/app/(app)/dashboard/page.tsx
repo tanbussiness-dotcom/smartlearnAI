@@ -2,7 +2,7 @@
 "use client"
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { ArrowUpRight, CheckCircle, BookCopy, Target, LoaderCircle } from "lucide-react";
+import { BookCopy, CheckCircle, Target, LoaderCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
+import { collection, query, where, orderBy } from "firebase/firestore";
 import { format, subDays, startOfDay, differenceInCalendarDays } from 'date-fns';
 
 const chartConfig = {
@@ -62,15 +62,14 @@ export default function Dashboard() {
     const { user } = useUser();
     const firestore = useFirestore();
 
-    const [stats, setStats] = useState({
-        topicsInProgress: 0,
-        completedLessons: 0,
-        testsPassed: 0,
-        learningStreak: 0,
-    });
-    const [continueLearning, setContinueLearning] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    // Query for all topics
+    const topicsQuery = useMemoFirebase(() => {
+        if (!user || !firestore) return null;
+        return query(collection(firestore, `users/${user.uid}/topics`));
+    }, [user, firestore]);
+    const { data: topics, isLoading: isLoadingTopics } = useCollection(topicsQuery);
 
+    // Query for daily tasks for the chart
     const dailyTasksQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
         const sevenDaysAgo = subDays(startOfDay(new Date()), 6);
@@ -80,92 +79,57 @@ export default function Dashboard() {
             orderBy('date', 'asc')
         );
     }, [user, firestore]);
-
     const { data: dailyTasks, isLoading: isLoadingTasks } = useCollection(dailyTasksQuery);
     
-    useEffect(() => {
-        if (!user || !firestore) return;
+    const stats = useMemo(() => {
+        if (!topics) {
+            return {
+                topicsInProgress: 0,
+                completedLessons: 0,
+                testsPassed: 0,
+                learningStreak: 0,
+            };
+        }
 
-        const fetchDashboardData = async () => {
-            setIsLoading(true);
-            try {
-                // Topics in Progress
-                const topicsQuery = query(collection(firestore, `users/${user.uid}/topics`), where("progress", "<", 100));
-                const topicsSnap = await getDocs(topicsQuery);
-                const topicsData = topicsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                setContinueLearning(topicsData);
+        const topicsInProgress = topics.filter(t => (t.progress ?? 0) < 100).length;
+        const completedLessons = topics.reduce((acc, t) => acc + (t.completedLessons || 0), 0);
 
-                // Completed Lessons & Daily Streak
-                const lessonsQuery = query(collection(firestore, `users/${user.uid}/topics`));
-                const topicsSnapshot = await getDocs(lessonsQuery);
-                let completedLessonsCount = 0;
-                const completedDates: Date[] = [];
-                for (const topicDoc of topicsSnapshot.docs) {
-                    const roadmapsQuery = collection(topicDoc.ref, 'roadmaps');
-                    const roadmapsSnapshot = await getDocs(roadmapsQuery);
-                    for (const roadmapDoc of roadmapsSnapshot.docs) {
-                        const lessonsQuery = query(collection(roadmapDoc.ref, 'lessons'), where("status", "==", "Learned"));
-                        const lessonsSnapshot = await getDocs(lessonsQuery);
-                        completedLessonsCount += lessonsSnapshot.size;
-                        lessonsSnapshot.forEach(lessonDoc => {
-                            const lessonData = lessonDoc.data();
-                            if (lessonData.completedAt) {
-                                completedDates.push(new Date(lessonData.completedAt));
-                            }
-                        })
+        // Calculate streak from dailyTasks
+        const completedDates = (dailyTasks || [])
+            .filter(task => task.status === 'Completed' && task.date)
+            .map(task => startOfDay(new Date(task.date)))
+            .sort((a, b) => b.getTime() - a.getTime());
+
+        const uniqueDates = [...new Set(completedDates.map(d => d.getTime()))].map(t => new Date(t));
+
+        let streak = 0;
+        if (uniqueDates.length > 0) {
+            const today = startOfDay(new Date());
+            // Check if latest activity is today or yesterday
+            if (differenceInCalendarDays(today, uniqueDates[0]) <= 1) {
+                streak = 1;
+                for (let i = 1; i < uniqueDates.length; i++) {
+                    const diff = differenceInCalendarDays(uniqueDates[i - 1], uniqueDates[i]);
+                    if (diff === 1) {
+                        streak++;
+                    } else if (diff > 1) {
+                        break; // Streak is broken
                     }
                 }
-
-                completedDates.sort((a, b) => b.getTime() - a.getTime());
-                let streak = 0;
-                if (completedDates.length > 0) {
-                    const today = startOfDay(new Date());
-                    if (differenceInCalendarDays(today, completedDates[0]) <= 1) {
-                        streak = 1;
-                        for (let i = 1; i < completedDates.length; i++) {
-                            const diff = differenceInCalendarDays(completedDates[i - 1], completedDates[i]);
-                            if (diff === 1) {
-                                streak++;
-                            } else if (diff > 1) {
-                                break;
-                            }
-                        }
-                    }
-                }
-                
-                // Tests Passed (assuming tests are stored under lessons)
-                let testsPassedCount = 0;
-                 for (const topicDoc of topicsSnapshot.docs) {
-                    const roadmapsQuery = collection(topicDoc.ref, 'roadmaps');
-                    const roadmapsSnapshot = await getDocs(roadmapsQuery);
-                    for (const roadmapDoc of roadmapsSnapshot.docs) {
-                        const lessonsQuery = collection(roadmapDoc.ref, 'lessons');
-                        const lessonsSnapshot = await getDocs(lessonsQuery);
-                         for (const lessonDoc of lessonsSnapshot.docs) {
-                            const testsQuery = query(collection(lessonDoc.ref, 'tests'), where("score", ">=", 70));
-                            const testsSnapshot = await getDocs(testsQuery);
-                            testsPassedCount += testsSnapshot.size;
-                        }
-                    }
-                }
-
-                setStats({
-                    topicsInProgress: topicsData.length,
-                    completedLessons: completedLessonsCount,
-                    testsPassed: testsPassedCount,
-                    learningStreak: streak,
-                });
-
-            } catch (error) {
-                console.error("Failed to fetch dashboard data:", error);
-            } finally {
-                setIsLoading(false);
             }
+        }
+
+        return {
+            topicsInProgress,
+            completedLessons,
+            testsPassed: 0, // Placeholder
+            learningStreak: streak,
         };
+    }, [topics, dailyTasks]);
 
-        fetchDashboardData();
-
-    }, [user, firestore]);
+    const continueLearning = useMemo(() => {
+        return (topics || []).filter(t => (t.progress ?? 0) < 100);
+    }, [topics]);
 
     const chartData = useMemo(() => {
         const last7Days = Array.from({ length: 7 }).map((_, i) => {
@@ -179,17 +143,19 @@ export default function Dashboard() {
 
         if (dailyTasks) {
             dailyTasks.forEach(task => {
-                if (task.status === 'Completed') {
-                    const taskDateStr = task.date.split('T')[0];
-                    const dayEntry = last7Days.find(d => d.date === taskDateStr);
-                    if (dayEntry) {
-                        dayEntry.tasks += 1;
-                    }
+                // Ensure date is treated as local timezone
+                const taskDate = new Date(task.date + 'T00:00:00');
+                const taskDateStr = format(taskDate, 'yyyy-MM-dd');
+                const dayEntry = last7Days.find(d => d.date === taskDateStr);
+                if (dayEntry) {
+                    dayEntry.tasks += 1;
                 }
             });
         }
         return last7Days;
     }, [dailyTasks]);
+
+  const isLoading = isLoadingTopics || isLoadingTasks;
 
   if (isLoading) {
       return <div className="flex h-full w-full items-center justify-center"><LoaderCircle className="h-12 w-12 animate-spin text-primary" /></div>
@@ -341,3 +307,5 @@ export default function Dashboard() {
     </motion.div>
   );
 }
+
+    
