@@ -4,45 +4,57 @@ import { authAdmin, firestoreAdmin } from '@/firebase/admin';
 import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
-  const { idToken } = await req.json();
-
-  if (!idToken) {
-    return NextResponse.json({ error: 'ID token is required' }, { status: 400 });
-  }
-
-  // Set session expiration to 7 days.
-  const expiresIn = 60 * 60 * 24 * 7 * 1000;
-
   try {
+    const { idToken } = await req.json();
+
+    if (!idToken) {
+      return NextResponse.json({ success: false, error: 'Missing idToken' }, { status: 400 });
+    }
+
+    const expiresIn = 7 * 24 * 60 * 60 * 1000; // 7 days
+    console.log('[Session API] Received idToken, creating session cookie...');
+
+    // Verify the token first
     const decodedToken = await authAdmin.verifyIdToken(idToken, true);
+    if (!decodedToken?.uid) throw new Error('Failed to decode ID token.');
+
+    // Create session cookie
     const sessionCookie = await authAdmin.createSessionCookie(idToken, { expiresIn });
     const userId = decodedToken.uid;
 
-    const options = {
-      name: 'session',
-      value: sessionCookie,
-      maxAge: expiresIn / 1000, // maxAge is in seconds
+    // Save secure cookie
+    cookies().set('session', sessionCookie, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
+      maxAge: expiresIn / 1000,
       path: '/',
-    };
+    });
 
-    // Set cookie
-    cookies().set(options);
+    console.log(`[Session API] Session cookie set for user: ${userId}`);
 
-    // Check if user has a verified Gemini key
+    // Check Firestore for Gemini key verification
     const userDoc = await firestoreAdmin.collection('users').doc(userId).get();
     const isVerified = userDoc.exists && userDoc.data()?.geminiKeyVerified === true;
-    
-    return NextResponse.json({ status: isVerified ? 'verified' : 'unverified' });
 
-  } catch (error) {
-    console.error('Error creating session cookie:', error);
-    return NextResponse.json({ error: 'Failed to create session' }, { status: 401 });
+    return NextResponse.json({
+      success: true,
+      status: isVerified ? 'verified' : 'unverified',
+      uid: userId,
+    });
+  } catch (error: any) {
+    console.error('[Session API] Failed to create session cookie:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || 'Failed to create session',
+        code: error.code || 'unknown',
+      },
+      { status: 401 }
+    );
   }
 }
 
 export async function DELETE() {
   cookies().delete('session');
-  return NextResponse.json({ status: 'success' });
+  return NextResponse.json({ success: true, status: 'logged_out' });
 }
