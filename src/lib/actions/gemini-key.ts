@@ -27,9 +27,10 @@ async function getUserIdFromToken(): Promise<string | null> {
   // and the client-side fetch doesn't explicitly set the Authorization header.
   // This is common when calling server actions from client components.
   try {
-      const { session } = await import('next/headers').then(m => m.cookies);
-      if(session) {
-          const decodedToken = await authAdmin.verifySessionCookie(session, true);
+      const cookieStore = await import('next/headers').then(m => m.cookies());
+      const sessionCookie = cookieStore.get('session');
+      if(sessionCookie) {
+          const decodedToken = await authAdmin.verifySessionCookie(sessionCookie.value, true);
           return decodedToken.uid;
       }
   } catch(e) {
