@@ -109,4 +109,5 @@ async function addDomainToFirebaseAuth() {
   }
 }
 
-addDomainToFirebaseAuth();
+// Do not run this on postinstall, but keep it available
+// addDomainToFirebaseAuth();
