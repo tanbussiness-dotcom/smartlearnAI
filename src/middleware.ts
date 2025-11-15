@@ -1,56 +1,57 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { authAdmin } from '@/firebase/admin';
+// DO NOT import 'authAdmin' from '@/firebase/admin' here.
+// The middleware runs on the Edge and cannot use Node.js-specific modules.
 
-// Danh sách các đường dẫn không yêu cầu xác thực
-const UNPROTECTED_PATHS = ['/login', '/signup', '/api/auth', '/api/test-cookie', '/_next', '/favicon.ico'];
+// List of routes that do not require authentication
+const UNPROTECTED_PATHS = ['/', '/login', '/signup', '/api/', '/_next', '/favicon.ico', '/setup/gemini-key'];
 
 export async function middleware(request: NextRequest) {
   const origin = request.headers.get('origin') || '*';
   const pathname = request.nextUrl.pathname;
 
-  // Xử lý yêu cầu OPTIONS (preflight) cho CORS
+  // Handle CORS preflight requests
   if (request.method === 'OPTIONS') {
     const preflightResponse = new Response(null, { status: 204 });
     preflightResponse.headers.set('Access-Control-Allow-Origin', origin);
     preflightResponse.headers.set('Access-Control-Allow-Credentials', 'true');
     preflightResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     preflightResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    console.log(`[Middleware] Handled OPTIONS preflight for: ${pathname}`);
     return preflightResponse;
   }
   
-  // Xác định xem đường dẫn có được bảo vệ hay không
-  const isProtectedRoute = !UNPROTECTED_PATHS.some(path => pathname.startsWith(path));
+  // Check if the path is protected
+  const isProtectedRoute = !UNPROTECTED_PATHS.some(path => {
+    if (path === '/') return pathname === '/';
+    // Match /api/ but not /api/auth/* etc. so we make it more specific
+    if (path === '/api/') return pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/') && !pathname.startsWith('/api/test-cookie');
+    return pathname.startsWith(path);
+  });
 
   let response: NextResponse;
-
+  
+  // The actual verification of the cookie is handled by the server-side API routes
+  // or server components that use the Admin SDK. The middleware's job is to
+  // simply redirect if the cookie is missing for protected routes.
   if (isProtectedRoute) {
     const sessionCookie = request.cookies.get('session')?.value;
 
     if (!sessionCookie) {
-      // Chuyển hướng đến trang đăng nhập nếu không có session
-      response = NextResponse.redirect(new URL(`/login?redirect=${pathname}`, request.url));
+      // Redirect to login if no session cookie
+      const loginUrl = new URL(`/login`, request.url)
+      loginUrl.searchParams.set('redirect', pathname);
+      response = NextResponse.redirect(loginUrl);
     } else {
-      try {
-        // Xác thực session cookie
-        await authAdmin.verifySessionCookie(sessionCookie, true);
-        // Nếu hợp lệ, cho phép tiếp tục
-        response = NextResponse.next();
-        console.log(`[Middleware] User authenticated for protected route: ${pathname}`);
-      } catch (error) {
-        // Nếu không hợp lệ, xóa cookie và chuyển hướng đến trang đăng nhập
-        console.warn(`[Middleware] Invalid session cookie. Redirecting to login.`);
-        response = NextResponse.redirect(new URL(`/login?redirect=${pathname}`, request.url));
-        response.cookies.delete('session');
-      }
+      // If cookie exists, let the request through. 
+      // Server-side logic will handle the actual validation.
+      response = NextResponse.next();
     }
   } else {
-    // Đối với các đường dẫn không được bảo vệ, cho phép đi qua
+    // For unprotected routes, just let them pass
     response = NextResponse.next();
   }
 
-  // Thêm các header CORS vào tất cả các phản hồi
+  // Add CORS headers to all responses
   response.headers.set('Access-Control-Allow-Origin', origin);
   response.headers.set('Access-Control-Allow-Credentials', 'true');
   
@@ -58,8 +59,8 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Áp dụng middleware cho tất cả các đường dẫn trừ các tệp tĩnh của Next.js
+  // Apply middleware to all routes except for static files and image optimization
   matcher: [
-    '/((?!api/static|static|.*\\..*|_next/static|_next/image).*)',
+    '/((?!static|.*\\..*|_next/static|_next/image).*)',
   ],
 };
