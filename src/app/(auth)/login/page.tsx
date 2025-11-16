@@ -40,8 +40,7 @@ async function handleLoginSuccess(user: User, redirect: string | null, router: a
     const sessionResponse = await fetch('/api/auth/session', {
       method: 'POST',
       headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${idToken}` // Add auth header
+        'Content-Type': 'application/json'
       },
       credentials: 'include',
       body: JSON.stringify({ idToken }),
@@ -229,5 +228,3 @@ export default function LoginPage() {
     </>
   );
 }
-
-    
