@@ -48,8 +48,8 @@ export async function POST(req: Request) {
       name: 'session',
       value: sessionCookie,
       httpOnly: true,
-      secure: !isLocalhost,
-      sameSite: 'none',
+      secure: true, // 🔥 luôn TRUE khi SameSite=None
+      sameSite: 'none', // 🔥 bắt buộc trong môi trường Firebase Studio
       maxAge: expiresIn / 1000,
       path: '/',
     });
