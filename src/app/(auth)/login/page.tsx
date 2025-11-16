@@ -8,6 +8,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
+  User,
   UserCredential,
 } from 'firebase/auth';
 import Link from 'next/link';
@@ -27,41 +28,46 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 
-async function handleLoginSuccess(user: UserCredential['user'], redirect: string | null, router: any, toast: (options: any) => void) {
+async function handleLoginSuccess(user: User, redirect: string | null, router: any, toast: (options: any) => void) {
   try {
     const idToken = await user.getIdToken();
     
     // 1. Set session cookie via API route
-    const apiResponse = await fetch('/api/auth/session', {
+    const sessionResponse = await fetch('/api/auth/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken }),
     });
 
-    if (!apiResponse.ok) {
-      throw new Error('Không thể thiết lập phiên đăng nhập.');
+    if (!sessionResponse.ok) {
+        // Attempt to parse error from server if it's JSON
+        const errorData = await sessionResponse.json().catch(() => null);
+        throw new Error(errorData?.error || 'Không thể thiết lập phiên đăng nhập. Vui lòng thử lại.');
     }
 
-    // 2. Verify that the cookie was actually set by the browser
+    const sessionData = await sessionResponse.json();
+    if (!sessionData.success) {
+      throw new Error(sessionData.error || 'Thiết lập phiên thất bại.');
+    }
+
+    // 2. Verify that the cookie was actually set
     const checkResponse = await fetch('/api/auth/check-session');
-    const { valid: isCookieSet } = await checkResponse.json();
-
-    if (!isCookieSet) {
-        toast({
-          variant: 'destructive',
-          title: '⚠️ Không thể thiết lập cookie',
-          description: 'Vui lòng kiểm tra cài đặt trình duyệt của bạn để cho phép cookie hoặc đảm bảo tên miền này được ủy quyền trong Firebase.',
-          duration: 9000,
-        });
-        return;
+    if (checkResponse.ok) {
+        const { valid: isCookieSet } = await checkResponse.json();
+        if (!isCookieSet) {
+            toast({
+              variant: 'destructive',
+              title: '⚠️ Không thể thiết lập cookie',
+              description: 'Vui lòng kiểm tra cài đặt trình duyệt của bạn để cho phép cookie hoặc đảm bảo tên miền này được ủy quyền trong Firebase.',
+              duration: 9000,
+            });
+            return; // Halt the process
+        }
     }
-
-    // 3. Verify user's Gemini Key status and redirect
-    const statusResponse = await fetch('/api/auth/check-status');
-    const { status } = await statusResponse.json();
     
+    // 3. Use the status from the session creation response to decide the redirect
     let targetPage = redirect || '/dashboard';
-    if (status === 'unverified') {
+    if (sessionData.status === 'unverified') {
         targetPage = '/setup/gemini-key';
     }
 
@@ -77,12 +83,14 @@ async function handleLoginSuccess(user: UserCredential['user'], redirect: string
   }
 }
 
-async function socialSignIn(auth: Auth, provider: any) {
+async function socialSignIn(auth: Auth, provider: any): Promise<UserCredential | null> {
   try {
     const result = await signInWithPopup(auth, provider);
     return result;
   } catch (error: any) {
     if (error.code === 'auth/popup-blocked') {
+        // Fallback to redirect for environments where popups are blocked.
+        // Note: The result of this is handled when the page reloads.
         await signInWithRedirect(auth, provider);
         return null;
     } else {
@@ -111,7 +119,7 @@ export default function LoginPage() {
       toast({
         variant: 'destructive',
         title: 'Đăng nhập thất bại',
-        description: error.message,
+        description: 'Email hoặc mật khẩu không chính xác.',
       });
     }
   };
@@ -122,11 +130,12 @@ export default function LoginPage() {
       if(result?.user) {
         await handleLoginSuccess(result.user, redirect, router, toast);
       }
+      // If result is null, it means a redirect is in progress. No further action needed here.
     } catch (error: any) {
        toast({
         variant: 'destructive',
         title: 'Đăng nhập thất bại',
-        description: error.message,
+        description: error.message || 'Đã xảy ra lỗi với nhà cung cấp dịch vụ xã hội.',
       });
     }
   }
@@ -205,5 +214,3 @@ export default function LoginPage() {
     </>
   );
 }
-
-    

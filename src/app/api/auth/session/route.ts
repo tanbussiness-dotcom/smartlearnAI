@@ -1,23 +1,31 @@
 
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { authAdmin, firestoreAdmin } from '@/firebase/admin';
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const { idToken } = await req.json();
+    const body = await req.json().catch(() => null);
+    const idToken = body?.idToken;
+
     if (!idToken) {
       return NextResponse.json({ success: false, error: 'Missing idToken' }, { status: 400 });
     }
 
     if (!authAdmin) {
-      throw new Error('Firebase Admin SDK not initialized properly');
+       console.error('[Session API] Firebase Admin SDK not initialized properly.');
+       return NextResponse.json(
+        { success: false, error: 'Firebase Admin SDK not initialized properly. Check server logs.' },
+        { status: 500 }
+      );
     }
 
     const expiresIn = 7 * 24 * 60 * 60 * 1000; // 7 days
     console.log('[Session API] Received idToken, creating session cookie...');
 
     const decodedToken = await authAdmin.verifyIdToken(idToken, true);
-    if (!decodedToken?.uid) throw new Error('Failed to decode ID token.');
+    if (!decodedToken?.uid) {
+       return NextResponse.json({ success: false, error: 'Failed to decode or verify ID token.' }, { status: 401 });
+    }
 
     const sessionCookie = await authAdmin.createSessionCookie(idToken, { expiresIn });
     const userId = decodedToken.uid;
@@ -28,7 +36,6 @@ export async function POST(req: Request) {
     const userDoc = await firestoreAdmin.collection('users').doc(userId).get();
     const isVerified = userDoc.exists && userDoc.data()?.geminiKeyVerified === true;
 
-    // Build response manually to attach the cookie
     const response = NextResponse.json({
       success: true,
       status: isVerified ? 'verified' : 'unverified',
@@ -49,26 +56,36 @@ export async function POST(req: Request) {
     return response;
 
   } catch (error: any) {
-    console.error('[Session API] Failed to create session cookie:', error);
+    console.error('[Session API] Failed to create session cookie:', error.message);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Failed to create session',
-        code: error.code || 'unknown',
+        error: error.message || 'Failed to create session.',
+        code: error.code || 'unknown_error',
       },
-      { status: 401 }
+      { status: 500 }
     );
   }
 }
 
-export async function DELETE() {
-  const response = NextResponse.json({ success: true, status: 'logged_out' });
-  // Instruct the browser to delete the cookie
-  response.cookies.set({
-    name: 'session',
-    value: '',
-    path: '/',
-    maxAge: 0,
-  });
-  return response;
+export async function DELETE(req: NextRequest) {
+  try {
+    const response = NextResponse.json({ success: true, status: 'logged_out' });
+    response.cookies.set({
+      name: 'session',
+      value: '',
+      path: '/',
+      maxAge: 0,
+    });
+    return response;
+  } catch (error: any) {
+     console.error('[Session API] Failed to delete session cookie:', error.message);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || 'Failed to delete session.',
+      },
+      { status: 500 }
+    );
+  }
 }
