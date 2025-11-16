@@ -30,20 +30,27 @@ import { useToast } from '@/hooks/use-toast';
 
 async function handleLoginSuccess(user: User, redirect: string | null, router: any, toast: (options: any) => void) {
   try {
-    const idToken = await user.getIdToken();
+    // Force token refresh to ensure we have a valid, fresh token
+    const idToken = await user.getIdToken(true); // true forces refresh
+    
+    // Small delay to ensure auth state is fully propagated
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     // 1. Set session cookie via API route
     const sessionResponse = await fetch('/api/auth/session', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}` // Add auth header
+      },
       credentials: 'include',
       body: JSON.stringify({ idToken }),
     });
 
     if (!sessionResponse.ok) {
-        // Attempt to parse error from server if it's JSON
-        const errorData = await sessionResponse.json().catch(() => null);
-        throw new Error(errorData?.error || 'Không thể thiết lập phiên đăng nhập. Vui lòng thử lại.');
+      const errorData = await sessionResponse.json().catch(() => null);
+      console.error('Session creation failed:', errorData);
+      throw new Error(errorData?.error || 'Không thể thiết lập phiên đăng nhập. Vui lòng thử lại.');
     }
 
     const sessionData = await sessionResponse.json();
@@ -52,30 +59,37 @@ async function handleLoginSuccess(user: User, redirect: string | null, router: a
     }
 
     // 2. Verify that the cookie was actually set
-    const checkResponse = await fetch('/api/auth/check-session');
+    const checkResponse = await fetch('/api/auth/check-session', {
+      credentials: 'include'
+    });
+    
     if (checkResponse.ok) {
-        const { valid: isCookieSet } = await checkResponse.json();
-        if (!isCookieSet) {
-            toast({
-              variant: 'destructive',
-              title: '⚠️ Không thể thiết lập cookie',
-              description: 'Vui lòng kiểm tra cài đặt trình duyệt của bạn để cho phép cookie hoặc đảm bảo tên miền này được ủy quyền trong Firebase.',
-              duration: 9000,
-            });
-            return; // Halt the process
-        }
+      const { valid: isCookieSet } = await checkResponse.json();
+      if (!isCookieSet) {
+        toast({
+          variant: 'destructive',
+          title: '⚠️ Không thể thiết lập cookie',
+          description: 'Vui lòng kiểm tra cài đặt trình duyệt của bạn để cho phép cookie.',
+          duration: 9000,
+        });
+        return;
+      }
     }
     
-    // 3. Use the status from the session creation response to decide the redirect
+    // 3. Determine redirect based on session status
     let targetPage = redirect || '/dashboard';
     if (sessionData.status === 'unverified') {
-        targetPage = '/setup/gemini-key';
+      targetPage = '/setup/gemini-key';
     }
 
     console.log("🔐 Post-login redirect:", targetPage);
+    
+    // Small delay before redirect to ensure everything is settled
+    await new Promise(resolve => setTimeout(resolve, 100));
     router.push(targetPage);
 
   } catch(error: any) {
+    console.error('Login error details:', error);
     toast({
       variant: 'destructive',
       title: 'Lỗi sau đăng nhập',
@@ -167,7 +181,7 @@ export default function LoginPage() {
               Apple
             </Button>
             <Button variant="outline" onClick={handleGoogleSignIn}>
-              <svg xmlns="http://www.w3.org/2000/svg" className="mr-2 h-4 w-4" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.223,0-9.65-3.317-11.29-7.962l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C42.022,35.37,44,30.038,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" className="mr-2 h-4 w-4" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.91l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.91z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.223,0-9.65-3.317-11.29-7.962l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C42.022,35.37,44,30.038,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
               Google
             </Button>
           </div>
@@ -215,3 +229,5 @@ export default function LoginPage() {
     </>
   );
 }
+
+    
